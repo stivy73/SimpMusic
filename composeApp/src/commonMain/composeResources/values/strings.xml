@@ -904,4 +904,8 @@
     <string name="login_sync_failed">Something went wrong. Please try again.</string>
     <string name="modified_build_title">Unofficial app</string>
     <string name="modified_build_message">You are using an unofficial copy of SimpMusic that was modified or repackaged by someone else. It cannot be used. Download the official version from simpmusic.org.</string>
+    <string name="youtube_music_albums">YouTube Music albums</string>
+    <string name="no_youtube_music_albums">No YouTube Music albums found</string>
+    <string name="unable_to_load_youtube_music_albums">Unable to load YouTube Music albums</string>
+    <string name="retry_youtube_music_albums">Retry</string>
 </resources>

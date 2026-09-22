@@ -69,6 +69,7 @@ import com.maxrave.simpmusic.extension.isScrollingUp
 import com.maxrave.simpmusic.ui.component.AddToPlaylistModalBottomSheet
 import com.maxrave.simpmusic.ui.component.Chip
 import com.maxrave.simpmusic.ui.component.EndOfPage
+import com.maxrave.simpmusic.ui.component.GridLibraryAlbum
 import com.maxrave.simpmusic.ui.component.GridLibraryPlaylist
 import com.maxrave.simpmusic.ui.component.LibraryItem
 import com.maxrave.simpmusic.ui.component.LibraryItemState
@@ -83,8 +84,10 @@ import com.maxrave.simpmusic.ui.icon.Groups
 import com.maxrave.simpmusic.ui.icon.PeopleAlt
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.navigation.destination.home.ListenTogetherDestination
+import com.maxrave.simpmusic.ui.navigation.destination.library.LibraryDestination
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.LibraryViewModel
+import com.maxrave.simpmusic.viewModel.SharedViewModel
 import com.maxrave.simpmusic.viewModel.SongSelectionViewModel
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -118,12 +121,14 @@ import simpmusic.composeapp.generated.resources.wrapped
 import simpmusic.composeapp.generated.resources.your_library
 import simpmusic.composeapp.generated.resources.your_playlists
 import simpmusic.composeapp.generated.resources.your_youtube_playlists
+import simpmusic.composeapp.generated.resources.youtube_music_albums
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class)
 @Composable
 fun LibraryScreen(
     innerPadding: PaddingValues,
     viewModel: LibraryViewModel = koinViewModel(),
+    sharedViewModel: SharedViewModel = koinViewModel(),
     navController: NavController,
     onScrolling: (onTop: Boolean) -> Unit = {},
 ) {
@@ -135,6 +140,7 @@ fun LibraryScreen(
     val localTrackingEnabled by viewModel.localTrackingEnabled.collectAsStateWithLifecycle(initialValue = false)
     val monthlyRecaps by viewModel.monthlyRecaps.collectAsStateWithLifecycle()
     val nowPlaying by viewModel.nowPlayingVideoId.collectAsStateWithLifecycle()
+    val youTubeAlbums by viewModel.youTubeAlbums.collectAsStateWithLifecycle()
     val youTubePlaylist by viewModel.youTubePlaylist.collectAsStateWithLifecycle()
     val listCanvasSong by viewModel.listCanvasSong.collectAsStateWithLifecycle()
     val yourLocalPlaylist by viewModel.yourLocalPlaylist.collectAsStateWithLifecycle()
@@ -166,9 +172,25 @@ fun LibraryScreen(
 
     val chipRowState = rememberScrollState()
     val currentFilter by viewModel.currentScreen.collectAsStateWithLifecycle()
+    val reloadDestination by sharedViewModel.reloadDestination.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.openLibraryDefault()
+    }
+
+    LaunchedEffect(reloadDestination) {
+        if (reloadDestination == LibraryDestination::class) {
+            viewModel.openLibraryDefault()
+            sharedViewModel.reloadDestinationDone()
+        }
+    }
 
     LaunchedEffect(currentFilter) {
         when (currentFilter) {
+            LibraryChipType.YOUTUBE_MUSIC_ALBUM -> {
+                viewModel.getYouTubeAlbums()
+            }
+
             LibraryChipType.YOUTUBE_MUSIC_PLAYLIST -> {
                 if (youTubePlaylist.data.isNullOrEmpty()) {
                     viewModel.getYouTubePlaylist()
@@ -220,6 +242,18 @@ fun LibraryScreen(
         targetState = currentFilter,
     ) { filter ->
         when (filter) {
+            LibraryChipType.YOUTUBE_MUSIC_ALBUM -> {
+                if (loggedIn) {
+                    GridLibraryAlbum(
+                        navController = navController,
+                        contentPadding = innerPadding.copy(top = topAppBarHeight),
+                        data = youTubeAlbums,
+                        onScrolling = onScrolling,
+                        onReload = viewModel::getYouTubeAlbums,
+                    )
+                }
+            }
+
             LibraryChipType.YOUR_LIBRARY -> {
                 val state = rememberLazyListState()
                 val isScrollingUp by state.isScrollingUp()
@@ -293,7 +327,9 @@ fun LibraryScreen(
 
             // Nothing to draw: MixForYouScreen owns this content now, and the effect above bounces
             // the filter back to YOUR_LIBRARY the moment it lands here.
-            LibraryChipType.YOUTUBE_MIX_FOR_YOU -> Unit
+            LibraryChipType.YOUTUBE_MIX_FOR_YOU -> {
+                Unit
+            }
 
             LibraryChipType.LOCAL_PLAYLIST -> {
                 GridLibraryPlaylist(
@@ -534,7 +570,7 @@ fun LibraryScreen(
                 if (type == LibraryChipType.YOUTUBE_MIX_FOR_YOU) {
                     return@forEach
                 }
-                if (type == LibraryChipType.YOUTUBE_MUSIC_PLAYLIST && !loggedIn) {
+                if ((type == LibraryChipType.YOUTUBE_MUSIC_PLAYLIST || type == LibraryChipType.YOUTUBE_MUSIC_ALBUM) && !loggedIn) {
                     return@forEach
                 }
                 // Nothing to recap without the plays — gated exactly as the YouTube chip above
@@ -548,6 +584,7 @@ fun LibraryScreen(
                     text =
                         when (type) {
                             LibraryChipType.YOUR_LIBRARY -> stringResource(Res.string.your_library)
+                            LibraryChipType.YOUTUBE_MUSIC_ALBUM -> stringResource(Res.string.youtube_music_albums)
                             LibraryChipType.YOUTUBE_MUSIC_PLAYLIST -> stringResource(Res.string.your_youtube_playlists)
                             LibraryChipType.YOUTUBE_MIX_FOR_YOU -> stringResource(Res.string.mix_for_you)
                             LibraryChipType.LOCAL_PLAYLIST -> stringResource(Res.string.your_playlists)

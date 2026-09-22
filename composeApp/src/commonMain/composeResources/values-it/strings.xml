@@ -634,4 +634,8 @@
     <string name="lt_you">tu</string>
     <string name="lt_server">Server</string>
     <string name="lt_cancel_join">Annulla</string>
+    <string name="youtube_music_albums">Album YouTube Music</string>
+    <string name="no_youtube_music_albums">Nessun album YouTube Music trovato</string>
+    <string name="unable_to_load_youtube_music_albums">Impossibile caricare gli album YouTube Music</string>
+    <string name="retry_youtube_music_albums">Riprova</string>
 </resources>

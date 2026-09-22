@@ -7,6 +7,7 @@ import com.maxrave.domain.data.entities.AlbumEntity
 import com.maxrave.domain.data.entities.LocalPlaylistEntity
 import com.maxrave.domain.data.entities.PlaylistEntity
 import com.maxrave.domain.data.entities.SongEntity
+import com.maxrave.domain.data.model.searchResult.albums.AlbumsResult
 import com.maxrave.domain.data.model.searchResult.playlists.PlaylistsResult
 import com.maxrave.domain.data.type.ChartItem
 import com.maxrave.domain.data.type.MonthlyRecapItem
@@ -29,6 +30,7 @@ import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistType
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,7 +67,7 @@ class LibraryViewModel(
     private val albumRepository: AlbumRepository,
     private val podcastRepository: PodcastRepository,
 ) : BaseViewModel() {
-    private val _currentScreen: MutableStateFlow<LibraryChipType> = MutableStateFlow(LibraryChipType.YOUR_LIBRARY)
+    private val _currentScreen: MutableStateFlow<LibraryChipType> = MutableStateFlow(LibraryChipType.YOUTUBE_MUSIC_ALBUM)
     val currentScreen: StateFlow<LibraryChipType> get() = _currentScreen.asStateFlow()
     private val _recentlyAdded: MutableStateFlow<LocalResource<List<RecentlyType>>> =
         MutableStateFlow(LocalResource.Loading())
@@ -78,6 +80,11 @@ class LibraryViewModel(
     private val _youTubePlaylist: MutableStateFlow<LocalResource<List<PlaylistsResult>>> =
         MutableStateFlow(LocalResource.Loading())
     val youTubePlaylist: StateFlow<LocalResource<List<PlaylistsResult>>> get() = _youTubePlaylist.asStateFlow()
+
+    private val _youTubeAlbums = MutableStateFlow<LocalResource<List<AlbumsResult>>>(LocalResource.Success(emptyList()))
+    val youTubeAlbums = _youTubeAlbums.asStateFlow()
+    private var albumsJob: Job? = null
+    private var albumsGeneration = 0L
 
     private val _youTubeMixForYou: MutableStateFlow<LocalResource<List<PlaylistsResult>>> =
         MutableStateFlow(LocalResource.Loading())
@@ -133,29 +140,45 @@ class LibraryViewModel(
 
     init {
         viewModelScope.launch {
-            val currentScreenJob =
-                launch {
-                    dataStoreManager.getString("library_current_screen").first()?.let { chipType ->
-                        LibraryChipType.fromStringValue(chipType)?.let {
-                            _currentScreen.value = it
-                        }
-                    }
+            dataStoreManager.youtubeSession.distinctUntilChanged().collect { session ->
+                albumsGeneration++
+                albumsJob?.cancel()
+                _youTubeAlbums.value = LocalResource.Success(emptyList())
+                if (session.authenticated && _currentScreen.value == LibraryChipType.YOUTUBE_MUSIC_ALBUM) {
+                    getYouTubeAlbums()
+                } else if (!session.authenticated && _currentScreen.value == LibraryChipType.YOUTUBE_MUSIC_ALBUM) {
+                    setCurrentScreen(LibraryChipType.YOUR_LIBRARY)
                 }
+            }
+        }
+        viewModelScope.launch {
             val cookieJob =
                 launch {
                     dataStoreManager.cookie.distinctUntilChanged().collect {
                         _accountThumbnail.value = dataStoreManager.getString("AccountThumbUrl").first().takeIf { !it.isNullOrEmpty() }
                     }
                 }
-            currentScreenJob.join()
             cookieJob.join()
         }
     }
 
     fun setCurrentScreen(chipType: LibraryChipType) {
         _currentScreen.value = chipType
+    }
+
+    /**
+     * The Library tab always starts from remote YouTube Music albums when an account is active.
+     * There is no saved per-library filter: reopening the tab must not restore another section.
+     */
+    fun openLibraryDefault() {
         viewModelScope.launch {
-            dataStoreManager.putString("library_current_screen", chipType.toStringValue())
+            setCurrentScreen(
+                if (dataStoreManager.youtubeSession.first().authenticated) {
+                    LibraryChipType.YOUTUBE_MUSIC_ALBUM
+                } else {
+                    LibraryChipType.YOUR_LIBRARY
+                },
+            )
         }
     }
 
@@ -187,6 +210,30 @@ class LibraryViewModel(
                 _recentlyAdded.value = LocalResource.Success(temp.toImmutableList())
             }
         }
+    }
+
+    fun getYouTubeAlbums() {
+        albumsJob?.cancel()
+        val generation = ++albumsGeneration
+        _youTubeAlbums.value = LocalResource.Loading()
+        albumsJob =
+            viewModelScope.launch {
+                val session = dataStoreManager.youtubeSession.first()
+                if (!session.authenticated) {
+                    _youTubeAlbums.value = LocalResource.Success(emptyList())
+                    if (_currentScreen.value == LibraryChipType.YOUTUBE_MUSIC_ALBUM) setCurrentScreen(LibraryChipType.YOUR_LIBRARY)
+                    return@launch
+                }
+                albumRepository.getYouTubeLibraryAlbums().collect { result ->
+                    // A cancelled or slower response must not repopulate another account's UI.
+                    if (generation != albumsGeneration || dataStoreManager.youtubeSession.first() != session) return@collect
+                    _youTubeAlbums.value =
+                        when (result) {
+                            is Resource.Success -> LocalResource.Success(result.data.orEmpty())
+                            is Resource.Error -> LocalResource.Error(result.message.orEmpty())
+                        }
+                }
+            }
     }
 
     fun getYouTubePlaylist() {
