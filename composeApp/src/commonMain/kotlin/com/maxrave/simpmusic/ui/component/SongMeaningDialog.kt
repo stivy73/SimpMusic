@@ -4,11 +4,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -16,12 +19,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.maxrave.domain.utils.LocalResource
 import com.maxrave.simpmusic.expect.copyToClipboard
+import com.maxrave.simpmusic.expect.shareUrl
+import com.maxrave.simpmusic.ui.icon.Share
+import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.theme.typo
 import org.jetbrains.compose.resources.stringResource
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.cancel
 import simpmusic.composeapp.generated.resources.copy
 import simpmusic.composeapp.generated.resources.retry
+import simpmusic.composeapp.generated.resources.share
 import simpmusic.composeapp.generated.resources.song_meaning
 import simpmusic.composeapp.generated.resources.song_meaning_loading
 import simpmusic.composeapp.generated.resources.song_meaning_no_lyrics
@@ -35,11 +42,14 @@ fun SongMeaningDialog(
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val songMeaningLabel = stringResource(Res.string.song_meaning)
+    val shareLabel = stringResource(Res.string.share)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text(stringResource(Res.string.song_meaning), style = typo().titleMedium)
+                Text(songMeaningLabel, style = typo().titleMedium)
                 Text("$title • $artist", style = typo().bodySmall)
             }
         },
@@ -74,8 +84,23 @@ fun SongMeaningDialog(
             when (state) {
                 is LocalResource.Success ->
                     if (!state.data.isNullOrBlank()) {
-                        TextButton(onClick = { copyToClipboard("Song meaning", state.data.orEmpty()) }) {
-                            Text(stringResource(Res.string.copy))
+                        Row {
+                            IconButton(
+                                onClick = {
+                                    shareUrl(
+                                        title = songMeaningLabel,
+                                        url = "$title — $artist\n\n${state.data.orEmpty()}",
+                                    )
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = SimpIcons.Share,
+                                    contentDescription = shareLabel,
+                                )
+                            }
+                            TextButton(onClick = { copyToClipboard("Song meaning", state.data.orEmpty()) }) {
+                                Text(stringResource(Res.string.copy))
+                            }
                         }
                     }
 
