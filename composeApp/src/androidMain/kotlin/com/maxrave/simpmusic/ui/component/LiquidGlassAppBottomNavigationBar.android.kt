@@ -41,7 +41,10 @@ import androidx.constraintlayout.compose.ConstraintSet
 import androidx.constraintlayout.compose.Dimension
 import androidx.constraintlayout.compose.Visibility
 import androidx.core.graphics.scale
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -84,37 +87,45 @@ actual fun LiquidGlassAppBottomNavigationBar(
     val toolbarInteraction = rememberGlassInteraction()
     val searchFabInteraction = rememberGlassInteraction()
     val luminanceAnimation = remember { Animatable(0f) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
 
-    LaunchedEffect(layer) {
-        val buffer = IntBuffer.allocate(25)
-        while (isActive) {
-            try {
-                withContext(Dispatchers.IO) {
-                    val imageBitmap = layer.toImageBitmap()
-                    val thumbnail =
-                        imageBitmap
-                            .asAndroidBitmap()
-                            .scale(5, 5, false)
-                            .copy(Bitmap.Config.ARGB_8888, false)
-                    buffer.rewind()
-                    thumbnail.copyPixelsToBuffer(buffer)
+    LaunchedEffect(layer, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            val buffer = IntBuffer.allocate(25)
+            while (isActive) {
+                try {
+                    // GraphicsLayer owns an Android RenderNode. Capturing it from Dispatchers.IO
+                    // can race Compose recording/traversal and corrupt the RenderNode graph; on
+                    // Android 16 this presents as an endlessly recursive prepareTreeImpl call and
+                    // a RenderThread stack overflow. Keep capture and pixel access serialized on
+                    // the main thread, and do not sample an off-screen Activity.
+                    withContext(Dispatchers.Main.immediate) {
+                        val imageBitmap = layer.toImageBitmap()
+                        val thumbnail =
+                            imageBitmap
+                                .asAndroidBitmap()
+                                .scale(5, 5, false)
+                                .copy(Bitmap.Config.ARGB_8888, false)
+                        buffer.rewind()
+                        thumbnail.copyPixelsToBuffer(buffer)
+                    }
+                } catch (e: Exception) {
+                    Logger.e(TAG, "Error getting pixels from layer: ${e.localizedMessage}")
                 }
-            } catch (e: Exception) {
-                Logger.e(TAG, "Error getting pixels from layer: ${e.localizedMessage}")
+                val averageLuminance =
+                    (0 until 25).sumOf { index ->
+                        val color = buffer.get(index)
+                        val r = (color shr 16 and 0xFF) / 255f
+                        val g = (color shr 8 and 0xFF) / 255f
+                        val b = (color and 0xFF) / 255f
+                        0.2126 * r + 0.7152 * g + 0.0722 * b
+                    } / 25
+                luminanceAnimation.animateTo(
+                    averageLuminance.coerceIn(0.3, 0.8).toFloat(),
+                    tween(500),
+                )
+                delay(1.seconds)
             }
-            val averageLuminance =
-                (0 until 25).sumOf { index ->
-                    val color = buffer.get(index)
-                    val r = (color shr 16 and 0xFF) / 255f
-                    val g = (color shr 8 and 0xFF) / 255f
-                    val b = (color and 0xFF) / 255f
-                    0.2126 * r + 0.7152 * g + 0.0722 * b
-                } / 25
-            luminanceAnimation.animateTo(
-                averageLuminance.coerceIn(0.3, 0.8).toFloat(),
-                tween(500),
-            )
-            delay(1.seconds)
         }
     }
 
