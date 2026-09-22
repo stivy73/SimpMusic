@@ -79,6 +79,7 @@ import com.maxrave.simpmusic.ui.component.FullscreenLyricsSheet
 import com.maxrave.simpmusic.ui.component.InfoPlayerBottomSheet
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.QueueBottomSheet
+import com.maxrave.simpmusic.ui.component.SongMeaningDialog
 import com.maxrave.simpmusic.ui.component.VoteLyricsDialog
 import com.maxrave.simpmusic.ui.icon.KeyboardArrowDown
 import com.maxrave.simpmusic.ui.icon.SimpIcons
@@ -188,6 +189,7 @@ fun NowPlayingScreenContent(
     val shouldShowVideo by sharedViewModel.getVideo.collectAsStateWithLifecycle()
     val translatedVoteState by sharedViewModel.translatedVoteState.collectAsStateWithLifecycle()
     val lyricsVoteState by sharedViewModel.lyricsVoteState.collectAsStateWithLifecycle()
+    val songMeaning by sharedViewModel.songMeaning.collectAsStateWithLifecycle()
     val isUserLoggedIn by sharedViewModel
         .isUserLoggedInFlow()
         .collectAsStateWithLifecycle(initialValue = false)
@@ -380,6 +382,10 @@ fun NowPlayingScreenContent(
     }
 
     var showVoteDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var showSongMeaning by rememberSaveable {
         mutableStateOf(false)
     }
 
@@ -659,6 +665,14 @@ fun NowPlayingScreenContent(
                 }
             },
             onAddToYouTubeLiked = { sharedViewModel.addToYouTubeLiked() },
+            onShowSongMeaning = {
+                showSongMeaning = true
+                sharedViewModel.explainSong(
+                    title = screenDataState.nowPlayingTitle,
+                    artist = screenDataState.artistName,
+                    lyrics = screenDataState.lyricsData?.lyrics,
+                )
+            },
             onShowMoreSheet = { showSheet = true },
             onShowQueue = { showQueueBottomSheet = true },
             onShowInfo = { showInfoBottomSheet = true },
@@ -856,6 +870,26 @@ fun NowPlayingScreenContent(
             },
             onDismiss = {
                 showVoteDialog = false
+            },
+        )
+    }
+
+    if (showSongMeaning) {
+        SongMeaningDialog(
+            title = screenDataState.nowPlayingTitle,
+            artist = screenDataState.artistName,
+            hasLyrics = !screenDataState.lyricsData?.lyrics?.lines.isNullOrEmpty(),
+            state = songMeaning,
+            onRetry = {
+                sharedViewModel.explainSong(
+                    title = screenDataState.nowPlayingTitle,
+                    artist = screenDataState.artistName,
+                    lyrics = screenDataState.lyricsData?.lyrics,
+                )
+            },
+            onDismiss = {
+                showSongMeaning = false
+                sharedViewModel.clearSongMeaning()
             },
         )
     }

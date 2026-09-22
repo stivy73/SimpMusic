@@ -533,6 +533,12 @@
     <string name="retrieve_youtube_data">Retrieve YouTube Data</string>
     <string name="no_results_found">No results found</string>
     <string name="ai">AI</string>
+    <string name="song_meaning">Song meaning</string>
+    <string name="song_meaning_loading">Asking AI about this song…</string>
+    <string name="song_meaning_no_lyrics">No lyrics are available, so this explanation is based on the title and artist only.</string>
+    <string name="song_meaning_api_key_missing">Add an AI API key in Settings to use song meanings.</string>
+    <string name="song_meaning_error">Unable to explain this song.</string>
+    <string name="copy">Copy</string>
     <string name="ai_provider">AI provider</string>
     <string name="openai">OpenAI</string>
     <string name="gemini">Gemini</string>

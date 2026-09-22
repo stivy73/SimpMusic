@@ -55,6 +55,7 @@ import com.maxrave.domain.repository.SongRepository
 import com.maxrave.domain.repository.StreamRepository
 import com.maxrave.domain.repository.UpdateRepository
 import com.maxrave.domain.utils.Resource
+import com.maxrave.domain.utils.LocalResource
 import com.maxrave.domain.utils.toListName
 import com.maxrave.domain.utils.toLyrics
 import com.maxrave.domain.utils.toLyricsEntity
@@ -102,6 +103,8 @@ import simpmusic.composeapp.generated.resources.added_to_youtube_liked
 import simpmusic.composeapp.generated.resources.error
 import simpmusic.composeapp.generated.resources.lastfm_login_failed
 import simpmusic.composeapp.generated.resources.login_success
+import simpmusic.composeapp.generated.resources.song_meaning_api_key_missing
+import simpmusic.composeapp.generated.resources.song_meaning_error
 import simpmusic.composeapp.generated.resources.play_next
 import simpmusic.composeapp.generated.resources.removed_from_youtube_liked
 import simpmusic.composeapp.generated.resources.shared
@@ -235,8 +238,41 @@ class SharedViewModel(
     private val _lastPlayerViewTab = MutableStateFlow<String?>(null)
     val lastPlayerViewTab: StateFlow<String?> = _lastPlayerViewTab
 
+    private val _songMeaning = MutableStateFlow<LocalResource<String>>(LocalResource.Success(""))
+    val songMeaning: StateFlow<LocalResource<String>> = _songMeaning.asStateFlow()
+    private var songMeaningJob: Job? = null
+
     fun setLastPlayerViewTab(tabName: String) {
         _lastPlayerViewTab.value = tabName
+    }
+
+    fun explainSong(
+        title: String,
+        artist: String,
+        lyrics: Lyrics?,
+    ) {
+        songMeaningJob?.cancel()
+        _songMeaning.value = LocalResource.Loading()
+        songMeaningJob =
+            viewModelScope.launch {
+                if (dataStoreManager.aiApiKey.first().isBlank()) {
+                    _songMeaning.value = LocalResource.Error(getString(Res.string.song_meaning_api_key_missing))
+                    return@launch
+                }
+                val lyricsText = lyrics?.lines?.joinToString("\n") { it.words }?.takeIf { it.isNotBlank() }
+                lyricsCanvasRepository.getSongExplanation(title, artist, lyricsText).collectLatest { result ->
+                    _songMeaning.value =
+                        when (result) {
+                            is Resource.Success -> LocalResource.Success(result.data.orEmpty())
+                            is Resource.Error -> LocalResource.Error(result.message ?: getString(Res.string.song_meaning_error))
+                        }
+                }
+            }
+    }
+
+    fun clearSongMeaning() {
+        songMeaningJob?.cancel()
+        _songMeaning.value = LocalResource.Success("")
     }
 
     val openAppTime: StateFlow<Int> = dataStoreManager.openAppTime.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), 0)

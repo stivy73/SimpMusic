@@ -98,8 +98,7 @@ import com.maxrave.simpmusic.ui.icon.Repeat
 import com.maxrave.simpmusic.ui.icon.RepeatOne
 import com.maxrave.simpmusic.ui.icon.Shuffle
 import com.maxrave.simpmusic.ui.icon.SimpIcons
-import com.maxrave.simpmusic.ui.icon.Star
-import com.maxrave.simpmusic.ui.icon.StarBorder
+import com.maxrave.simpmusic.ui.icon.TipsAndUpdates
 import com.maxrave.simpmusic.ui.icon.VolumeDown
 import com.maxrave.simpmusic.ui.icon.VolumeUp
 import com.maxrave.simpmusic.ui.screen.player.content.NowPlayingContentActions
@@ -305,28 +304,21 @@ internal fun AppleMusicHeaderActions(
                 }
             }
         }
-        val likeBurst = rememberHeartBurstState()
         Box(
             modifier =
                 Modifier
                     .appleMusicPressInflate()
                     .size(32.dp)
-                    .heartBurst(likeBurst)
                     .clip(CircleShape)
-                    .clickable {
-                        if (!state.controllerState.isLiked) likeBurst.fire()
-                        actions.onUIEvent(UIEvent.ToggleLike)
-                    },
+                    .clickable { actions.onShowSongMeaning() },
             contentAlignment = Alignment.Center,
         ) {
-            Crossfade(targetState = state.controllerState.isLiked, label = "appleMusicFavorite") { liked ->
-                Icon(
-                    imageVector = if (liked) SimpIcons.Star else SimpIcons.StarBorder,
-                    contentDescription = "",
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp),
-                )
-            }
+            Icon(
+                imageVector = SimpIcons.TipsAndUpdates,
+                contentDescription = "Song meaning",
+                tint = Color.White,
+                modifier = Modifier.size(28.dp),
+            )
         }
         AppleMusicGlyphButton(icon = SimpIcons.MoreVert, onClick = { actions.onShowMoreSheet() })
     }

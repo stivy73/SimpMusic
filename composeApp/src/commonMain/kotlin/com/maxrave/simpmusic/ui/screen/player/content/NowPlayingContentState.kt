@@ -125,6 +125,7 @@ class NowPlayingContentActions(
     val onToggleControls: () -> Unit,
     val onNavigateToArtist: () -> Unit,
     val onAddToYouTubeLiked: () -> Unit,
+    val onShowSongMeaning: () -> Unit,
     val onShowMoreSheet: () -> Unit,
     val onShowQueue: () -> Unit,
     val onShowInfo: () -> Unit,
