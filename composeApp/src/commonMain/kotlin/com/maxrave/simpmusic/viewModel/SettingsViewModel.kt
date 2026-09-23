@@ -147,6 +147,8 @@ class SettingsViewModel(
     val aiProvider: StateFlow<String> = _aiProvider
     private val _isHasApiKey = MutableStateFlow<Boolean>(false)
     val isHasApiKey: StateFlow<Boolean> = _isHasApiKey
+    private val _songMeaningTtsProvider = MutableStateFlow(DataStoreManager.SONG_MEANING_TTS_ANDROID)
+    val songMeaningTtsProvider: StateFlow<String> = _songMeaningTtsProvider
     private val _useAITranslation = MutableStateFlow<Boolean>(false)
     val useAITranslation: StateFlow<Boolean> = _useAITranslation
     private val _customModelId = MutableStateFlow<String>("")
@@ -303,6 +305,7 @@ class SettingsViewModel(
         getAutoCheckUpdate()
         getAIProvider()
         getAIApiKey()
+        getSongMeaningTtsProvider()
         getAITranslation()
         getCustomModelId()
         getCustomOpenAIBaseUrl()
@@ -814,7 +817,6 @@ class SettingsViewModel(
             dataStoreManager.aiApiKey.collect { aiApiKey ->
                 if (aiApiKey.isNotEmpty()) {
                     _isHasApiKey.value = true
-                    log("getAIApiKey: $aiApiKey")
                 } else {
                     _isHasApiKey.value = false
                 }
@@ -831,6 +833,20 @@ class SettingsViewModel(
                 dataStoreManager.setUseAITranslation(false)
             }
             getAIApiKey()
+        }
+    }
+
+    private fun getSongMeaningTtsProvider() {
+        viewModelScope.launch {
+            dataStoreManager.songMeaningTtsProvider.collect { provider ->
+                _songMeaningTtsProvider.value = provider
+            }
+        }
+    }
+
+    fun setSongMeaningTtsProvider(provider: String) {
+        viewModelScope.launch {
+            dataStoreManager.setSongMeaningTtsProvider(provider)
         }
     }
 

@@ -15,11 +15,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.maxrave.domain.utils.LocalResource
 import com.maxrave.simpmusic.expect.copyToClipboard
+import com.maxrave.simpmusic.expect.rememberSongMeaningSpeechController
 import com.maxrave.simpmusic.expect.shareUrl
+import com.maxrave.simpmusic.expect.SongMeaningSpeechError
+import com.maxrave.simpmusic.expect.SongMeaningSpeechState
+import com.maxrave.simpmusic.ui.icon.Pause
+import com.maxrave.simpmusic.ui.icon.PlayArrow
 import com.maxrave.simpmusic.ui.icon.Share
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.theme.typo
@@ -28,10 +35,16 @@ import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.cancel
 import simpmusic.composeapp.generated.resources.copy
 import simpmusic.composeapp.generated.resources.retry
+import simpmusic.composeapp.generated.resources.read_aloud
 import simpmusic.composeapp.generated.resources.share
 import simpmusic.composeapp.generated.resources.song_meaning
 import simpmusic.composeapp.generated.resources.song_meaning_loading
 import simpmusic.composeapp.generated.resources.song_meaning_no_lyrics
+import simpmusic.composeapp.generated.resources.song_meaning_speech_error
+import simpmusic.composeapp.generated.resources.song_meaning_speech_key_missing
+import simpmusic.composeapp.generated.resources.song_meaning_speech_language_unavailable
+import simpmusic.composeapp.generated.resources.song_meaning_speech_openai_required
+import simpmusic.composeapp.generated.resources.stop_reading
 
 @Composable
 fun SongMeaningDialog(
@@ -44,6 +57,8 @@ fun SongMeaningDialog(
 ) {
     val songMeaningLabel = stringResource(Res.string.song_meaning)
     val shareLabel = stringResource(Res.string.share)
+    val speechController = rememberSongMeaningSpeechController()
+    val speechState by speechController.state.collectAsState()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -76,6 +91,25 @@ fun SongMeaningDialog(
                                     modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
                                 )
                             }
+                            (speechState as? SongMeaningSpeechState.Error)?.let { error ->
+                                Text(
+                                    text =
+                                        stringResource(
+                                            when (error.reason) {
+                                                SongMeaningSpeechError.OPENAI_PROVIDER_REQUIRED ->
+                                                    Res.string.song_meaning_speech_openai_required
+                                                SongMeaningSpeechError.API_KEY_MISSING ->
+                                                    Res.string.song_meaning_speech_key_missing
+                                                SongMeaningSpeechError.LANGUAGE_UNAVAILABLE ->
+                                                    Res.string.song_meaning_speech_language_unavailable
+                                                SongMeaningSpeechError.SERVICE_ERROR ->
+                                                    Res.string.song_meaning_speech_error
+                                            },
+                                        ),
+                                    style = typo().bodySmall,
+                                    modifier = Modifier.padding(top = 12.dp),
+                                )
+                            }
                         }
                     }
             }
@@ -85,6 +119,37 @@ fun SongMeaningDialog(
                 is LocalResource.Success ->
                     if (!state.data.isNullOrBlank()) {
                         Row {
+                            if (speechController.isAvailable) {
+                                val speechActive =
+                                    speechState is SongMeaningSpeechState.Preparing ||
+                                        speechState is SongMeaningSpeechState.Playing
+                                IconButton(
+                                    onClick = {
+                                        if (speechActive) {
+                                            speechController.stop()
+                                        } else {
+                                            speechController.play(state.data.orEmpty())
+                                        }
+                                    },
+                                ) {
+                                    if (speechState is SongMeaningSpeechState.Preparing) {
+                                        CircularProgressIndicator(modifier = Modifier.padding(12.dp))
+                                    } else {
+                                        Icon(
+                                            imageVector =
+                                                if (speechState is SongMeaningSpeechState.Playing) {
+                                                    SimpIcons.Pause
+                                                } else {
+                                                    SimpIcons.PlayArrow
+                                                },
+                                            contentDescription =
+                                                stringResource(
+                                                    if (speechActive) Res.string.stop_reading else Res.string.read_aloud,
+                                                ),
+                                        )
+                                    }
+                                }
+                            }
                             IconButton(
                                 onClick = {
                                     shareUrl(

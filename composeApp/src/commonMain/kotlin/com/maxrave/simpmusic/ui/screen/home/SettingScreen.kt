@@ -181,6 +181,7 @@ import simpmusic.composeapp.generated.resources.add_an_account
 import simpmusic.composeapp.generated.resources.ai
 import simpmusic.composeapp.generated.resources.ai_api_key
 import simpmusic.composeapp.generated.resources.ai_provider
+import simpmusic.composeapp.generated.resources.android_system_voice
 import simpmusic.composeapp.generated.resources.anonymous
 import simpmusic.composeapp.generated.resources.app_name
 import simpmusic.composeapp.generated.resources.audio
@@ -349,6 +350,8 @@ import simpmusic.composeapp.generated.resources.now_playing_style_spotify
 import simpmusic.composeapp.generated.resources.ok
 import simpmusic.composeapp.generated.resources.open_system_equalizer
 import simpmusic.composeapp.generated.resources.openai
+import simpmusic.composeapp.generated.resources.openai_voice_ai_generated
+import simpmusic.composeapp.generated.resources.song_meaning_voice
 import simpmusic.composeapp.generated.resources.openai_api_compatible
 import simpmusic.composeapp.generated.resources.other_app
 import simpmusic.composeapp.generated.resources.play_explicit_content
@@ -549,6 +552,7 @@ fun SettingScreen(
     val autoCheckUpdate by viewModel.autoCheckUpdate.collectAsStateWithLifecycle()
     val aiProvider by viewModel.aiProvider.collectAsStateWithLifecycle()
     val isHasApiKey by viewModel.isHasApiKey.collectAsStateWithLifecycle()
+    val songMeaningTtsProvider by viewModel.songMeaningTtsProvider.collectAsStateWithLifecycle()
     val useAITranslation by viewModel.useAITranslation.collectAsStateWithLifecycle()
     val translationLanguage by viewModel.translationLanguage.collectAsStateWithLifecycle()
     val customModelId by viewModel.customModelId.collectAsStateWithLifecycle()
@@ -1878,6 +1882,45 @@ fun SettingScreen(
                                 confirm =
                                     runBlocking { getString(Res.string.set) } to { state ->
                                         viewModel.setAIApiKey(state.textField?.value ?: "")
+                                    },
+                                dismiss = runBlocking { getString(Res.string.cancel) },
+                            ),
+                        )
+                    },
+                )
+                SettingItem(
+                    title = stringResource(Res.string.song_meaning_voice),
+                    subtitle =
+                        if (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_OPENAI) {
+                            stringResource(Res.string.openai_voice_ai_generated)
+                        } else {
+                            stringResource(Res.string.android_system_voice)
+                        },
+                    onClick = {
+                        viewModel.setAlertData(
+                            SettingAlertState(
+                                title = runBlocking { getString(Res.string.song_meaning_voice) },
+                                selectOne =
+                                    SettingAlertState.SelectData(
+                                        listSelect =
+                                            listOf(
+                                                (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_ANDROID) to
+                                                    runBlocking { getString(Res.string.android_system_voice) },
+                                                (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_OPENAI) to
+                                                    runBlocking { getString(Res.string.openai_voice_ai_generated) },
+                                            ),
+                                    ),
+                                confirm =
+                                    runBlocking { getString(Res.string.change) } to { state ->
+                                        viewModel.setSongMeaningTtsProvider(
+                                            if (state.selectOne?.getSelected() ==
+                                                runBlocking { getString(Res.string.openai_voice_ai_generated) }
+                                            ) {
+                                                DataStoreManager.SONG_MEANING_TTS_OPENAI
+                                            } else {
+                                                DataStoreManager.SONG_MEANING_TTS_ANDROID
+                                            },
+                                        )
                                     },
                                 dismiss = runBlocking { getString(Res.string.cancel) },
                             ),

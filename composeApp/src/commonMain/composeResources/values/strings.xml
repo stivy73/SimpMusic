@@ -538,6 +538,15 @@
     <string name="song_meaning_no_lyrics">No lyrics are available, so this explanation is based on the title and artist only.</string>
     <string name="song_meaning_api_key_missing">Add an AI API key in Settings to use song meanings.</string>
     <string name="song_meaning_error">Unable to explain this song.</string>
+    <string name="read_aloud">Read aloud</string>
+    <string name="stop_reading">Stop reading</string>
+    <string name="song_meaning_voice">Song meaning voice</string>
+    <string name="android_system_voice">Device voice</string>
+    <string name="openai_voice_ai_generated">OpenAI voice (AI-generated)</string>
+    <string name="song_meaning_speech_openai_required">Select OpenAI as the AI provider to use the OpenAI voice.</string>
+    <string name="song_meaning_speech_key_missing">Add your OpenAI API key in Settings.</string>
+    <string name="song_meaning_speech_language_unavailable">An Italian device voice is not installed.</string>
+    <string name="song_meaning_speech_error">Unable to read this explanation.</string>
     <string name="copy">Copy</string>
     <string name="ai_provider">AI provider</string>
     <string name="openai">OpenAI</string>

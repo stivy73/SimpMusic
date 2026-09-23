@@ -471,6 +471,15 @@
     <string name="no_results_found">Nessun risultato trovato</string>
     <string name="ai">IA</string>
     <string name="ai_provider">Fornitore di IA</string>
+    <string name="read_aloud">Leggi ad alta voce</string>
+    <string name="stop_reading">Interrompi lettura</string>
+    <string name="song_meaning_voice">Voce per il significato della canzone</string>
+    <string name="android_system_voice">Voce del dispositivo</string>
+    <string name="openai_voice_ai_generated">Voce OpenAI (generata dall'IA)</string>
+    <string name="song_meaning_speech_openai_required">Seleziona OpenAI come fornitore IA per usare la voce OpenAI.</string>
+    <string name="song_meaning_speech_key_missing">Inserisci la chiave API OpenAI nelle Impostazioni.</string>
+    <string name="song_meaning_speech_language_unavailable">Sul dispositivo non è installata una voce italiana.</string>
+    <string name="song_meaning_speech_error">Impossibile leggere questa spiegazione.</string>
     <string name="openai">OpenAI</string>
     <string name="gemini">Gemini</string>
     <string name="openai_api_compatible">Compatibile con OpenAI personalizzato</string>
