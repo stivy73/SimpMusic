@@ -1,9 +1,6 @@
 package com.maxrave.simpmusic.expect
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.MediaPlayer
-import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -14,22 +11,21 @@ import androidx.compose.ui.platform.LocalContext
 import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.mediaservice.handler.MediaPlayerHandler
 import com.maxrave.domain.mediaservice.handler.PlayerEvent
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
-import java.security.MessageDigest
+import com.maxrave.media3.speech.OpenAiSongMeaningSpeech
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import org.koin.compose.koinInject
 
 private class AndroidSongMeaningSpeechController(
@@ -47,7 +43,8 @@ private class AndroidSongMeaningSpeechController(
     private var nativeLanguageAvailable = true
     private var pendingNativeText: String? = null
     private var finalUtteranceId: String? = null
-    private var speechPlayer: MediaPlayer? = null
+    private val openAiSpeech = OpenAiSongMeaningSpeech(context, scope)
+    private var speechJob: Job? = null
     private var resumeMusicAfterSpeech = false
 
     init {
@@ -96,7 +93,7 @@ private class AndroidSongMeaningSpeechController(
         if (text.isBlank()) return
         stop(resumeMusic = false)
         mutableState.value = SongMeaningSpeechState.Preparing
-        scope.launch {
+        speechJob = scope.launch {
             when (dataStoreManager.songMeaningTtsProvider.first()) {
                 DataStoreManager.SONG_MEANING_TTS_OPENAI -> playOpenAi(text)
                 else -> playNative(text)
@@ -109,11 +106,12 @@ private class AndroidSongMeaningSpeechController(
     }
 
     private fun stop(resumeMusic: Boolean) {
+        speechJob?.cancel()
+        speechJob = null
         pendingNativeText = null
         finalUtteranceId = null
         textToSpeech?.stop()
-        speechPlayer?.release()
-        speechPlayer = null
+        openAiSpeech.stop()
         mutableState.value = SongMeaningSpeechState.Idle
         if (resumeMusic) resumeMusicIfNeeded()
     }
@@ -169,83 +167,28 @@ private class AndroidSongMeaningSpeechController(
             failSpeech(SongMeaningSpeechError.API_KEY_MISSING)
             return
         }
-        val audioFile =
-            runCatching { loadOpenAiSpeech(text, apiKey) }
-                .getOrElse {
-                    failSpeech(SongMeaningSpeechError.SERVICE_ERROR)
-                    return
-                }
-        playAudioFile(audioFile)
-    }
-
-    private suspend fun loadOpenAiSpeech(
-        text: String,
-        apiKey: String,
-    ): File =
-        withContext(Dispatchers.IO) {
-            val cacheDirectory = File(context.cacheDir, "song_meaning_speech").apply { mkdirs() }
-            val digest =
-                MessageDigest
-                    .getInstance("SHA-256")
-                    .digest((OPENAI_VOICE + text).encodeToByteArray())
-                    .joinToString("") { "%02x".format(it.toInt() and 0xff) }
-            val target = File(cacheDirectory, "$digest.mp3")
-            if (target.length() > 0L) return@withContext target
-
-            val connection = (URL(OPENAI_SPEECH_URL).openConnection() as HttpURLConnection)
-            try {
-                connection.requestMethod = "POST"
-                connection.connectTimeout = 15_000
-                connection.readTimeout = 60_000
-                connection.doOutput = true
-                connection.setRequestProperty("Authorization", "Bearer $apiKey")
-                connection.setRequestProperty("Content-Type", "application/json")
-                val body =
-                    buildJsonObject {
-                        put("model", OPENAI_TTS_MODEL)
-                        put("voice", OPENAI_VOICE)
-                        put("input", text)
-                        put("instructions", "Leggi in italiano con tono naturale, caldo e informativo.")
-                        put("response_format", "mp3")
-                    }.toString()
-                connection.outputStream.use { it.write(body.encodeToByteArray()) }
-                if (connection.responseCode !in 200..299) {
-                    throw IllegalStateException("OpenAI speech request failed (${connection.responseCode})")
-                }
-                val partial = File(cacheDirectory, "$digest.tmp")
-                connection.inputStream.use { input -> partial.outputStream().use(input::copyTo) }
-                check(partial.renameTo(target)) { "Unable to cache generated speech" }
-                target
-            } finally {
-                connection.disconnect()
-            }
+        try {
+            openAiSpeech.speak(
+                text = text,
+                apiKey = apiKey,
+                beforePlayback = {
+                    withContext(Dispatchers.Main.immediate) {
+                        if (!resumeMusicAfterSpeech && mediaPlayerHandler.controlState.value.isPlaying) {
+                            resumeMusicAfterSpeech = true
+                            mediaPlayerHandler.onPlayerEvent(PlayerEvent.PlayPause)
+                        }
+                    }
+                },
+                onStage = { stage ->
+                    if (stage == "first_pcm_submitted") mutableState.value = SongMeaningSpeechState.Playing
+                },
+            )
+            finishSpeech()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            if (currentCoroutineContext().isActive) failSpeech(SongMeaningSpeechError.SERVICE_ERROR)
         }
-
-    private fun playAudioFile(file: File) {
-        val player =
-            MediaPlayer()
-                .apply {
-                    setAudioAttributes(
-                        AudioAttributes
-                            .Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build(),
-                    )
-                    setDataSource(context, Uri.fromFile(file))
-                    setOnPreparedListener { preparedPlayer ->
-                        pauseMusicIfNeeded()
-                        preparedPlayer.start()
-                        mutableState.value = SongMeaningSpeechState.Playing
-                    }
-                    setOnCompletionListener { finishSpeech() }
-                    setOnErrorListener { _, _, _ ->
-                        failSpeech(SongMeaningSpeechError.SERVICE_ERROR)
-                        true
-                    }
-                    prepareAsync()
-                }
-        speechPlayer = player
     }
 
     private fun pauseMusicIfNeeded() {
@@ -263,15 +206,13 @@ private class AndroidSongMeaningSpeechController(
     }
 
     private fun finishSpeech() {
-        speechPlayer?.release()
-        speechPlayer = null
+        openAiSpeech.stop()
         mutableState.value = SongMeaningSpeechState.Idle
         resumeMusicIfNeeded()
     }
 
     private fun failSpeech(reason: SongMeaningSpeechError) {
-        speechPlayer?.release()
-        speechPlayer = null
+        openAiSpeech.stop()
         mutableState.value = SongMeaningSpeechState.Error(reason)
         resumeMusicIfNeeded()
     }
@@ -283,11 +224,6 @@ private class AndroidSongMeaningSpeechController(
         scope.cancel()
     }
 
-    private companion object {
-        private const val OPENAI_SPEECH_URL = "https://api.openai.com/v1/audio/speech"
-        private const val OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
-        private const val OPENAI_VOICE = "marin"
-    }
 }
 
 @Composable
