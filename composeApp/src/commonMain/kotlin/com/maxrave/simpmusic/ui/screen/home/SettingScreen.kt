@@ -351,6 +351,13 @@ import simpmusic.composeapp.generated.resources.ok
 import simpmusic.composeapp.generated.resources.open_system_equalizer
 import simpmusic.composeapp.generated.resources.openai
 import simpmusic.composeapp.generated.resources.openai_voice_ai_generated
+import simpmusic.composeapp.generated.resources.google_voice_ai_generated
+import simpmusic.composeapp.generated.resources.google_tts_api_key
+import simpmusic.composeapp.generated.resources.google_tts_get_api_key
+import simpmusic.composeapp.generated.resources.song_meaning_voice_style
+import simpmusic.composeapp.generated.resources.song_meaning_style_professional
+import simpmusic.composeapp.generated.resources.song_meaning_style_dj
+import simpmusic.composeapp.generated.resources.song_meaning_style_empathetic
 import simpmusic.composeapp.generated.resources.song_meaning_voice
 import simpmusic.composeapp.generated.resources.openai_api_compatible
 import simpmusic.composeapp.generated.resources.other_app
@@ -553,6 +560,8 @@ fun SettingScreen(
     val aiProvider by viewModel.aiProvider.collectAsStateWithLifecycle()
     val isHasApiKey by viewModel.isHasApiKey.collectAsStateWithLifecycle()
     val songMeaningTtsProvider by viewModel.songMeaningTtsProvider.collectAsStateWithLifecycle()
+    val hasGoogleTtsApiKey by viewModel.hasGoogleTtsApiKey.collectAsStateWithLifecycle()
+    val songMeaningVoiceStyle by viewModel.songMeaningVoiceStyle.collectAsStateWithLifecycle()
     val useAITranslation by viewModel.useAITranslation.collectAsStateWithLifecycle()
     val translationLanguage by viewModel.translationLanguage.collectAsStateWithLifecycle()
     val customModelId by viewModel.customModelId.collectAsStateWithLifecycle()
@@ -1891,10 +1900,10 @@ fun SettingScreen(
                 SettingItem(
                     title = stringResource(Res.string.song_meaning_voice),
                     subtitle =
-                        if (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_OPENAI) {
-                            stringResource(Res.string.openai_voice_ai_generated)
-                        } else {
-                            stringResource(Res.string.android_system_voice)
+                        when (songMeaningTtsProvider) {
+                            DataStoreManager.SONG_MEANING_TTS_OPENAI -> stringResource(Res.string.openai_voice_ai_generated)
+                            DataStoreManager.SONG_MEANING_TTS_GOOGLE -> stringResource(Res.string.google_voice_ai_generated)
+                            else -> stringResource(Res.string.android_system_voice)
                         },
                     onClick = {
                         viewModel.setAlertData(
@@ -1908,20 +1917,75 @@ fun SettingScreen(
                                                     runBlocking { getString(Res.string.android_system_voice) },
                                                 (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_OPENAI) to
                                                     runBlocking { getString(Res.string.openai_voice_ai_generated) },
+                                                (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_GOOGLE) to
+                                                    runBlocking { getString(Res.string.google_voice_ai_generated) },
                                             ),
                                     ),
                                 confirm =
                                     runBlocking { getString(Res.string.change) } to { state ->
                                         viewModel.setSongMeaningTtsProvider(
-                                            if (state.selectOne?.getSelected() ==
-                                                runBlocking { getString(Res.string.openai_voice_ai_generated) }
-                                            ) {
-                                                DataStoreManager.SONG_MEANING_TTS_OPENAI
-                                            } else {
-                                                DataStoreManager.SONG_MEANING_TTS_ANDROID
+                                            when (state.selectOne?.getSelected()) {
+                                                runBlocking { getString(Res.string.openai_voice_ai_generated) } -> DataStoreManager.SONG_MEANING_TTS_OPENAI
+                                                runBlocking { getString(Res.string.google_voice_ai_generated) } -> DataStoreManager.SONG_MEANING_TTS_GOOGLE
+                                                else -> DataStoreManager.SONG_MEANING_TTS_ANDROID
                                             },
                                         )
                                     },
+                                dismiss = runBlocking { getString(Res.string.cancel) },
+                            ),
+                        )
+                    },
+                )
+                SettingItem(
+                    title = stringResource(Res.string.google_tts_api_key),
+                    subtitle = if (hasGoogleTtsApiKey) "XXXXXXXXXX" else "N/A",
+                    onClick = {
+                        viewModel.setAlertData(
+                            SettingAlertState(
+                                title = runBlocking { getString(Res.string.google_tts_api_key) },
+                                textField = SettingAlertState.TextFieldData(
+                                    label = runBlocking { getString(Res.string.google_tts_api_key) },
+                                    value = "",
+                                    verifyCodeBlock = { true to "" },
+                                ),
+                                message = "",
+                                confirm = runBlocking { getString(Res.string.set) } to { state ->
+                                    viewModel.setGoogleTtsApiKey(state.textField?.value.orEmpty())
+                                },
+                                dismiss = runBlocking { getString(Res.string.cancel) },
+                            ),
+                        )
+                    },
+                )
+                SettingItem(
+                    title = stringResource(Res.string.google_tts_get_api_key),
+                    onClick = { uriHandler.openUri("https://aistudio.google.com/apikey") },
+                )
+                if (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_GOOGLE) SettingItem(
+                    title = stringResource(Res.string.song_meaning_voice_style),
+                    subtitle = when (songMeaningVoiceStyle) {
+                        DataStoreManager.SONG_MEANING_STYLE_DJ -> stringResource(Res.string.song_meaning_style_dj)
+                        DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC -> stringResource(Res.string.song_meaning_style_empathetic)
+                        else -> stringResource(Res.string.song_meaning_style_professional)
+                    },
+                    onClick = {
+                        viewModel.setAlertData(
+                            SettingAlertState(
+                                title = runBlocking { getString(Res.string.song_meaning_voice_style) },
+                                selectOne = SettingAlertState.SelectData(
+                                    listSelect = listOf(
+                                        (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_PROFESSIONAL) to runBlocking { getString(Res.string.song_meaning_style_professional) },
+                                        (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_DJ) to runBlocking { getString(Res.string.song_meaning_style_dj) },
+                                        (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC) to runBlocking { getString(Res.string.song_meaning_style_empathetic) },
+                                    ),
+                                ),
+                                confirm = runBlocking { getString(Res.string.change) } to { state ->
+                                    viewModel.setSongMeaningVoiceStyle(when (state.selectOne?.getSelected()) {
+                                        runBlocking { getString(Res.string.song_meaning_style_dj) } -> DataStoreManager.SONG_MEANING_STYLE_DJ
+                                        runBlocking { getString(Res.string.song_meaning_style_empathetic) } -> DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC
+                                        else -> DataStoreManager.SONG_MEANING_STYLE_PROFESSIONAL
+                                    })
+                                },
                                 dismiss = runBlocking { getString(Res.string.cancel) },
                             ),
                         )

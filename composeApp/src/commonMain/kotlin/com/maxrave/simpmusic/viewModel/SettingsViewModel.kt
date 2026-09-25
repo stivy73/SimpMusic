@@ -149,6 +149,10 @@ class SettingsViewModel(
     val isHasApiKey: StateFlow<Boolean> = _isHasApiKey
     private val _songMeaningTtsProvider = MutableStateFlow(DataStoreManager.SONG_MEANING_TTS_ANDROID)
     val songMeaningTtsProvider: StateFlow<String> = _songMeaningTtsProvider
+    private val _hasGoogleTtsApiKey = MutableStateFlow(false)
+    val hasGoogleTtsApiKey: StateFlow<Boolean> = _hasGoogleTtsApiKey
+    private val _songMeaningVoiceStyle = MutableStateFlow(DataStoreManager.SONG_MEANING_STYLE_PROFESSIONAL)
+    val songMeaningVoiceStyle: StateFlow<String> = _songMeaningVoiceStyle
     private val _useAITranslation = MutableStateFlow<Boolean>(false)
     val useAITranslation: StateFlow<Boolean> = _useAITranslation
     private val _customModelId = MutableStateFlow<String>("")
@@ -306,6 +310,7 @@ class SettingsViewModel(
         getAIProvider()
         getAIApiKey()
         getSongMeaningTtsProvider()
+        getGoogleTtsSettings()
         getAITranslation()
         getCustomModelId()
         getCustomOpenAIBaseUrl()
@@ -848,6 +853,19 @@ class SettingsViewModel(
         viewModelScope.launch {
             dataStoreManager.setSongMeaningTtsProvider(provider)
         }
+    }
+
+    private fun getGoogleTtsSettings() {
+        viewModelScope.launch { dataStoreManager.googleTtsApiKey.collect { _hasGoogleTtsApiKey.value = it.isNotBlank() } }
+        viewModelScope.launch { dataStoreManager.songMeaningVoiceStyle.collect { _songMeaningVoiceStyle.value = it } }
+    }
+
+    fun setGoogleTtsApiKey(apiKey: String) {
+        viewModelScope.launch { dataStoreManager.setGoogleTtsApiKey(apiKey.trim()) }
+    }
+
+    fun setSongMeaningVoiceStyle(style: String) {
+        viewModelScope.launch { dataStoreManager.setSongMeaningVoiceStyle(style) }
     }
 
     private fun getAutoCheckUpdate() {

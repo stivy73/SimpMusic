@@ -543,6 +543,14 @@
     <string name="song_meaning_voice">Song meaning voice</string>
     <string name="android_system_voice">Device voice</string>
     <string name="openai_voice_ai_generated">OpenAI voice (AI-generated)</string>
+    <string name="google_voice_ai_generated">Google Gemini 3.8 Flash TTS</string>
+    <string name="google_tts_api_key">Google Gemini TTS API key</string>
+    <string name="google_tts_key_missing">Add a Google Gemini API key in Settings.</string>
+    <string name="google_tts_get_api_key">Non hai le API? Crea una chiave Google</string>
+    <string name="song_meaning_voice_style">Tono della voce</string>
+    <string name="song_meaning_style_professional">Professionale</string>
+    <string name="song_meaning_style_dj">DJ</string>
+    <string name="song_meaning_style_empathetic">Empatico</string>
     <string name="song_meaning_speech_openai_required">Select OpenAI as the AI provider to use the OpenAI voice.</string>
     <string name="song_meaning_speech_key_missing">Add your OpenAI API key in Settings.</string>
     <string name="song_meaning_speech_language_unavailable">An Italian device voice is not installed.</string>

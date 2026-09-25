@@ -42,6 +42,7 @@ import simpmusic.composeapp.generated.resources.song_meaning_loading
 import simpmusic.composeapp.generated.resources.song_meaning_no_lyrics
 import simpmusic.composeapp.generated.resources.song_meaning_speech_error
 import simpmusic.composeapp.generated.resources.song_meaning_speech_key_missing
+import simpmusic.composeapp.generated.resources.google_tts_key_missing
 import simpmusic.composeapp.generated.resources.song_meaning_speech_language_unavailable
 import simpmusic.composeapp.generated.resources.song_meaning_speech_openai_required
 import simpmusic.composeapp.generated.resources.stop_reading
@@ -100,6 +101,8 @@ fun SongMeaningDialog(
                                                     Res.string.song_meaning_speech_openai_required
                                                 SongMeaningSpeechError.API_KEY_MISSING ->
                                                     Res.string.song_meaning_speech_key_missing
+                                                SongMeaningSpeechError.GOOGLE_API_KEY_MISSING ->
+                                                    Res.string.google_tts_key_missing
                                                 SongMeaningSpeechError.LANGUAGE_UNAVAILABLE ->
                                                     Res.string.song_meaning_speech_language_unavailable
                                                 SongMeaningSpeechError.SERVICE_ERROR ->

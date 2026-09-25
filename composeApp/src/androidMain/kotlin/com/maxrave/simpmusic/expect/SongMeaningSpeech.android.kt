@@ -11,7 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.mediaservice.handler.MediaPlayerHandler
 import com.maxrave.domain.mediaservice.handler.PlayerEvent
-import com.maxrave.media3.speech.OpenAiSongMeaningSpeech
+import com.maxrave.media3.speech.CloudSongMeaningSpeech
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -43,7 +43,7 @@ private class AndroidSongMeaningSpeechController(
     private var nativeLanguageAvailable = true
     private var pendingNativeText: String? = null
     private var finalUtteranceId: String? = null
-    private val openAiSpeech = OpenAiSongMeaningSpeech(context, scope)
+    private val openAiSpeech = CloudSongMeaningSpeech(context, scope)
     private var speechJob: Job? = null
     private var resumeMusicAfterSpeech = false
 
@@ -96,6 +96,7 @@ private class AndroidSongMeaningSpeechController(
         speechJob = scope.launch {
             when (dataStoreManager.songMeaningTtsProvider.first()) {
                 DataStoreManager.SONG_MEANING_TTS_OPENAI -> playOpenAi(text)
+                DataStoreManager.SONG_MEANING_TTS_GOOGLE -> playGoogle(text)
                 else -> playNative(text)
             }
         }
@@ -164,13 +165,46 @@ private class AndroidSongMeaningSpeechController(
         }
         val apiKey = dataStoreManager.aiApiKey.first()
         if (apiKey.isBlank()) {
-            failSpeech(SongMeaningSpeechError.API_KEY_MISSING)
+            failSpeech(SongMeaningSpeechError.GOOGLE_API_KEY_MISSING)
             return
         }
         try {
             openAiSpeech.speak(
                 text = text,
                 apiKey = apiKey,
+                beforePlayback = {
+                    withContext(Dispatchers.Main.immediate) {
+                        if (!resumeMusicAfterSpeech && mediaPlayerHandler.controlState.value.isPlaying) {
+                            resumeMusicAfterSpeech = true
+                            mediaPlayerHandler.onPlayerEvent(PlayerEvent.PlayPause)
+                        }
+                    }
+                },
+                onStage = { stage ->
+                    if (stage == "first_pcm_submitted") mutableState.value = SongMeaningSpeechState.Playing
+                },
+            )
+            finishSpeech()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            if (currentCoroutineContext().isActive) failSpeech(SongMeaningSpeechError.SERVICE_ERROR)
+        }
+    }
+
+    private suspend fun playGoogle(text: String) {
+        val apiKey = dataStoreManager.googleTtsApiKey.first().ifBlank {
+            if (dataStoreManager.aiProvider.first() == DataStoreManager.AI_PROVIDER_GEMINI) dataStoreManager.aiApiKey.first() else ""
+        }
+        if (apiKey.isBlank()) {
+            failSpeech(SongMeaningSpeechError.API_KEY_MISSING)
+            return
+        }
+        try {
+            openAiSpeech.speakGemini(
+                text = text,
+                apiKey = apiKey,
+                style = dataStoreManager.songMeaningVoiceStyle.first(),
                 beforePlayback = {
                     withContext(Dispatchers.Main.immediate) {
                         if (!resumeMusicAfterSpeech && mediaPlayerHandler.controlState.value.isPlaying) {
