@@ -60,9 +60,13 @@ fun SongMeaningDialog(
     val shareLabel = stringResource(Res.string.share)
     val speechController = rememberSongMeaningSpeechController()
     val speechState by speechController.state.collectAsState()
+    val dismiss = {
+        speechController.stop()
+        onDismiss()
+    }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = dismiss,
         title = {
             Column {
                 Text(songMeaningLabel, style = typo().titleMedium)
@@ -180,7 +184,7 @@ fun SongMeaningDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+            TextButton(onClick = dismiss) { Text(stringResource(Res.string.cancel)) }
         },
     )
 }

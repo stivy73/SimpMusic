@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.maxrave.domain.manager.DataStoreManager
@@ -265,11 +264,25 @@ actual fun rememberSongMeaningSpeechController(): SongMeaningSpeechController {
     val context = LocalContext.current.applicationContext
     val dataStoreManager = koinInject<DataStoreManager>()
     val mediaPlayerHandler = koinInject<MediaPlayerHandler>()
-    val controller = remember(context, dataStoreManager, mediaPlayerHandler) {
-        AndroidSongMeaningSpeechController(context, dataStoreManager, mediaPlayerHandler)
+    return remember(context, dataStoreManager, mediaPlayerHandler) {
+        SongMeaningSpeechControllerHolder.get(context, dataStoreManager, mediaPlayerHandler)
     }
-    DisposableEffect(controller) {
-        onDispose(controller::release)
-    }
-    return controller
 }
+
+private object SongMeaningSpeechControllerHolder {
+    @Volatile
+    private var controller: AndroidSongMeaningSpeechController? = null
+
+    fun get(
+        context: Context,
+        dataStoreManager: DataStoreManager,
+        mediaPlayerHandler: MediaPlayerHandler,
+    ): AndroidSongMeaningSpeechController =
+        controller ?: synchronized(this) {
+            controller ?: AndroidSongMeaningSpeechController(
+                context.applicationContext,
+                dataStoreManager,
+                mediaPlayerHandler,
+            ).also { controller = it }
+        }
+    }
