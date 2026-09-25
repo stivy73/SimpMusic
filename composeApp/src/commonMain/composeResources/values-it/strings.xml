@@ -486,7 +486,8 @@
     <string name="ai_api_key">La tua chiave API IA</string>
     <string name="invalid_api_key">Chiave API non valida</string>
     <string name="custom_ai_model_id">ID modello IA personalizzato</string>
-    <string name="default_models">I modelli predefiniti sono \"gemini-2.0-flash\" e \"gpt-4o\"</string>
+    <string name="default_models">I modelli predefiniti sono \"gemini-3.8-flash\" e \"gpt-4o\"</string>
+    <string name="song_meaning_invalid_api_key">La chiave API IA non è valida per il provider selezionato. Controlla Impostazioni &gt; IA &gt; Chiave API IA.</string>
     <string name="invalid">Non valido</string>
     <string name="custom_model_id_messages">Inserisci l'esatto modello ID dal tuo fornitore di IA.</string>
     <string name="favorite_podcasts">Podcast preferiti</string>

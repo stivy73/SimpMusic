@@ -1842,11 +1842,11 @@ fun SettingScreen(
                                     SettingAlertState.SelectData(
                                         listSelect =
                                             listOf(
-                                                (mainLyricsProvider == DataStoreManager.AI_PROVIDER_OPENAI) to
+                                                (aiProvider == DataStoreManager.AI_PROVIDER_OPENAI) to
                                                     runBlocking { getString(Res.string.openai) },
-                                                (mainLyricsProvider == DataStoreManager.AI_PROVIDER_GEMINI) to
+                                                (aiProvider == DataStoreManager.AI_PROVIDER_GEMINI) to
                                                     runBlocking { getString(Res.string.gemini) },
-                                                (mainLyricsProvider == DataStoreManager.AI_PROVIDER_CUSTOM_OPENAI) to
+                                                (aiProvider == DataStoreManager.AI_PROVIDER_CUSTOM_OPENAI) to
                                                     runBlocking { getString(Res.string.openai_api_compatible) },
                                             ),
                                     ),

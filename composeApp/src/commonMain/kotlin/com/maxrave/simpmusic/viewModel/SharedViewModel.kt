@@ -105,6 +105,7 @@ import simpmusic.composeapp.generated.resources.lastfm_login_failed
 import simpmusic.composeapp.generated.resources.login_success
 import simpmusic.composeapp.generated.resources.song_meaning_api_key_missing
 import simpmusic.composeapp.generated.resources.song_meaning_error
+import simpmusic.composeapp.generated.resources.song_meaning_invalid_api_key
 import simpmusic.composeapp.generated.resources.play_next
 import simpmusic.composeapp.generated.resources.removed_from_youtube_liked
 import simpmusic.composeapp.generated.resources.shared
@@ -264,7 +265,14 @@ class SharedViewModel(
                     _songMeaning.value =
                         when (result) {
                             is Resource.Success -> LocalResource.Success(result.data.orEmpty())
-                            is Resource.Error -> LocalResource.Error(result.message ?: getString(Res.string.song_meaning_error))
+                            is Resource.Error ->
+                                LocalResource.Error(
+                                    if (result.message == "invalid_ai_api_key") {
+                                        getString(Res.string.song_meaning_invalid_api_key)
+                                    } else {
+                                        result.message ?: getString(Res.string.song_meaning_error)
+                                    },
+                                )
                         }
                 }
             }

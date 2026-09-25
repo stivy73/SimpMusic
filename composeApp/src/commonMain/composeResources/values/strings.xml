@@ -538,6 +538,7 @@
     <string name="song_meaning_no_lyrics">No lyrics are available, so this explanation is based on the title and artist only.</string>
     <string name="song_meaning_api_key_missing">Add an AI API key in Settings to use song meanings.</string>
     <string name="song_meaning_error">Unable to explain this song.</string>
+    <string name="song_meaning_invalid_api_key">The AI API key is invalid for the selected provider. Check Settings &gt; AI &gt; Your AI API Key.</string>
     <string name="read_aloud">Read aloud</string>
     <string name="stop_reading">Stop reading</string>
     <string name="song_meaning_voice">Song meaning voice</string>
@@ -563,7 +564,7 @@
     <string name="ai_api_key">Your AI API Key</string>
     <string name="invalid_api_key">Invalid API key</string>
     <string name="custom_ai_model_id">Custom AI model ID</string>
-    <string name="default_models">Default models are "gemini-2.0-flash" and "gpt-4o"</string>
+    <string name="default_models">Default models are "gemini-3.8-flash" and "gpt-4o"</string>
     <string name="invalid">Invalid</string>
     <string name="custom_model_id_messages">Please enter the exactly model ID from your AI provider.</string>
     <string name="favorite_podcasts">Favorite Podcasts</string>
