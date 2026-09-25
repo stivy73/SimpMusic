@@ -170,6 +170,9 @@ class SharedViewModel(
     private val _intent: MutableStateFlow<GenericIntent?> = MutableStateFlow(null)
     val intent: StateFlow<GenericIntent?> = _intent
 
+    private val _externalSearchQuery = MutableStateFlow<String?>(null)
+    val externalSearchQuery: StateFlow<String?> = _externalSearchQuery.asStateFlow()
+
     private val _showNotificationPermissionDialog = MutableStateFlow(false)
     val showNotificationPermissionDialog: StateFlow<Boolean> = _showNotificationPermissionDialog
 
@@ -580,6 +583,14 @@ class SharedViewModel(
 
     fun setIntent(intent: GenericIntent?) {
         _intent.value = intent
+    }
+
+    fun setExternalSearchQuery(query: String) {
+        _externalSearchQuery.value = query
+    }
+
+    fun consumeExternalSearchQuery() {
+        _externalSearchQuery.value = null
     }
 
     /**

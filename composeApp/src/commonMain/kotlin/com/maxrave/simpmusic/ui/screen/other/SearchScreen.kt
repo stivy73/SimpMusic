@@ -181,11 +181,23 @@ fun SearchScreen(
     val searchHistory by searchViewModel.searchHistory.collectAsStateWithLifecycle()
     val moodAndGenres by searchViewModel.moodAndGenres.collectAsStateWithLifecycle()
     val moodArtwork by searchViewModel.moodArtwork.collectAsStateWithLifecycle()
+    val externalSearchQuery by sharedViewModel.externalSearchQuery.collectAsStateWithLifecycle()
 
     var searchUIType by rememberSaveable { mutableStateOf(SearchUIType.EMPTY) }
     var searchText by rememberSaveable { mutableStateOf("") }
     var isSearchSubmitted by rememberSaveable { mutableStateOf(false) }
     var isExpanded by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(externalSearchQuery) {
+        externalSearchQuery?.takeIf { it.isNotBlank() }?.let { query ->
+            searchText = query
+            isSearchSubmitted = true
+            isExpanded = false
+            searchViewModel.insertSearchHistory(query)
+            searchViewModel.searchAll(query)
+            sharedViewModel.consumeExternalSearchQuery()
+        }
+    }
 
     val focusRequester = remember { FocusRequester() }
 

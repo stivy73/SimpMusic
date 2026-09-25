@@ -85,6 +85,7 @@ import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.PlaylistDestination
 import com.maxrave.simpmusic.ui.navigation.destination.player.FullscreenDestination
+import com.maxrave.simpmusic.ui.navigation.destination.search.SearchDestination
 import com.maxrave.simpmusic.ui.navigation.graph.AppNavigationGraph
 import com.maxrave.simpmusic.ui.screen.MiniPlayer
 import com.maxrave.simpmusic.ui.screen.other.UnofficialBuildScreen
@@ -284,6 +285,15 @@ fun App(
                     "album" -> {
                         data.getQueryParameter("id")?.let { albumId ->
                             navController.navigate(AlbumDestination(browseId = albumId))
+                        }
+                    }
+
+                    "search" -> {
+                        data.getQueryParameter("q")?.takeIf { it.isNotBlank() }?.let { query ->
+                            viewModel.setExternalSearchQuery(query)
+                            navController.navigate(SearchDestination) {
+                                launchSingleTop = true
+                            }
                         }
                     }
 

@@ -40,6 +40,8 @@ import com.maxrave.simpmusic.di.viewModelModule
 import com.maxrave.simpmusic.service.rss.RssFeedNotifyWork
 import com.maxrave.simpmusic.service.test.notification.NotifyWork
 import com.maxrave.simpmusic.utils.ComposeResUtils
+import com.maxrave.simpmusic.utils.SharedTextContent
+import com.maxrave.simpmusic.utils.SharedTextParser
 import com.maxrave.simpmusic.utils.VersionManager
 import com.maxrave.simpmusic.viewModel.SharedViewModel
 import kotlinx.coroutines.launch
@@ -94,13 +96,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         Logger.d("MainActivity", "onNewIntent: $intent")
-        viewModel.setIntent(
-            GenericIntent(
-                action = intent.action,
-                data = (intent.data ?: intent.getStringExtra(Intent.EXTRA_TEXT)?.toUri())?.toKmpUriOrNull(),
-                type = intent.type,
-            ),
-        )
+        intent.toGenericIntent()?.let(viewModel::setIntent)
     }
 
     @ExperimentalFoundationApi
@@ -122,16 +118,7 @@ class MainActivity : AppCompatActivity() {
             startMusicService()
         }
         Logger.d("MainActivity", "onCreate: ")
-        val data = (intent?.data ?: intent?.getStringExtra(Intent.EXTRA_TEXT)?.toUri())?.toKmpUriOrNull()
-        if (data != null) {
-            viewModel.setIntent(
-                GenericIntent(
-                    action = intent.action,
-                    data = data,
-                    type = intent.type,
-                ),
-            )
-        }
+        intent?.toGenericIntent()?.let(viewModel::setIntent)
         Logger.d("Italy", "Key: ${Locale.ITALY.toLanguageTag()}")
 
         // Check if the migration has already been done or not
@@ -255,6 +242,24 @@ class MainActivity : AppCompatActivity() {
         if (!BuildConfig.DEBUG) viewModel.checkOfficialBuild(packageName, signingCertSha256())
         setContent {
             App(viewModel)
+        }
+    }
+
+    private fun Intent.toGenericIntent(): GenericIntent? {
+        val resolvedData =
+            data ?: when (val shared = SharedTextParser.parse(getStringExtra(Intent.EXTRA_TEXT))) {
+                is SharedTextContent.Link -> shared.url.toUri()
+                is SharedTextContent.SongSearch ->
+                    android.net.Uri
+                        .Builder()
+                        .scheme("simpmusic")
+                        .authority("search")
+                        .appendQueryParameter("q", shared.query)
+                        .build()
+                null -> null
+            }
+        return resolvedData?.toKmpUriOrNull()?.let { uri ->
+            GenericIntent(action = action, data = uri, type = type)
         }
     }
 
