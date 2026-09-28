@@ -141,6 +141,7 @@ import com.maxrave.simpmusic.ui.navigation.destination.login.SpotifyLoginDestina
 import com.maxrave.simpmusic.ui.theme.md_theme_dark_primary
 import com.maxrave.simpmusic.ui.theme.parseThemeColorHex
 import com.maxrave.simpmusic.ui.theme.typo
+import com.maxrave.simpmusic.utils.DisplayMode
 import com.maxrave.simpmusic.utils.VersionManager
 import com.maxrave.simpmusic.viewModel.ImportViewModel
 import com.maxrave.simpmusic.viewModel.SettingAlertState
@@ -242,6 +243,10 @@ import simpmusic.composeapp.generated.resources.default_models
 import simpmusic.composeapp.generated.resources.description_and_licenses
 import simpmusic.composeapp.generated.resources.developer_blog
 import simpmusic.composeapp.generated.resources.developer_blog_tagline
+import simpmusic.composeapp.generated.resources.display_mode
+import simpmusic.composeapp.generated.resources.display_mode_automatic
+import simpmusic.composeapp.generated.resources.display_mode_car
+import simpmusic.composeapp.generated.resources.display_mode_standard
 import simpmusic.composeapp.generated.resources.discord_integration
 import simpmusic.composeapp.generated.resources.donation
 import simpmusic.composeapp.generated.resources.download_quality
@@ -579,6 +584,7 @@ fun SettingScreen(
     val themeMode by sharedViewModel.getThemeMode().collectAsStateWithLifecycle(DataStoreManager.THEME_MODE_DARK)
     val themeColorSource by sharedViewModel.getThemeColorSource().collectAsStateWithLifecycle(DataStoreManager.THEME_COLOR_DEFAULT)
     val customThemeColorHex by sharedViewModel.getCustomThemeColor().collectAsStateWithLifecycle(DataStoreManager.DEFAULT_THEME_COLOR_HEX)
+    val displayMode by sharedViewModel.getDisplayMode().collectAsStateWithLifecycle(DisplayMode.AUTOMATIC)
     val nowPlayingStyle by sharedViewModel.getNowPlayingStyle().collectAsStateWithLifecycle(DataStoreManager.NOW_PLAYING_STYLE_SPOTIFY)
     val lyricsStyle by sharedViewModel.getLyricsStyle().collectAsStateWithLifecycle(DataStoreManager.LYRICS_STYLE_CLASSIC)
     val romanizationStored by sharedViewModel.getRomanizationLanguages().collectAsStateWithLifecycle("")
@@ -926,6 +932,36 @@ fun SettingScreen(
                     )
                 }
                 if (getPlatform() == Platform.Android) {
+                    val displayModeLabels =
+                        listOf(
+                            DisplayMode.AUTOMATIC to stringResource(Res.string.display_mode_automatic),
+                            DisplayMode.STANDARD to stringResource(Res.string.display_mode_standard),
+                            DisplayMode.CAR to stringResource(Res.string.display_mode_car),
+                        )
+                    SettingItem(
+                        title = stringResource(Res.string.display_mode),
+                        subtitle = displayModeLabels.firstOrNull { it.first == displayMode }?.second ?: "",
+                        smallSubtitle = true,
+                        onClick = {
+                            viewModel.setAlertData(
+                                SettingAlertState(
+                                    title = runBlocking { getString(Res.string.display_mode) },
+                                    selectOne =
+                                        SettingAlertState.SelectData(
+                                            listSelect = displayModeLabels.map { (it.first == displayMode) to it.second },
+                                        ),
+                                    confirm =
+                                        runBlocking { getString(Res.string.change) } to { state ->
+                                            val selected = state.selectOne?.getSelected()
+                                            displayModeLabels.firstOrNull { it.second == selected }?.first?.let {
+                                                sharedViewModel.setDisplayMode(it)
+                                            }
+                                        },
+                                    dismiss = runBlocking { getString(Res.string.cancel) },
+                                ),
+                            )
+                        },
+                    )
                     SettingItem(
                         title = stringResource(Res.string.enable_liquid_glass_effect),
                         subtitle = stringResource(Res.string.enable_liquid_glass_effect_description),

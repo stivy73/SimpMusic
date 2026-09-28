@@ -69,8 +69,10 @@ import com.maxrave.simpmusic.expect.openUrl
 import com.maxrave.simpmusic.expect.ui.layerBackdrop
 import com.maxrave.simpmusic.expect.ui.rememberBackdrop
 import com.maxrave.simpmusic.extension.copy
+import com.maxrave.simpmusic.extension.getScreenSizeInfo
 import com.maxrave.simpmusic.ui.component.AppBottomNavigationBar
 import com.maxrave.simpmusic.ui.component.AppNavigationRail
+import com.maxrave.simpmusic.ui.component.CarNavigationRail
 import com.maxrave.simpmusic.ui.component.LiquidGlassAppBottomNavigationBar
 import com.maxrave.simpmusic.ui.icon.ArrowForwardIos
 import com.maxrave.simpmusic.ui.icon.SimpIcons
@@ -99,6 +101,7 @@ import com.maxrave.simpmusic.ui.theme.desktopWindowLight
 import com.maxrave.simpmusic.ui.theme.fontFamily
 import com.maxrave.simpmusic.ui.theme.parseThemeColorHex
 import com.maxrave.simpmusic.ui.theme.typo
+import com.maxrave.simpmusic.utils.DisplayMode
 import com.maxrave.simpmusic.utils.VersionManager
 import com.maxrave.simpmusic.viewModel.SharedViewModel
 import com.mikepenz.markdown.m3.Markdown
@@ -153,6 +156,16 @@ fun App(
     val showNotificationPermissionDialog by viewModel.showNotificationPermissionDialog.collectAsStateWithLifecycle()
 
     val isLiquidGlassEnabled by viewModel.getEnableLiquidGlass().collectAsStateWithLifecycle(DataStoreManager.FALSE)
+    val displayMode by viewModel.getDisplayMode().collectAsStateWithLifecycle(DisplayMode.AUTOMATIC)
+    val screenSize = getScreenSizeInfo()
+    val isCarDisplay =
+        DisplayMode.usesCarLayout(
+            mode = displayMode,
+            isAndroid = getPlatform() == Platform.Android,
+            widthDp = screenSize.wDP,
+            heightDp = screenSize.hDP,
+        )
+    val useLiquidGlass = isLiquidGlassEnabled == TRUE && !isCarDisplay
     // Analytics only makes sense with local tracking on, so its tab follows that setting.
     val isLocalTrackingEnabled by viewModel.getLocalTrackingEnabled().collectAsStateWithLifecycle(DataStoreManager.FALSE)
     val showAnalyticsTab = isLocalTrackingEnabled == TRUE
@@ -437,6 +450,7 @@ fun App(
         mutableStateOf(false)
     }
     val isTablet = windowSize.isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)
+    val useNavigationRail = isTablet || isCarDisplay
     val isTabletLandscape = isTablet && currentOrientation() == Orientation.LANDSCAPE
 
     AppTheme(
@@ -445,7 +459,7 @@ fun App(
         customThemeColor = parseThemeColorHex(customThemeColorHex),
         // Desktop is unconditionally true — the liquid-glass setting row is Android-only, and the
         // Desktop capsule player is glass by design. Same rule as MiniPlayer's useGlassSurface.
-        liquidGlassEnabled = isLiquidGlassEnabled == TRUE || getPlatform() == Platform.Desktop,
+        liquidGlassEnabled = useLiquidGlass || getPlatform() == Platform.Desktop,
     ) {
         if (!isOfficialBuild) {
             UnofficialBuildScreen()
@@ -466,7 +480,7 @@ fun App(
             containerColor =
                 if (isDesktopShell) desktopWindow else MaterialTheme.colorScheme.background,
             bottomBar = {
-                if (!isTablet) {
+                if (!useNavigationRail) {
                     AnimatedVisibility(
                         isNavBarVisible,
                         enter = fadeIn() + slideInHorizontally(),
@@ -474,7 +488,7 @@ fun App(
                     ) {
                         Column {
                             AnimatedVisibility(
-                                isShowMiniPlayer && isLiquidGlassEnabled == DataStoreManager.FALSE,
+                                isShowMiniPlayer && !useLiquidGlass,
                                 enter = fadeIn() + slideInHorizontally(),
                                 exit = fadeOut(),
                             ) {
@@ -499,7 +513,7 @@ fun App(
                                     },
                                 )
                             }
-                            if (isLiquidGlassEnabled == TRUE) {
+                            if (useLiquidGlass) {
                                 LiquidGlassAppBottomNavigationBar(
                                     navController = navController,
                                     backdrop = backdrop,
@@ -529,7 +543,7 @@ fun App(
                     Modifier
                         .fillMaxSize()
                         .then(
-                            if (isLiquidGlassEnabled == TRUE && !isTablet) {
+                            if (useLiquidGlass && !useNavigationRail) {
                                 Modifier.layerBackdrop(backdrop)
                             } else {
                                 Modifier
@@ -539,13 +553,17 @@ fun App(
                     Row(
                         Modifier.fillMaxSize(),
                     ) {
-                        if (isTablet && !isInFullscreen) {
-                            AppNavigationRail(
-                                navController = navController,
-                                showAnalyticsTab = showAnalyticsTab,
-                                showMixForYouTab = showMixForYouTab,
-                            ) { klass ->
-                                viewModel.reloadDestination(klass)
+                        if (useNavigationRail && !isInFullscreen) {
+                            if (isCarDisplay) {
+                                CarNavigationRail(navController)
+                            } else {
+                                AppNavigationRail(
+                                    navController = navController,
+                                    showAnalyticsTab = showAnalyticsTab,
+                                    showMixForYouTab = showMixForYouTab,
+                                ) { klass ->
+                                    viewModel.reloadDestination(klass)
+                                }
                             }
                         }
                         // Desktop only: the content sits in its own rounded panel floating on a
@@ -576,7 +594,7 @@ fun App(
                                         // plain transparency. Gating the source on the setting while the
                                         // capsule ignored it was exactly the nested-flag split that kept
                                         // the capsule see-through.
-                                        if ((isLiquidGlassEnabled == TRUE || getPlatform() == Platform.Desktop) &&
+                                        if ((useLiquidGlass || getPlatform() == Platform.Desktop) &&
                                             isTablet &&
                                             !isInFullscreen
                                         ) {
@@ -587,7 +605,12 @@ fun App(
                                     ).hazeSource(hazeState),
                             ) {
                                 AppNavigationGraph(
-                                    innerPadding = innerPadding,
+                                    innerPadding =
+                                        if (isCarDisplay && isShowMiniPlayer) {
+                                            innerPadding.copy(bottom = 64.dp)
+                                        } else {
+                                            innerPadding
+                                        },
                                     navController = navController,
                                     hideNavBar = {
                                         isNavBarVisible = false
@@ -608,7 +631,7 @@ fun App(
                                     Modifier
                                         .padding(innerPadding)
                                         .align(Alignment.BottomCenter),
-                                visible = isShowMiniPlayer && isTablet && !isInFullscreen,
+                                visible = isShowMiniPlayer && useNavigationRail && !isInFullscreen,
                                 enter = fadeIn() + slideInHorizontally(),
                                 exit = fadeOut(),
                             ) {
@@ -616,8 +639,8 @@ fun App(
                                     if (getPlatform() == Platform.Android) {
                                         Modifier
                                             // Glass keeps its 52dp card; the flat one is 56dp.
-                                            .height(if (isLiquidGlassEnabled == TRUE) 56.dp else 60.dp)
-                                            .fillMaxWidth(0.8f)
+                                            .height(if (useLiquidGlass) 56.dp else 60.dp)
+                                            .fillMaxWidth(if (isCarDisplay) 1f else 0.8f)
                                             .padding(
                                                 horizontal = 12.dp,
                                             ).padding(
@@ -651,7 +674,7 @@ fun App(
                                 )
                             }
                         }
-                        if (isTablet && isTabletLandscape && !isInFullscreen) {
+                        if (useNavigationRail && isTabletLandscape && !isInFullscreen) {
                             AnimatedVisibility(
                                 isShowNowPlaylistScreen,
                                 enter = expandHorizontally() + fadeIn(),

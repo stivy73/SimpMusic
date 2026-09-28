@@ -68,6 +68,7 @@ import com.maxrave.simpmusic.Platform
 import com.maxrave.simpmusic.expect.getDownloadFolderPath
 import com.maxrave.simpmusic.expect.ui.toByteArray
 import com.maxrave.simpmusic.getPlatform
+import com.maxrave.simpmusic.utils.DisplayMode
 import com.maxrave.simpmusic.utils.VersionManager
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
 import kotlinx.coroutines.Dispatchers
@@ -1895,6 +1896,15 @@ class SharedViewModel(
     }
 
     fun getEnableLiquidGlass() = dataStoreManager.enableLiquidGlass
+
+    fun getDisplayMode(): Flow<String> =
+        dataStoreManager.getString(DisplayMode.PREFERENCE_KEY).map { it ?: DisplayMode.AUTOMATIC }
+
+    fun setDisplayMode(mode: String) {
+        viewModelScope.launch {
+            dataStoreManager.putString(DisplayMode.PREFERENCE_KEY, mode)
+        }
+    }
 
     fun getLocalTrackingEnabled() = dataStoreManager.localTrackingEnabled
 

@@ -624,6 +624,11 @@
     <string name="update_channel">Update channel</string>
     <string name="enable_liquid_glass_effect">Enable liquid glass (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Enable iOS's liquid glass effect in some position (Android 13+)</string>
+    <string name="display_mode">Display mode</string>
+    <string name="display_mode_automatic">Automatic</string>
+    <string name="display_mode_standard">Standard</string>
+    <string name="display_mode_car">Car / Ottocast</string>
+    <string name="car_downloads">Downloads</string>
     <string name="your_library">Your library</string>
     <string name="play_explicit_content">Play explicit content</string>
     <string name="play_explicit_content_description">Enable to play explicit content</string>
