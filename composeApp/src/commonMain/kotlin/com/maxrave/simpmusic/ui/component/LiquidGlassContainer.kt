@@ -125,6 +125,11 @@ fun Modifier.liquidGlass(
     minScrim: Float = 0.12f,
     maxScrim: Float = 0.5f,
 ): Modifier {
+    if (!LocalLiquidGlassEnabled.current) {
+        return this
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.8f))
+    }
     val isDark = LocalIsDarkTheme.current
     val interaction = rememberGlassInteraction()
     return this.drawInteractiveGlass(

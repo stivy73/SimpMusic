@@ -107,7 +107,6 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.maxrave.domain.data.entities.SongEntity
-import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.utils.connectArtists
 import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.Platform
@@ -131,6 +130,7 @@ import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.icon.VolumeOff
 import com.maxrave.simpmusic.ui.icon.VolumeUp
 import com.maxrave.simpmusic.ui.theme.LocalIsDarkTheme
+import com.maxrave.simpmusic.ui.theme.LocalLiquidGlassEnabled
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.SharedViewModel
 import com.maxrave.simpmusic.viewModel.UIEvent
@@ -160,7 +160,6 @@ fun MiniPlayer(
     onClose: () -> Unit,
     onClick: () -> Unit,
 ) {
-    val isLiquidGlassEnabled by sharedViewModel.getEnableLiquidGlass().collectAsStateWithLifecycle(DataStoreManager.FALSE)
     val controllerState by sharedViewModel.controllerState.collectAsStateWithLifecycle()
     val timelineState by sharedViewModel.timeline.collectAsStateWithLifecycle()
 
@@ -170,9 +169,11 @@ fun MiniPlayer(
     // The Desktop capsule is always liquid glass, so it needs the glass code paths whatever the
     // setting says — both the luminance sampling loop that drives the glass and the theme-following
     // text colour. Leaving them gated left the capsule with luminance stuck at 0: a 2dp blur and a
-    // 0.12 darken, which is why it looked like a smear rather than glass. The setting still governs
-    // the Android card below.
-    val useGlassSurface = isLiquidGlassEnabled == DataStoreManager.TRUE || getPlatform() == Platform.Desktop
+    // 0.12 darken, which is why it looked like a smear rather than glass.
+    // Follow the resolved theme capability, not the stored preference. App may turn glass off at
+    // runtime for an incompatible renderer (Android 16) or for the car layout. Reading DataStore
+    // here used to bypass that safety gate and recreate the unsafe backdrop in the MiniPlayer.
+    val useGlassSurface = LocalLiquidGlassEnabled.current
 
     val isDarkTheme = LocalIsDarkTheme.current
     val textColor by animateColorAsState(
@@ -294,14 +295,14 @@ fun MiniPlayer(
         val miniPlayerShape = CircleShape
         // Without glass the card follows the theme, not the playing artwork.
         val cardColor =
-            if (isLiquidGlassEnabled == DataStoreManager.TRUE) {
+            if (useGlassSurface) {
                 Color.Transparent
             } else {
                 // Same 85% as the bottom bar capsule, so the two floating surfaces read as one set.
                 MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f)
             }
         // The flat (default) card: round artwork and controls sitting in filled circles. Glass keeps its own look.
-        val isFlat = isLiquidGlassEnabled != DataStoreManager.TRUE
+        val isFlat = !useGlassSurface
         Card(
             shape = miniPlayerShape,
             colors =
@@ -312,7 +313,7 @@ fun MiniPlayer(
             modifier =
                 modifier
                     .then(
-                        if (isLiquidGlassEnabled == DataStoreManager.TRUE) {
+                        if (useGlassSurface) {
                             Modifier.liquidGlass(backdrop, layer, luminanceAnimation.value, RoundedCornerShape(16.dp))
                         } else {
                             Modifier

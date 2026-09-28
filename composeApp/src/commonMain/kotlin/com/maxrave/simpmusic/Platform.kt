@@ -13,3 +13,8 @@ sealed class Platform {
 }
 
 expect fun getPlatform(): Platform
+
+/** Whether the current graphics stack can safely render the Kyant backdrop effect. */
+expect fun supportsLiquidGlassRendering(): Boolean
+
+internal fun supportsLiquidGlassRenderingOnAndroid(apiLevel: Int): Boolean = apiLevel < 36

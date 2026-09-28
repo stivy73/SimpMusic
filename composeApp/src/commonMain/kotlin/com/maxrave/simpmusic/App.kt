@@ -170,7 +170,10 @@ fun App(
             widthDp = screenSize.wDP,
             heightDp = screenSize.hDP,
         )
-    val useLiquidGlass = isLiquidGlassEnabled == TRUE && !isCarDisplay
+    val useLiquidGlass =
+        isLiquidGlassEnabled == TRUE &&
+            supportsLiquidGlassRendering() &&
+            !isCarDisplay
     // Analytics only makes sense with local tracking on, so its tab follows that setting.
     val isLocalTrackingEnabled by viewModel.getLocalTrackingEnabled().collectAsStateWithLifecycle(DataStoreManager.FALSE)
     val showAnalyticsTab = isLocalTrackingEnabled == TRUE
