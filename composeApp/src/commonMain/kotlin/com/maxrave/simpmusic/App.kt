@@ -138,6 +138,10 @@ import simpmusic.composeapp.generated.resources.version_format
 import simpmusic.composeapp.generated.resources.yes
 import kotlin.time.ExperimentalTime
 
+// Ottocast draws its launcher rail over the app without exposing a system WindowInset. Its width
+// matches the 112dp navigation rail used by the car layout, so reserve that strip explicitly.
+private val OttocastSystemRailInset = 112.dp
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalTime::class, ExperimentalFoundationApi::class)
 @Composable
 fun App(
@@ -488,6 +492,12 @@ fun App(
         val desktopPanel =
             if (isLightScheme) MaterialTheme.colorScheme.surfaceContainer else desktopPanelDark
         Scaffold(
+            modifier =
+                if (isCarDisplay) {
+                    Modifier.padding(start = OttocastSystemRailInset)
+                } else {
+                    Modifier
+                },
             containerColor =
                 if (isDesktopShell) desktopWindow else MaterialTheme.colorScheme.background,
             bottomBar = {
