@@ -19,16 +19,24 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +51,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -55,6 +64,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
@@ -82,6 +92,7 @@ import com.maxrave.simpmusic.ui.component.QueueBottomSheet
 import com.maxrave.simpmusic.ui.component.SongMeaningDialog
 import com.maxrave.simpmusic.ui.component.VoteLyricsDialog
 import com.maxrave.simpmusic.ui.icon.KeyboardArrowDown
+import com.maxrave.simpmusic.ui.icon.LibraryMusic
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
 import com.maxrave.simpmusic.ui.navigation.destination.player.FullscreenDestination
@@ -103,8 +114,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+import simpmusic.composeapp.generated.resources.Res
+import simpmusic.composeapp.generated.resources.back_to_library
 import kotlin.math.abs
 
 private const val TAG = "NowPlayingScreen"
@@ -113,6 +127,45 @@ private const val TAG = "NowPlayingScreen"
 // closing gets out of the way.
 private const val FULLSCREEN_LYRICS_ENTER_MS = 300
 private const val FULLSCREEN_LYRICS_EXIT_MS = 220
+
+/** Full-window player used by embedded Android car displays such as Ottocast. */
+@Composable
+fun CarNowPlayingScreen(
+    navController: NavController,
+    sharedViewModel: SharedViewModel = koinInject(),
+    onDismiss: () -> Unit,
+    onLibrary: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+    ) {
+        NowPlayingScreenContent(
+            sharedViewModel = sharedViewModel,
+            navController = navController,
+            isExpanded = true,
+            dismissIcon = SimpIcons.LibraryMusic,
+            onDismiss = onDismiss,
+        )
+        FilledTonalButton(
+            onClick = onLibrary,
+            modifier =
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+                    .zIndex(10f),
+        ) {
+            Icon(
+                imageVector = SimpIcons.LibraryMusic,
+                contentDescription = null,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(Res.string.back_to_library))
+        }
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @ExperimentalMaterial3Api

@@ -91,6 +91,7 @@ import com.maxrave.simpmusic.ui.navigation.destination.search.SearchDestination
 import com.maxrave.simpmusic.ui.navigation.graph.AppNavigationGraph
 import com.maxrave.simpmusic.ui.screen.MiniPlayer
 import com.maxrave.simpmusic.ui.screen.other.UnofficialBuildScreen
+import com.maxrave.simpmusic.ui.screen.player.CarNowPlayingScreen
 import com.maxrave.simpmusic.ui.screen.player.NowPlayingScreen
 import com.maxrave.simpmusic.ui.screen.player.NowPlayingScreenContent
 import com.maxrave.simpmusic.ui.theme.AppTheme
@@ -198,6 +199,16 @@ fun App(
     // Now playing screen
     var isShowNowPlaylistScreen by rememberSaveable {
         mutableStateOf(false)
+    }
+
+    // A car display is primarily a player. Open it when playback first becomes available, while
+    // keeping a manual return to Library sticky until playback actually stops and starts again.
+    // Keying this to the presence of a media item (rather than its id) prevents every automatic
+    // track change from pulling the user out of Library.
+    LaunchedEffect(isCarDisplay, isShowMiniPlayer) {
+        if (isCarDisplay && isShowMiniPlayer) {
+            isShowNowPlaylistScreen = true
+        }
     }
 
     // Fullscreen
@@ -674,7 +685,7 @@ fun App(
                                 )
                             }
                         }
-                        if (useNavigationRail && isTabletLandscape && !isInFullscreen) {
+                        if (useNavigationRail && isTabletLandscape && !isCarDisplay && !isInFullscreen) {
                             AnimatedVisibility(
                                 isShowNowPlaylistScreen,
                                 enter = expandHorizontally() + fadeIn(),
@@ -730,7 +741,22 @@ fun App(
                     }
                 }
 
-                if (isShowNowPlaylistScreen && !isTabletLandscape) {
+                if (isCarDisplay && isShowNowPlaylistScreen) {
+                    ForceDarkContent {
+                        CarNowPlayingScreen(
+                            navController = navController,
+                            onDismiss = { isShowNowPlaylistScreen = false },
+                            onLibrary = {
+                                isShowNowPlaylistScreen = false
+                                navController.navigate(LibraryDestination) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                        )
+                    }
+                } else if (isShowNowPlaylistScreen && !isTabletLandscape) {
                     ForceDarkContent {
                         NowPlayingScreen(
                             navController = navController,

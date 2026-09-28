@@ -550,6 +550,7 @@
     <string name="display_mode_standard">Standard</string>
     <string name="display_mode_car">Auto / Ottocast</string>
     <string name="car_downloads">Download</string>
+    <string name="back_to_library">Libreria</string>
     <string name="your_library">La tua libreria</string>
     <string name="play_explicit_content">Riproduci contenuti espliciti</string>
     <string name="play_explicit_content_description">Abilita la riproduzione di contenuti espliciti</string>
