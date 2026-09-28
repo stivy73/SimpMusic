@@ -138,9 +138,10 @@ import simpmusic.composeapp.generated.resources.version_format
 import simpmusic.composeapp.generated.resources.yes
 import kotlin.time.ExperimentalTime
 
-// Ottocast draws its launcher rail over the app without exposing a system WindowInset. Its width
-// matches the 112dp navigation rail used by the car layout, so reserve that strip explicitly.
-private val OttocastSystemRailInset = 112.dp
+// Ottocast draws its launcher rail over the app without exposing a system WindowInset. The
+// proprietary rail is 80dp wide; reserving the app's own 112dp navigation-rail width left a
+// visible black strip between the launcher and SimpMusic.
+private val OttocastSystemRailInset = 80.dp
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalTime::class, ExperimentalFoundationApi::class)
 @Composable
