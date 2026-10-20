@@ -11,7 +11,6 @@ import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.mediaservice.handler.MediaPlayerHandler
 import com.maxrave.domain.mediaservice.handler.PlayerEvent
 import com.maxrave.media3.speech.CloudSongMeaningSpeech
-import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,10 +21,11 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
+import java.util.Locale
 
 private class AndroidSongMeaningSpeechController(
     private val context: Context,
@@ -92,13 +92,14 @@ private class AndroidSongMeaningSpeechController(
         if (text.isBlank()) return
         stop(resumeMusic = false)
         mutableState.value = SongMeaningSpeechState.Preparing
-        speechJob = scope.launch {
-            when (dataStoreManager.songMeaningTtsProvider.first()) {
-                DataStoreManager.SONG_MEANING_TTS_OPENAI -> playOpenAi(text)
-                DataStoreManager.SONG_MEANING_TTS_GOOGLE -> playGoogle(text)
-                else -> playNative(text)
+        speechJob =
+            scope.launch {
+                when (dataStoreManager.songMeaningTtsProvider.first()) {
+                    DataStoreManager.SONG_MEANING_TTS_OPENAI -> playOpenAi(text)
+                    DataStoreManager.SONG_MEANING_TTS_GOOGLE -> playGoogle(text)
+                    else -> playNative(text)
+                }
             }
-        }
     }
 
     override fun stop() {
@@ -164,7 +165,7 @@ private class AndroidSongMeaningSpeechController(
         }
         val apiKey = dataStoreManager.aiApiKey.first()
         if (apiKey.isBlank()) {
-            failSpeech(SongMeaningSpeechError.GOOGLE_API_KEY_MISSING)
+            failSpeech(SongMeaningSpeechError.API_KEY_MISSING)
             return
         }
         try {
@@ -192,11 +193,12 @@ private class AndroidSongMeaningSpeechController(
     }
 
     private suspend fun playGoogle(text: String) {
-        val apiKey = dataStoreManager.googleTtsApiKey.first().ifBlank {
-            if (dataStoreManager.aiProvider.first() == DataStoreManager.AI_PROVIDER_GEMINI) dataStoreManager.aiApiKey.first() else ""
-        }
+        val apiKey =
+            dataStoreManager.googleTtsApiKey.first().ifBlank {
+                if (dataStoreManager.aiProvider.first() == DataStoreManager.AI_PROVIDER_GEMINI) dataStoreManager.aiApiKey.first() else ""
+            }
         if (apiKey.isBlank()) {
-            failSpeech(SongMeaningSpeechError.API_KEY_MISSING)
+            failSpeech(SongMeaningSpeechError.GOOGLE_API_KEY_MISSING)
             return
         }
         try {
@@ -256,7 +258,6 @@ private class AndroidSongMeaningSpeechController(
         textToSpeech = null
         scope.cancel()
     }
-
 }
 
 @Composable
@@ -285,4 +286,4 @@ private object SongMeaningSpeechControllerHolder {
                 mediaPlayerHandler,
             ).also { controller = it }
         }
-    }
+}

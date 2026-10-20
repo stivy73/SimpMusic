@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-12",
+  "version": "0.1.0",
+  "build": "1",
+  "bundle_id": "com.stivy.notenarrate.mac",
+  "minimum_macos": "14.0",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "signing_identity": "Developer ID Application: Archetipi Digitali srl (63W2ZKR3Z7)",
+  "distribution_id": "CB27A0E2-D067-4C13-8B5E-854507D0CE0B",
+  "notarization": "accepted; ticket stapled and validated",
+  "gatekeeper": "accepted; source=Notarized Developer ID; exported and extracted copies",
+  "hardened_runtime": true,
+  "timestamp": true,
+  "app_sandbox": true,
+  "network_client": true,
+  "zip": "NoteNarrate-macOS-0.1.0-universal-notarized.zip",
+  "zip_sha256": "89fc9662c5241b0cf15755af61f425dcb09927da9089c2e77b5700472f749d5e",
+  "sources_zip": "NoteNarrate-macOS-0.1.0-sources.zip",
+  "sources_sha256": "d571e20cf385874eb29e4a7c8f1b303803eb624b0834991901a44ff845228191",
+  "unit_tests": {
+    "count": 68,
+    "failures": 0
+  },
+  "ui_tests": {
+    "count": 3,
+    "failures": 1,
+    "limitation": "Minimization test passed playback/time assertions but could not find lyrics control; details in VERIFICATION.md"
+  },
+  "runtime_verified_on": "Apple silicon; Intel runtime not tested"
+}

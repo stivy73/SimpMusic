@@ -1,0 +1,8 @@
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Schermate browser locali: possono mostrare schede non pertinenti.
+Screenshots/TestFlight-ready.png
+Screenshots/TestFlight-external-*.png

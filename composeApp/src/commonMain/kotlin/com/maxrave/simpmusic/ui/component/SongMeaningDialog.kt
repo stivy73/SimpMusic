@@ -1,10 +1,10 @@
 package com.maxrave.simpmusic.ui.component
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -24,11 +24,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.maxrave.domain.utils.LocalResource
+import com.maxrave.simpmusic.expect.SongMeaningSpeechError
+import com.maxrave.simpmusic.expect.SongMeaningSpeechState
 import com.maxrave.simpmusic.expect.copyToClipboard
 import com.maxrave.simpmusic.expect.rememberSongMeaningSpeechController
 import com.maxrave.simpmusic.expect.shareUrl
-import com.maxrave.simpmusic.expect.SongMeaningSpeechError
-import com.maxrave.simpmusic.expect.SongMeaningSpeechState
 import com.maxrave.simpmusic.ui.icon.Pause
 import com.maxrave.simpmusic.ui.icon.PlayArrow
 import com.maxrave.simpmusic.ui.icon.Share
@@ -38,15 +38,17 @@ import org.jetbrains.compose.resources.stringResource
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.cancel
 import simpmusic.composeapp.generated.resources.copy
-import simpmusic.composeapp.generated.resources.retry
+import simpmusic.composeapp.generated.resources.google_tts_key_missing
 import simpmusic.composeapp.generated.resources.read_aloud
+import simpmusic.composeapp.generated.resources.retry
+import simpmusic.composeapp.generated.resources.settings
 import simpmusic.composeapp.generated.resources.share
 import simpmusic.composeapp.generated.resources.song_meaning
+import simpmusic.composeapp.generated.resources.song_meaning_api_key_missing
 import simpmusic.composeapp.generated.resources.song_meaning_loading
 import simpmusic.composeapp.generated.resources.song_meaning_no_lyrics
 import simpmusic.composeapp.generated.resources.song_meaning_speech_error
 import simpmusic.composeapp.generated.resources.song_meaning_speech_key_missing
-import simpmusic.composeapp.generated.resources.google_tts_key_missing
 import simpmusic.composeapp.generated.resources.song_meaning_speech_language_unavailable
 import simpmusic.composeapp.generated.resources.song_meaning_speech_openai_required
 import simpmusic.composeapp.generated.resources.stop_reading
@@ -58,9 +60,11 @@ fun SongMeaningDialog(
     hasLyrics: Boolean,
     state: LocalResource<String>,
     onRetry: () -> Unit,
+    onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val songMeaningLabel = stringResource(Res.string.song_meaning)
+    val missingKeyMessage = stringResource(Res.string.song_meaning_api_key_missing)
     val shareLabel = stringResource(Res.string.share)
     val speechController = rememberSongMeaningSpeechController()
     val speechState by speechController.state.collectAsState()
@@ -198,7 +202,15 @@ fun SongMeaningDialog(
                     }
 
                 is LocalResource.Error -> {
-                    TextButton(onClick = onRetry) { Text(stringResource(Res.string.retry)) }
+                    Row {
+                        if (state.message != missingKeyMessage) {
+                            TextButton(onClick = onRetry) { Text(stringResource(Res.string.retry)) }
+                        }
+                        TextButton(onClick = {
+                            dismiss()
+                            onOpenSettings()
+                        }) { Text(stringResource(Res.string.settings)) }
+                    }
                 }
 
                 is LocalResource.Loading -> Unit

@@ -1,0 +1,15 @@
+NoteNarrate 0.1.0 per macOS 14 o successivo, build universal Apple silicon e Intel.
+
+1. Estrai lo ZIP e trascina NoteNarrate.app nella cartella Applicazioni.
+2. Apri NoteNarrate. Il pacchetto finale deve superare Gatekeeper normalmente.
+3. In Impostazioni inserisci la tua chiave Gemini; i dati sono salvati nel Portachiavi Mac.
+4. Per gli album personali, accedi a YouTube Music dalla Libreria.
+
+Impostazioni iniziali: Gemini TTS attivo, stile Empatico, voce Aoede.
+Le preferenze già salvate vengono rispettate.
+Account e chiavi della versione iOS non vengono trasferiti automaticamente.
+
+Scorciatoie: Cmd+1 Home, Cmd+2 Cerca, Cmd+3 Libreria, Cmd+4 Player,
+Cmd+0 Mostra finestra, Cmd+Spazio Pausa/Riprendi, Shift+Cmd+I Significato.
+
+Licenza GPL-3.0; YouTubeSDK MIT. Le licenze sono incluse nell'app.

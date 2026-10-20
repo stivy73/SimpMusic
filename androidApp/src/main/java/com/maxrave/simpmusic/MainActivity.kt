@@ -1,6 +1,7 @@
 package com.maxrave.simpmusic
 
 import android.Manifest
+import android.app.SearchManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
@@ -8,6 +9,7 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.provider.MediaStore
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -95,6 +97,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         Logger.d("MainActivity", "onNewIntent: $intent")
         intent.toGenericIntent()?.let(viewModel::setIntent)
     }
@@ -111,7 +114,6 @@ class MainActivity : AppCompatActivity() {
         unloadKoinModules(viewModelModule)
         loadKoinModules(viewModelModule)
         VersionManager.initialize()
-        checkForUpdate()
         if (viewModel.recreateActivity.value || viewModel.isServiceRunning) {
             viewModel.activityRecreateDone()
         } else {
@@ -246,8 +248,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun Intent.toGenericIntent(): GenericIntent? {
+        val mediaSearch =
+            if (action == MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH || action == Intent.ACTION_SEARCH ||
+                hasExtra(MediaStore.EXTRA_MEDIA_TITLE)
+            ) {
+                SharedTextParser.parseMediaSearch(
+                    title = getStringExtra(MediaStore.EXTRA_MEDIA_TITLE),
+                    artist = getStringExtra(MediaStore.EXTRA_MEDIA_ARTIST),
+                    query = getStringExtra(SearchManager.QUERY),
+                )
+            } else {
+                null
+            }
         val resolvedData =
-            data ?: when (val shared = SharedTextParser.parse(getStringExtra(Intent.EXTRA_TEXT))) {
+            data ?: when (val shared = mediaSearch ?: SharedTextParser.parse(getStringExtra(Intent.EXTRA_TEXT))) {
                 is SharedTextContent.Link -> shared.url.toUri()
                 is SharedTextContent.SongSearch ->
                     android.net.Uri
@@ -304,12 +318,6 @@ class MainActivity : AppCompatActivity() {
         viewModel.isServiceRunning = true
         shouldUnbind = true
         Logger.d("Service", "Service started")
-    }
-
-    private fun checkForUpdate() {
-        if (viewModel.shouldCheckForUpdate()) {
-            viewModel.checkForUpdate()
-        }
     }
 
     private fun putString(

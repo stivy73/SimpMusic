@@ -145,7 +145,7 @@
     <string name="albums_inArtist">Đĩa nhạc</string>
     <string name="singles_inArtist">Đĩa đơn</string>
     <string name="fans_might_also_like_inArtist">Người hâm mộ có thể cũng thích</string>
-    <string name="crash_log">SimpMusic đã dừng đột ngột. Xin lỗi bạn vì sự bất tiện này. Gửi crash-log đến nhà phát trển</string>
+    <string name="crash_log">NoteNarrate đã dừng đột ngột. Xin lỗi bạn vì sự bất tiện này. Gửi crash-log đến nhà phát trển</string>
     <string name="crash">Lỗi</string>
     <string name="send">Gửi</string>
     <string name="mail_subject">Báo cáo</string>
@@ -205,7 +205,7 @@
     <string name="what_segments_will_be_skipped">Loại phân đoạn gì sẽ được bỏ qua</string>
     <string name="save">Lưu</string>
     <string name="saved">Đã lưu</string>
-    <string name="sponsor_block_intro">SponsorBlock là một dự án mã nguồn mở sử dụng để bỏ qua các phần gây khó chịu của video trên YouTube.\nTìm hiểu thêm: https://sponsor.ajay.app/\nTrong SimpMusic, SponsorBlock chỉ khả dụng khi thiết bị của bạn trực tuyến</string>
+    <string name="sponsor_block_intro">SponsorBlock là một dự án mã nguồn mở sử dụng để bỏ qua các phần gây khó chịu của video trên YouTube.\nTìm hiểu thêm: https://sponsor.ajay.app/\nTrong NoteNarrate, SponsorBlock chỉ khả dụng khi thiết bị của bạn trực tuyến</string>
     <string name="skip_sponsor_part_of_video">Bỏ qua phân đoạn được tài trợ của video</string>
     <string name="customactivityoncrash_error_activity_error_occurred_explanation">Đã xảy ra lỗi không mong muốn. Xin lỗi vì sự bất tiện.</string>
     <string name="customactivityoncrash_error_activity_restart_app">Khởi động lại ứng dụng</string>
@@ -246,7 +246,7 @@
     <string name="saved_to_local_playlist">Đã lưu vào danh sách phát nội bộ</string>
     <string name="if_you_want_to_unsync_this_playlist_please_go_to_local_playlist">Nếu bạn muốn huỷ đồng bộ danh sách phát này, xin hãy truy cập đến phần danh sách phát nội bộ</string>
     <string name="log_in_to_get_YouTube_playlist">Đăng nhập để tải danh sách phát YouTube của bạn</string>
-    <string name="sync_playlist_warning">SimpMusic sẽ tự động tạo một danh sách phát trên YouTube Music. Bạn có chắc chắn?</string>
+    <string name="sync_playlist_warning">NoteNarrate sẽ tự động tạo một danh sách phát trên YouTube Music. Bạn có chắc chắn?</string>
     <string name="syncing">Đang đồng bộ</string>
     <string name="unsync_playlist_warning">"Huỷ đồng bộ danh sách phát này? Điều này sẽ không xoá danh sách phát này trên YouTube Music"</string>
     <string name="unsyncing">Đang huỷ đồng bộ</string>
@@ -263,7 +263,7 @@
     <string name="email">Email</string>
     <string name="password">Mật khẩu</string>
     <string name="please_enter_your_email_and_password">Hãy nhập email và mật khẩu của bạn</string>
-    <string name="translation_language_message">Nhập mã ngôn ngữ (Ví dụ: vi) (2 kí tự). Nếu bạn muốn để theo ngôn ngữ chính của SimpMusic, hãy để trống</string>
+    <string name="translation_language_message">Nhập mã ngôn ngữ (Ví dụ: vi) (2 kí tự). Nếu bạn muốn để theo ngôn ngữ chính của NoteNarrate, hãy để trống</string>
     <string name="invalid_language_code">Mã ngôn ngữ không hợp lệ</string>
     <string name="lyrics_provider_youtube">Lời bài hát được cung cấp bởi YouTube</string>
     <string name="lyrics_provider_betterlyrics">Lời bài hát được cung cấp bởi BetterLyrics</string>
@@ -319,7 +319,7 @@
     <string name="equalizer_autoeq_unavailable">Không thể kết nối với AutoEq. Hãy kiểm tra kết nối của bạn và thử lại.</string>
     <string name="equalizer_autoeq_empty">Không có tai nghe nào khớp với tên đó</string>
     <string name="equalizer_autoeq_failed">Không thể tải hồ sơ đó — cần có kết nối mạng trong lần đầu tiên</string>
-    <string name="sync_follow_to_youtube_description">Theo dõi một nghệ sĩ trong SimpMusic cũng đăng ký kênh của họ trên tài khoản YouTube của bạn</string>
+    <string name="sync_follow_to_youtube_description">Theo dõi một nghệ sĩ trong NoteNarrate cũng đăng ký kênh của họ trên tài khoản YouTube của bạn</string>
     <string name="sync_follow_failed">Không thể cập nhật đăng ký YouTube của bạn</string>
     <string name="subscribed_on_youtube">Đã đăng ký trên YouTube</string>
     <string name="unsubscribed_on_youtube">Đã hủy đăng ký trên YouTube</string>
@@ -340,7 +340,7 @@
     <string name="enable_spotify_lyrics">Bật lời bài hát từ Spotify</string>
     <string name="spotify_lyrícs_info">Nhiều lời bài hát hơn nhưng không có dịch</string>
     <string name="enable_canvas">Bật Canvas</string>
-    <string name="canvas_info">Hiện thỉ Spotify Canvas trong SimpMusic</string>
+    <string name="canvas_info">Hiện thỉ Spotify Canvas trong NoteNarrate</string>
     <string name="spotify_lyrics_provider">Lời bài hát được cung cấp bởi Spotify</string>
     <string name="offline_mode">Chế độ ngoại tuyến</string>
     <string name="added_to_youtube_liked">Thêm vào danh sách phát YouTube Yêu Thích</string>
@@ -406,7 +406,7 @@
     <string name="loading">Đang tải</string>
     <string name="updating">Đang cập nhật</string>
     <string name="go_to_log_in_page">Đi tới trang đăng nhập</string>
-    <string name="log_in_warning">YouTube Music hiện tại đang yêu cầu đăng nhập để nghe nhạc trực tuyến, cũng như các thực thể Piped đôi khi không hoạt động. Bạn nên đăng nhập vào YouTube để có trải nghiệm nghe nhạc tốt nhất với SimpMusic.</string>
+    <string name="log_in_warning">YouTube Music hiện tại đang yêu cầu đăng nhập để nghe nhạc trực tuyến, cũng như các thực thể Piped đôi khi không hoạt động. Bạn nên đăng nhập vào YouTube để có trải nghiệm nghe nhạc tốt nhất với NoteNarrate.</string>
     <string name="spotify_canvas_cache">Cache của Spotify Canvas</string>
     <string name="clear_canvas_cache">Xoá bộ nhớ cache của Spotify Canvas</string>
     <string name="listening_history">Lịch sử nghe</string>
@@ -453,7 +453,7 @@
     <string name="other_version">Phiên bản khác</string>
     <string name="later">Để sau</string>
     <string name="give_a_star">Tặng một sao</string>
-    <string name="enjoying_simpmusic">Yêu thích SimpMusic</string>
+    <string name="enjoying_simpmusic">Yêu thích NoteNarrate</string>
     <string name="if_you_enjoy_using_simpmusic_star_simpmusic_on_github_or_leave_a_review_on">Nếu bạn yêu thích SimpMusic, sao SimpMusic trên GitHub hoặc để lại một đánh giá trên</string>
     <string name="if_you_love_my_work_consider">"Nếu bạn cảm thấy yêu thích những gì tôi làm, có thể "</string>
     <string name="buying_me_a_coffee">mua cho tôi một ly cà phê.</string>
@@ -559,8 +559,8 @@
     <string name="intro_login_to_lastfm">Đăng nhập để ghi lại những gì bạn nghe</string>
     <string name="enable_scrobbling">Bật scrobbling</string>
     <string name="scrobbling_info">Gửi những gì bạn nghe lên tài khoản Last.fm của bạn</string>
-    <string name="lastfm_login_step_1">Mở trang Last.fm và cho phép SimpMusic quyền truy cập vào tài khoản của bạn.</string>
-    <string name="lastfm_login_step_2">SimpMusic sẽ tự mở lại app khi đã có quyền truy cập cần thiết.</string>
+    <string name="lastfm_login_step_1">Mở trang Last.fm và cho phép NoteNarrate quyền truy cập vào tài khoản của bạn.</string>
+    <string name="lastfm_login_step_2">NoteNarrate sẽ tự mở lại app khi đã có quyền truy cập cần thiết.</string>
     <string name="lastfm_open_authorize_page">Mở Last.fm</string>
     <string name="lastfm_login_failed">Không thể đăng nhập vào Last.fm. Hãy thử lại.</string>
     <string name="lastfm_paste_callback_title">Không thể quay lại app tự động?</string>
@@ -617,7 +617,7 @@
     <string name="downvote">Không thích</string>
     <string name="vote_submitted">Cảm ơn vì đã bình chọn cho lời bài hát!</string>
     <string name="vote_error">Gửi không thành công</string>
-    <string name="open_app">Mở SimpMusic</string>
+    <string name="open_app">Mở NoteNarrate</string>
     <string name="close_miniplayer">Đóng trình phát thu nhỏ</string>
     <string name="open_miniplayer">Mở trình phát thu nhỏ</string>
     <string name="quit_app">Thoát ứng dụng</string>
@@ -645,7 +645,7 @@
     <string name="import_result">Đã tạo %1$d danh sách phát và nhập %2$d bài hát.</string>
     <string name="import_result_skipped">%1$d mục đã bị bỏ qua do thiếu bài hát tương ứng trong tệp.</string>
     <string name="import_failed">Nhập dữ liệu thất bại</string>
-    <string name="import_invalid_file">Tệp này không phải là tệp nhập SimpMusic hợp lệ. Hãy chuyển đổi thư viện của bạn tại simpmusic.org trước.</string>
+    <string name="import_invalid_file">Tệp này không phải là tệp nhập NoteNarrate hợp lệ. Hãy chuyển đổi thư viện của bạn tại simpmusic.org trước.</string>
     <!-- Listen Together -->
     <string name="lt_custom_server">Máy chủ tùy chỉnh</string>
     <string name="lt_custom_server_desc">Nhập địa chỉ wss:// của bạn</string>

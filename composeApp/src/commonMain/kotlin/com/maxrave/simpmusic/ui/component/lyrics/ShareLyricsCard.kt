@@ -64,8 +64,7 @@ internal fun Color.shareCardContentColor(): Color = if (luminance() > 0.5f) Colo
  * 0.55 rather than 1.0 so the result still reads as the song's colour instead of plain black,
  * which is what Spotify's card does: dark red-brown text on white, never grey.
  */
-internal fun Color.shareTintOn(fill: Color): Color =
-    if (fill.luminance() > 0.5f) lerp(this, Color.Black, 0.55f) else lerp(this, Color.White, 0.55f)
+internal fun Color.shareTintOn(fill: Color): Color = if (fill.luminance() > 0.5f) lerp(this, Color.Black, 0.55f) else lerp(this, Color.White, 0.55f)
 
 /**
  * The image the user ends up sharing.
@@ -163,7 +162,7 @@ internal fun ShareLyricsCard(
             }
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "SimpMusic",
+                text = "NoteNarrate",
                 color = secondary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
