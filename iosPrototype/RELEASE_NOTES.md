@@ -17,3 +17,8 @@ alone does not resolve that restriction.
 
 The Italian Store page is a draft with manual release. Privacy, age rating, content
 rights, screenshots and reviewer access remain separate steps before submission.
+
+Apple processing completed on 21 October 2026. Build 20 was selected and saved
+on the Italian 0.6.2 Store draft. Reload confirmed the build association and the
+NoteNarrate icon in the app header. Status remains Prepare for Submission, with
+manual release; no review submission or public release was performed.
