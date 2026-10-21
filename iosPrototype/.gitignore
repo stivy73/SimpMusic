@@ -1,0 +1,16 @@
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Schermate browser locali: possono mostrare schede non pertinenti.
+Screenshots/TestFlight-ready.png
+Screenshots/TestFlight-external-*.png
+
+# Keep local screenshots and Python caches out of source deliveries.
+Screenshots/
+__pycache__/
+*.pyc
+
+# Local verification diary may contain account-side details.
+/VERIFICATION.md

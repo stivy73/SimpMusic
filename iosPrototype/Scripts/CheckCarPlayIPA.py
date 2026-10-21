@@ -1,0 +1,99 @@
+"""Verify the exported Apple-signed IPA, including CarPlay in both signatures.
+
+Run on macOS outside a restricted filesystem sandbox. No credentials are read.
+"""
+
+import hashlib
+import json
+import plistlib
+import subprocess
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def verify(ipa):
+    with tempfile.TemporaryDirectory(prefix="notenarrate-carplay-check-") as folder:
+        root = Path(folder).resolve()
+        with zipfile.ZipFile(ipa) as archive:
+            require(archive.testzip() is None, "IPA ZIP integrity failed")
+            for member in archive.infolist():
+                require(
+                    (root / member.filename).resolve().is_relative_to(root),
+                    "Invalid path in IPA",
+                )
+            archive.extractall(root)
+        apps = list((root / "Payload").glob("*.app"))
+        require(len(apps) == 1, "Expected one app in IPA")
+        app = apps[0]
+        info = plistlib.loads((app / "Info.plist").read_bytes())
+        result = subprocess.run(
+            ["codesign", "-d", "--entitlements", ":-", str(app)],
+            capture_output=True,
+            check=True,
+        )
+        raw = result.stdout
+        start = raw.find(b"<?xml")
+        require(start >= 0, "Signed entitlements are unavailable")
+        signed = plistlib.loads(raw[start:])
+        profile = plistlib.loads(
+            subprocess.check_output(
+                ["security", "cms", "-D", "-i", str(app / "embedded.mobileprovision")]
+            )
+        )
+        bundle = "com.stivy.simpmusic.prototype"
+        team = "63W2ZKR3Z7"
+        require(info["CFBundleIdentifier"] == bundle, "Unexpected Bundle ID")
+        require(profile["TeamIdentifier"] == [team], "Unexpected Apple Team")
+        for name, entitlements in (
+            ("signature", signed),
+            ("profile", profile["Entitlements"]),
+        ):
+            require(
+                entitlements.get("com.apple.developer.carplay-audio") is True,
+                f"CarPlay missing from {name}",
+            )
+            require(
+                entitlements.get("application-identifier") == f"{team}.{bundle}",
+                f"Unexpected app identifier in {name}",
+            )
+            require(
+                entitlements.get("get-task-allow") is False,
+                f"Distribution entitlement invalid in {name}",
+            )
+        scenes = info["UIApplicationSceneManifest"]["UISceneConfigurations"]
+        carplay = scenes.get("CPTemplateApplicationSceneSessionRoleApplication", [])
+        require(
+            any(scene.get("UISceneClassName") == "CPTemplateApplicationScene"
+                and scene.get("UISceneDelegateClassName", "").endswith(".CarPlayScene")
+                for scene in carplay),
+            "CarPlay scene configuration missing",
+        )
+        require("audio" in info.get("UIBackgroundModes", []), "Background audio missing")
+        subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+        return {
+            "app": info["CFBundleDisplayName"],
+            "version": info["CFBundleShortVersionString"],
+            "build": info["CFBundleVersion"],
+            "bundle": bundle,
+            "team": team,
+            "signature_carplay": True,
+            "profile_carplay": True,
+            "codesign_verified": True,
+            "sha256": hashlib.sha256(ipa.read_bytes()).hexdigest(),
+        }
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        sys.exit("Usage: python3 Scripts/CheckCarPlayIPA.py <exported.ipa>")
+    try:
+        print(json.dumps(verify(Path(sys.argv[1])), indent=2))
+    except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
+        sys.exit(f"CarPlay IPA verification failed: {error}")
