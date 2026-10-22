@@ -1,3 +1,15 @@
+# NoteNarrate iOS 0.7.0 (21)
+
+Adaptive iPhone Duo interface using Apple's iOS 27.1 SDK, native tab accessory
+and ArrangementView. Player controls use available pane geometry; artwork fits
+without cropping, action targets are at least 44 pt and album columns flex.
+iOS 17 compatibility and the stable Mac playback hierarchy are preserved.
+
+Release archive, Mac build and Apple-signed IPA verification passed, including
+CarPlay entitlement in the signature and provisioning profile. The existing
+Store draft remains on build 20. Fold poses and real-vehicle behavior still need
+hardware validation; simulator build success alone does not establish these.
+
 # NoteNarrate iOS 0.6.2 (20)
 
 Build 20 uses the same functional code as build 19 and enables App Store Connect

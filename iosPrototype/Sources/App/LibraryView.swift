@@ -21,64 +21,66 @@ struct LibraryView: View {
   @ObservedObject var library: LibraryModel
   @State private var local = false
   var body: some View {
-    VStack {
-      Picker("Raccolta", selection: $local) {
-        Text("Album YouTube Music").tag(false)
-        Text("Preferiti locali").tag(true)
-      }.pickerStyle(.segmented).padding(.horizontal)
-      if local {
-        if model.favorites.isEmpty {
-          ContentUnavailableView("Nessun preferito locale", systemImage: "heart")
-        } else {
-          SongList(songs: model.favorites)
-        }
-      } else if library.session == nil {
-        ContentUnavailableView {
-          Label("La tua libreria YouTube Music", systemImage: "person.crop.circle")
-        } description: {
-          Text("Accedi per visualizzare gli album salvati nel tuo account.")
-        } actions: {
-          Button("Accedi a YouTube Music") { library.showLogin = true }.buttonStyle(
-            .borderedProminent)
-        }
-      } else if library.loading {
-        ProgressView("Carico tutti gli album…").frame(maxHeight: .infinity)
-      } else if let error = library.error {
-        ContentUnavailableView {
-          Label("Libreria non disponibile", systemImage: "exclamationmark.triangle")
-        } description: {
-          Text(error)
-        } actions: {
-          Button("Riprova") { library.refresh() }
-          Button("Accedi nuovamente") { library.showLogin = true }
-        }
-      } else {
-        ScrollView {
-          if library.albums.isEmpty {
-            ContentUnavailableView(
-              "Nessun album salvato", systemImage: "opticaldisc",
-              description: Text("Gli album salvati in YouTube Music compariranno qui."))
+    GeometryReader { geometry in
+      VStack {
+        Picker("Raccolta", selection: $local) {
+          Text("Album YouTube Music").tag(false)
+          Text("Preferiti locali").tag(true)
+        }.pickerStyle(.segmented).padding(.horizontal)
+        if local {
+          if model.favorites.isEmpty {
+            ContentUnavailableView("Nessun preferito locale", systemImage: "heart")
           } else {
-            Text("\(library.albums.count) album")
-              .font(.caption).foregroundStyle(.secondary)
-              .accessibilityIdentifier("library-album-count")
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 16)], spacing: 22) {
-              ForEach(library.albums) { album in
-                NavigationLink {
-                  AlbumView(album: album, identity: library.session?.identity)
-                    .id(library.session?.identity)
-                } label: {
-                  VStack(alignment: .leading, spacing: 8) {
-                    Artwork(url: album.artwork).aspectRatio(1, contentMode: .fit)
-                      .clipShape(RoundedRectangle(cornerRadius: 14))
-                    Text(album.title).fontWeight(.semibold).lineLimit(2)
-                    Text(album.artist).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                  }.foregroundStyle(.primary)
-                }.accessibilityIdentifier("album-\(album.id)")
-              }
-            }.padding()
+            SongList(songs: model.favorites)
           }
-        }.refreshable { await library.reload() }
+        } else if library.session == nil {
+          ContentUnavailableView {
+            Label("La tua libreria YouTube Music", systemImage: "person.crop.circle")
+          } description: {
+            Text("Accedi per visualizzare gli album salvati nel tuo account.")
+          } actions: {
+            Button("Accedi a YouTube Music") { library.showLogin = true }.buttonStyle(
+              .borderedProminent)
+          }
+        } else if library.loading {
+          ProgressView("Carico tutti gli album…").frame(maxHeight: .infinity)
+        } else if let error = library.error {
+          ContentUnavailableView {
+            Label("Libreria non disponibile", systemImage: "exclamationmark.triangle")
+          } description: {
+            Text(error)
+          } actions: {
+            Button("Riprova") { library.refresh() }
+            Button("Accedi nuovamente") { library.showLogin = true }
+          }
+        } else {
+          ScrollView {
+            if library.albums.isEmpty {
+              ContentUnavailableView(
+                "Nessun album salvato", systemImage: "opticaldisc",
+                description: Text("Gli album salvati in YouTube Music compariranno qui."))
+            } else {
+              Text("\(library.albums.count) album")
+                .font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("library-album-count")
+              LazyVGrid(columns: albumColumns(width: geometry.size.width), spacing: 22) {
+                ForEach(library.albums) { album in
+                  NavigationLink {
+                    AlbumView(album: album, identity: library.session?.identity)
+                      .id(library.session?.identity)
+                  } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                      Artwork(url: album.artwork).aspectRatio(1, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                      Text(album.title).fontWeight(.semibold).lineLimit(2)
+                      Text(album.artist).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }.foregroundStyle(.primary)
+                  }.accessibilityIdentifier("album-\(album.id)")
+                }
+              }.padding()
+            }
+          }.refreshable { await library.reload() }
+        }
       }
     }.navigationTitle("Libreria")
       .toolbar {
@@ -93,6 +95,12 @@ struct LibraryView: View {
       }
       .task { if library.session != nil && library.albums.isEmpty { library.refresh() } }
   }
+  private func albumColumns(width: CGFloat) -> [GridItem] {
+    let possible = max(1, min(6, Int(max(0, width - 32) / 161)))
+    let count = possible > 2 && possible % 2 != 0 ? possible - 1 : possible
+    return Array(repeating: GridItem(.flexible(), spacing: 16), count: count)
+  }
+
 }
 
 struct AlbumView: View {

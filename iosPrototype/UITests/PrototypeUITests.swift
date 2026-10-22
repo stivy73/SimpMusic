@@ -7,8 +7,26 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
+  private func selectTab(_ label: String, symbol: String, in app: XCUIApplication) {
+    let standard = app.tabBars.buttons[label]
+    if standard.exists {
+      standard.tap()
+    } else {
+      // Duo exposes native vertical tabs outside the TabBar accessibility container.
+      let vertical = app.descendants(matching: .any).matching(
+        NSPredicate(
+          format: "label == %@ AND (elementType == %d OR elementType == %d)",
+          label, XCUIElement.ElementType.button.rawValue,
+          XCUIElement.ElementType.popUpButton.rawValue)
+      ).firstMatch
+      XCTAssertTrue(vertical.waitForExistence(timeout: 10))
+      vertical.tap()
+    }
+  }
+
+  @MainActor
   private func searchReferenceSong(in app: XCUIApplication) {
-    app.tabBars.buttons["Cerca"].tap()
+    selectTab("Cerca", symbol: "magnifyingglass", in: app)
     let field = app.searchFields.firstMatch
     XCTAssertTrue(field.waitForExistence(timeout: 10))
     field.tap()
@@ -36,6 +54,46 @@ final class PrototypeUITests: XCTestCase {
       if toggle.value as? String != "Riproduzione attiva" { toggle.tap() }
       XCTAssertEqual(XCTWaiter.wait(for: [playing()], timeout: 45), .completed)
     }
+  }
+
+  @MainActor
+  func testPlayerKeepsLyricsQueueAndPlaybackAcrossResize() {
+    let app = XCUIApplication()
+    app.launch()
+    searchReferenceSong(in: app)
+    let song = findReferenceSong(in: app)
+    song.tap()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15))
+    waitForPlayback(toggle)
+    app.buttons["Altre opzioni"].tap()
+    app.buttons["Aggiungi o modifica il testo"].coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    ).tap()
+    let editor = app.textViews["manual-lyrics-editor"]
+    XCTAssertTrue(editor.waitForExistence(timeout: 10))
+    editor.tap()
+    editor.typeText("Un ricordo che resta: testo di prova del layout adattivo.")
+    app.buttons["Fine"].tap()
+    let lyrics = app.staticTexts["song-lyrics"]
+    XCTAssertTrue(lyrics.waitForExistence(timeout: 10))
+    XCUIDevice.shared.orientation = .landscapeLeft
+    XCTAssertTrue(lyrics.waitForExistence(timeout: 10))
+    XCTAssertTrue(lyrics.label.contains("testo di prova del layout adattivo"))
+    XCTAssertTrue(app.buttons["show-queue"].exists)
+    XCUIDevice.shared.orientation = .portrait
+    XCTAssertTrue(lyrics.waitForExistence(timeout: 10))
+    app.buttons["close-player"].tap()
+    let mini = app.buttons["open-player"]
+    XCTAssertTrue(mini.waitForExistence(timeout: 10))
+    mini.tap()
+    XCTAssertTrue(lyrics.waitForExistence(timeout: 10))
+    XCTAssertEqual(toggle.value as? String, "Riproduzione attiva")
+    toggle.tap()
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Player adattivo con testo conservato"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
   }
 
   @MainActor
@@ -328,7 +386,7 @@ final class PrototypeUITests: XCTestCase {
   func testSignedOutLibraryAndLoginSheet() {
     let app = XCUIApplication()
     app.launch()
-    app.tabBars.buttons["Libreria"].tap()
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
     XCTAssertTrue(app.buttons["Accedi a YouTube Music"].waitForExistence(timeout: 10))
     app.buttons["Accedi a YouTube Music"].tap()
     XCTAssertTrue(app.buttons["Usa questo account"].waitForExistence(timeout: 15))
@@ -411,9 +469,9 @@ final class PrototypeUITests: XCTestCase {
     minimized.name = "Player ridotto dopo animazione"
     minimized.lifetime = .keepAlways
     add(minimized)
-    app.tabBars.buttons["Home"].tap()
-    app.tabBars.buttons["Libreria"].tap()
-    app.tabBars.buttons["Cerca"].tap()
+    selectTab("Home", symbol: "house.fill", in: app)
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
+    selectTab("Cerca", symbol: "magnifyingglass", in: app)
     XCTAssertEqual(mini.value as? String, "Riproduzione attiva")
     app.buttons["open-player"].tap()
     XCTAssertTrue(toggle.waitForExistence(timeout: 10))
@@ -429,8 +487,8 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertEqual(toggle.value as? String, "In pausa")
     let paused = Double(elapsed.value as? String ?? "") ?? 0
     app.buttons["close-player"].tap()
-    app.tabBars.buttons["Home"].tap()
-    app.tabBars.buttons["Cerca"].tap()
+    selectTab("Home", symbol: "house.fill", in: app)
+    selectTab("Cerca", symbol: "magnifyingglass", in: app)
     app.buttons["open-player"].tap()
     XCTAssertEqual(toggle.value as? String, "In pausa")
     XCTAssertEqual(Double(elapsed.value as? String ?? "") ?? 0, paused, accuracy: 1)

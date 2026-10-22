@@ -22,9 +22,10 @@ import YouTubeSDK
 
 struct Artwork: View {
   let url: URL?
+  var fit = false
   var body: some View {
     AsyncImage(url: url) { image in
-      image.resizable().scaledToFill()
+      image.resizable().aspectRatio(contentMode: fit ? .fit : .fill)
     } placeholder: {
       ZStack {
         LinearGradient(
@@ -54,8 +55,7 @@ struct RootView: View {
             .offset(
               y: model.showPlayer || reduceMotion
                 ? 0
-                : geometry.size.height + geometry.safeAreaInsets.top
-                  + geometry.safeAreaInsets.bottom
+                : geometry.size.height
             )
             .opacity(reduceMotion && !model.showPlayer ? 0 : 1)
             .animation(
@@ -73,7 +73,7 @@ struct RootView: View {
     TabView(selection: $tab) {
       NavigationStack {
         HomeView(onSearch: { tab = 1 }, onSettings: { tab = 3 })
-      }.safeAreaInset(edge: .bottom) { MiniPlayer() }.tabItem {
+      }.modifier(LegacyMiniPlayerInset()).tabItem {
         Label("Home", systemImage: "house.fill")
       }.tag(0)
       NavigationStack {
@@ -97,18 +97,19 @@ struct RootView: View {
         }.navigationTitle("Cerca")
           .searchable(text: $model.query, prompt: "Brano o artista")
           .onSubmit(of: .search) { model.search() }
-      }.safeAreaInset(edge: .bottom) { MiniPlayer() }.tabItem {
+      }.modifier(LegacyMiniPlayerInset()).tabItem {
         Label("Cerca", systemImage: "magnifyingglass")
       }.tag(1)
       NavigationStack {
         LibraryView(library: library)
-      }.safeAreaInset(edge: .bottom) { MiniPlayer() }.tabItem {
+      }.modifier(LegacyMiniPlayerInset()).tabItem {
         Label("Libreria", systemImage: "square.stack.fill")
       }.tag(2)
       NavigationStack { SettingsView().navigationTitle("Impostazioni") }
-        .safeAreaInset(edge: .bottom) { MiniPlayer() }
+        .modifier(LegacyMiniPlayerInset())
         .tabItem { Label("Impostazioni", systemImage: "gearshape.fill") }.tag(3)
     }
+    .modifier(SystemMiniPlayerAccessory())
     .sheet(isPresented: $library.showLogin) {
       YouTubeLoginScreen(library: library)
     }
@@ -116,7 +117,39 @@ struct RootView: View {
   }
 }
 
+private struct SystemMiniPlayerAccessory: ViewModifier {
+  @EnvironmentObject var model: MusicModel
+  @ViewBuilder func body(content: Content) -> some View {
+    #if os(iOS)
+      if #available(iOS 26.1, *) {
+        content.tabViewBottomAccessory(isEnabled: model.current != nil) {
+          MiniPlayer(systemAccessory: true)
+        }
+      } else {
+        content
+      }
+    #else
+      content
+    #endif
+  }
+}
+
+private struct LegacyMiniPlayerInset: ViewModifier {
+  @ViewBuilder func body(content: Content) -> some View {
+    #if os(iOS)
+      if #available(iOS 26.1, *) {
+        content
+      } else {
+        content.safeAreaInset(edge: .bottom) { MiniPlayer() }
+      }
+    #else
+      content.safeAreaInset(edge: .bottom) { MiniPlayer() }
+    #endif
+  }
+}
+
 struct MiniPlayer: View {
+  var systemAccessory = false
   @EnvironmentObject var model: MusicModel
   var body: some View {
     if let song = model.current {
@@ -137,8 +170,10 @@ struct MiniPlayer: View {
         }.accessibilityIdentifier("open-player")
         MiniPlaybackButton(player: model.player)
           .disabled(model.busyMeaning || model.reading || model.player.isLoading)
-      }.buttonStyle(.plain).padding(12).background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20)).padding(.horizontal, 16).padding(.bottom, 8)
+      }.buttonStyle(.plain).padding(systemAccessory ? 8 : 12)
+        .background(systemAccessory ? AnyShapeStyle(.clear) : AnyShapeStyle(.ultraThinMaterial))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .padding(.horizontal, systemAccessory ? 8 : 16).padding(.bottom, systemAccessory ? 0 : 8)
     }
   }
 }
@@ -193,166 +228,27 @@ struct PlayerScreen: View {
 
   var body: some View {
     NavigationStack {
-      GeometryReader { geometry in
-        let wide = geometry.size.width > geometry.size.height && !typeSize.isAccessibilitySize
-        let width = max(0, min(geometry.size.width, 1100) - 40)
-        let column = wide ? (width - 32) / 2 : width
-        let layout =
-          wide ? AnyLayout(HStackLayout(spacing: 32)) : AnyLayout(VStackLayout(spacing: 18))
-        ZStack {
-          if let song = model.current {
-            Artwork(url: song.artwork)
-              .frame(width: geometry.size.width, height: geometry.size.height)
-              .clipped().blur(radius: 65).opacity(0.42).ignoresSafeArea()
-            LinearGradient(
-              colors: [.black.opacity(0.15), .black.opacity(0.85)], startPoint: .top,
-              endPoint: .bottom
-            ).ignoresSafeArea()
-            ScrollView {
-              layout {
-                ZStack {
-                  #if os(macOS)
-                    // macOS retains the embedded playback session.
-                    EmbeddedPlayer(player: player).id(player.loadID)
-                      .opacity(showVideo ? 1 : 0).allowsHitTesting(showVideo)
-                      .accessibilityHidden(!showVideo)
-                  #endif
-                  if !showVideo {
-                    if showLyrics {
-                      LyricsContent().environmentObject(model)
-                    } else {
-                      Artwork(url: song.artwork)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityAddTraits(.isImage)
-                        .accessibilityLabel("Copertina di \(song.title)")
-                        .accessibilityIdentifier("player-artwork")
-                    }
-                  }
-                }
-                .frame(
-                  width: column,
-                  height: wide
-                    ? min(column, geometry.size.height - 90)
-                    : min(column, geometry.size.height * 0.45)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-                VStack(spacing: 22) {
-                  HStack(spacing: 12) {
-                    if showLyrics {
-                      Artwork(url: song.artwork).frame(width: 48, height: 48).clipShape(
-                        RoundedRectangle(cornerRadius: 8))
-                    }
-                    VStack(alignment: .leading, spacing: 5) {
-                      Text(song.title).font(.title2.bold()).lineLimit(2)
-                      Text(song.artist).font(.subheadline).foregroundStyle(.white.opacity(0.65))
-                        .lineLimit(1)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    Button {
-                      model.toggleFavorite(song)
-                    } label: {
-                      Image(
-                        systemName: model.favorites.contains(where: { $0.id == song.id })
-                          ? "checkmark.circle.fill" : "plus.circle"
-                      ).frame(width: 40, height: 44)
-                    }.accessibilityLabel(
-                      model.favorites.contains(where: { $0.id == song.id })
-                        ? "Rimuovi dai preferiti locali" : "Salva nei preferiti locali")
-                    Button {
-                      #if DEBUG
-                        #if os(iOS)
-                          if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
-                            CarPlayNarrationRequest.start(model) { completion in
-                              // Reproduce a vehicle that never delivers the presentation callback.
-                              if ProcessInfo.processInfo.arguments.contains(
-                                "--test-carplay-presentation-failure")
-                              {
-                                completion(false)
-                              }
-                            }
-                          } else {
-                            model.explain()
-                          }
-                        #else
-                          model.explain()
-                        #endif
-                      #else
-                        model.explain()
-                      #endif
-                    } label: {
-                      Image(systemName: "lightbulb.max.fill").frame(width: 40, height: 44)
-                    }
-                    .accessibilityLabel("Significato della canzone").disabled(player.isLoading)
-                    #if DEBUG
-                      if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
-                        Text(
-                          verbatim:
-                            "\(model.narrationStarts):\(model.narrationFinishes):\(model.reading):\(model.busyMeaning):\(model.systemArtworkAvailable):\(model.systemNarrationActive):\(model.preparingNarrationInBackground)"
-                        )
-                        .font(.system(size: 1)).frame(width: 1, height: 1)
-                        .accessibilityIdentifier("carplay-diagnostics")
-                      }
-                    #endif
-                    Menu {
-                      ShareLink(item: URL(string: "https://music.youtube.com/watch?v=\(song.id)")!)
-                      { Label("Condividi brano", systemImage: "square.and.arrow.up") }
-                      Button {
-                        editLyrics = true
-                      } label: {
-                        Label("Aggiungi o modifica il testo", systemImage: "square.and.pencil")
-                      }
-                      Button {
-                        openVideo()
-                        showLyrics = false
-                      } label: {
-                        Label(
-                          showVideo ? "Mostra copertina" : "Mostra video",
-                          systemImage: "play.rectangle")
-                      }
-                    } label: {
-                      Image(systemName: "ellipsis").frame(width: 32, height: 44)
-                    }.accessibilityLabel("Altre opzioni")
-                  }.font(.title2).buttonStyle(.plain)
-                  PlayerControls(player: player, reading: model.reading || model.busyMeaning)
-                  HStack {
-                    playerAction("Testo della canzone", icon: "quote.bubble", selected: showLyrics)
-                    {
-                      showLyrics.toggle()
-                      showVideo = false
-                      if showLyrics { model.loadLyrics() }
-                    }.accessibilityIdentifier("toggle-lyrics")
-                    Spacer()
-                    playerAction(
-                      showVideo ? "Mostra copertina" : "Mostra video",
-                      icon: showVideo ? "photo" : "play.rectangle", selected: showVideo
-                    ) {
-                      openVideo()
-                      showLyrics = false
-                    }.accessibilityIdentifier("toggle-video")
-                    Spacer()
-                    playerAction("Coda di riproduzione", icon: "music.note.list", selected: false) {
-                      showQueue = true
-                    }
-                    .accessibilityIdentifier("show-queue")
-                  }.padding(.horizontal, 22)
-                  if showLyrics {
-                    HStack {
-                      Button {
-                        expandedLyrics = true
-                      } label: {
-                        Label("Espandi testo", systemImage: "arrow.up.left.and.arrow.down.right")
-                      }
-                      Spacer()
-                      ShareLink(
-                        item: model.manualLyrics.isEmpty ? model.lyrics : model.manualLyrics
-                      ) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel(
-                        "Condividi testo")
-                    }.font(.subheadline)
-                  }
-                }.frame(width: column)
-              }.padding(20).frame(maxWidth: .infinity)
+      Group {
+        #if os(iOS)
+          GeometryReader { geometry in
+            if #available(iOS 27.1, *), geometry.size.width >= 700,
+              !typeSize.isAccessibilitySize
+            {
+              ArrangementView {
+                nowPlaying(expanded: true)
+              } secondary: {
+                LyricsContent().environmentObject(model).padding()
+                  .accessibilityIdentifier("expanded-player-lyrics")
+              }
+              .arrangementViewStyle(.split)
+              .task(id: model.current?.id) { model.loadLyrics() }
+            } else {
+              nowPlaying()
             }
           }
-        }.foregroundStyle(.white).tint(.white)
+        #else
+          nowPlaying()
+        #endif
       }
       .playerToolbarBackground()
       .inlineNavigationTitle()
@@ -367,11 +263,6 @@ struct PlayerScreen: View {
             }
             .accessibilityIdentifier("return-to-library")
           }
-          #if !os(macOS)
-            ToolbarItem(placement: .principal) {
-              Capsule().fill(.white.opacity(0.4)).frame(width: 42, height: 5)
-            }
-          #endif
           ToolbarItem(placement: .platformTrailing) {
             Button {
               model.minimizePlayer()
@@ -436,6 +327,190 @@ struct PlayerScreen: View {
       }
     }
   }
+  private func nowPlaying(expanded: Bool = false) -> some View {
+    GeometryReader { geometry in
+      let wide =
+        geometry.size.width >= 680 && geometry.size.height >= 280
+        && geometry.size.width > geometry.size.height && !typeSize.isAccessibilitySize
+      let width = max(0, min(geometry.size.width, 1100) - 40)
+      let column = wide ? (width - 32) / 2 : width
+      let layout =
+        wide ? AnyLayout(HStackLayout(spacing: 32)) : AnyLayout(VStackLayout(spacing: 18))
+      ZStack {
+        if let song = model.current {
+          Artwork(url: song.artwork)
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipped().blur(radius: 65).opacity(0.42).ignoresSafeArea()
+          LinearGradient(
+            colors: [.black.opacity(0.15), .black.opacity(0.85)], startPoint: .top,
+            endPoint: .bottom
+          ).ignoresSafeArea()
+          ScrollView {
+            layout {
+              ZStack {
+                #if os(macOS)
+                  // macOS retains the embedded playback session.
+                  EmbeddedPlayer(player: player).id(player.loadID)
+                    .opacity(showVideo ? 1 : 0).allowsHitTesting(showVideo)
+                    .accessibilityHidden(!showVideo)
+                #endif
+                if !showVideo {
+                  if showLyrics && !expanded {
+                    LyricsContent().environmentObject(model)
+                  } else {
+                    Artwork(url: song.artwork, fit: true)
+                      .accessibilityElement(children: .ignore)
+                      .accessibilityAddTraits(.isImage)
+                      .accessibilityLabel("Copertina di \(song.title)")
+                      .accessibilityIdentifier("player-artwork")
+                  }
+                }
+              }
+              .frame(
+                width: column,
+                height: wide
+                  ? max(120, min(column, geometry.size.height - 90))
+                  : min(column, geometry.size.height * 0.45)
+              )
+              .clipShape(RoundedRectangle(cornerRadius: 20))
+              VStack(spacing: 22) {
+                songHeading(song, expanded: expanded)
+                PlayerControls(player: player, reading: model.reading || model.busyMeaning)
+                HStack {
+                  playerAction("Testo della canzone", icon: "quote.bubble", selected: showLyrics) {
+                    showLyrics.toggle()
+                    showVideo = false
+                    if showLyrics && !expanded { model.loadLyrics() }
+                  }.accessibilityIdentifier("toggle-lyrics")
+                  Spacer()
+                  playerAction(
+                    showVideo ? "Mostra copertina" : "Mostra video",
+                    icon: showVideo ? "photo" : "play.rectangle", selected: showVideo
+                  ) {
+                    openVideo()
+                    showLyrics = false
+                  }.accessibilityIdentifier("toggle-video")
+                  Spacer()
+                  playerAction("Coda di riproduzione", icon: "music.note.list", selected: false) {
+                    showQueue = true
+                  }
+                  .accessibilityIdentifier("show-queue")
+                }.padding(.horizontal, 22)
+                if showLyrics && !expanded {
+                  HStack {
+                    Button {
+                      expandedLyrics = true
+                    } label: {
+                      Label("Espandi testo", systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
+                    Spacer()
+                    ShareLink(
+                      item: model.manualLyrics.isEmpty ? model.lyrics : model.manualLyrics
+                    ) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel(
+                      "Condividi testo")
+                  }.font(.subheadline)
+                }
+              }.frame(width: column)
+            }.padding(20).frame(maxWidth: .infinity)
+          }
+        }
+      }.foregroundStyle(.white).tint(.white)
+    }
+  }
+
+  private func songHeading(_ song: Song, expanded: Bool) -> some View {
+    let identity = HStack(spacing: 12) {
+
+      if showLyrics && !expanded {
+        Artwork(url: song.artwork).frame(width: 48, height: 48).clipShape(
+          RoundedRectangle(cornerRadius: 8))
+      }
+      VStack(alignment: .leading, spacing: 5) {
+        Text(song.title).font(.title2.bold()).lineLimit(2)
+        Text(song.artist).font(.subheadline).foregroundStyle(.white.opacity(0.65))
+          .lineLimit(1)
+      }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    let actions = HStack(spacing: 12) {
+      Button {
+        model.toggleFavorite(song)
+      } label: {
+        Image(
+          systemName: model.favorites.contains(where: { $0.id == song.id })
+            ? "checkmark.circle.fill" : "plus.circle"
+        ).frame(width: 44, height: 44)
+      }.accessibilityLabel(
+        model.favorites.contains(where: { $0.id == song.id })
+          ? "Rimuovi dai preferiti locali" : "Salva nei preferiti locali")
+      Button {
+        #if DEBUG
+          #if os(iOS)
+            if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
+              CarPlayNarrationRequest.start(model) { completion in
+                // Reproduce a vehicle that never delivers the presentation callback.
+                if ProcessInfo.processInfo.arguments.contains(
+                  "--test-carplay-presentation-failure")
+                {
+                  completion(false)
+                }
+              }
+            } else {
+              model.explain()
+            }
+          #else
+            model.explain()
+          #endif
+        #else
+          model.explain()
+        #endif
+      } label: {
+        Label("Significato della canzone", systemImage: "lightbulb.max.fill")
+          .labelStyle(.iconOnly).frame(width: 44, height: 44)
+      }
+      .accessibilityLabel("Significato della canzone").disabled(player.isLoading)
+      #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
+          Text(
+            verbatim:
+              "\(model.narrationStarts):\(model.narrationFinishes):\(model.reading):\(model.busyMeaning):\(model.systemArtworkAvailable):\(model.systemNarrationActive):\(model.preparingNarrationInBackground)"
+          )
+          .font(.system(size: 1)).frame(width: 1, height: 1)
+          .accessibilityIdentifier("carplay-diagnostics")
+        }
+      #endif
+      Menu {
+        ShareLink(item: URL(string: "https://music.youtube.com/watch?v=\(song.id)")!) {
+          Label("Condividi brano", systemImage: "square.and.arrow.up")
+        }
+        Button {
+          editLyrics = true
+        } label: {
+          Label("Aggiungi o modifica il testo", systemImage: "square.and.pencil")
+        }
+        Button {
+          openVideo()
+          showLyrics = false
+        } label: {
+          Label(
+            showVideo ? "Mostra copertina" : "Mostra video",
+            systemImage: "play.rectangle")
+        }
+      } label: {
+        Image(systemName: "ellipsis").frame(width: 44, height: 44)
+      }.accessibilityLabel("Altre opzioni")
+    }.font(.title2).buttonStyle(.plain)
+    return ViewThatFits(in: .horizontal) {
+      HStack(spacing: 12) {
+        identity
+        actions
+      }
+      VStack(alignment: .leading, spacing: 8) {
+        identity
+        actions
+      }
+    }
+  }
+
   private func openVideo() {
     #if os(macOS)
       showVideo.toggle()
@@ -553,7 +628,7 @@ struct PlayerControls: View {
         Button {
           model.previousSong()
         } label: {
-          Image(systemName: "backward.end.fill").frame(width: 64, height: 64)
+          Image(systemName: "backward.end.fill").frame(minWidth: 44, minHeight: 64)
         }
         .disabled(!model.hasPrevious && elapsed <= 3).accessibilityLabel("Brano precedente")
         .accessibilityIdentifier("previous-song")
@@ -562,7 +637,7 @@ struct PlayerControls: View {
           player.playing ? player.pause() : player.play()
         } label: {
           Image(systemName: player.playing ? "pause.fill" : "play.fill").font(.system(size: 48))
-            .frame(width: 80, height: 72)
+            .frame(minWidth: 64, minHeight: 72)
         }.accessibilityIdentifier("playback-toggle").accessibilityLabel(
           player.playing ? "Pausa" : "Riproduci"
         ).accessibilityValue(player.playing ? "Riproduzione attiva" : "In pausa")
@@ -570,11 +645,11 @@ struct PlayerControls: View {
         Button {
           model.nextSong()
         } label: {
-          Image(systemName: "forward.end.fill").frame(width: 64, height: 64)
+          Image(systemName: "forward.end.fill").frame(minWidth: 44, minHeight: 64)
         }
         .disabled(!model.hasNext).accessibilityLabel("Brano successivo").accessibilityIdentifier(
           "next-song")
-      }.font(.title).buttonStyle(.plain).padding(.horizontal, 22).disabled(
+      }.font(.title).buttonStyle(.plain).disabled(
         reading || player.isLoading)
       HStack(spacing: 14) {
         Image(systemName: "speaker.fill")

@@ -72,18 +72,22 @@ struct HomeView: View {
     .accessibilityIdentifier("home-scroll")
     .navigationTitle("NoteNarrate")
     .toolbar {
-      ToolbarItemGroup(placement: .platformTrailing) {
-        if library.session != nil {
+      if library.session != nil {
+        ToolbarItem(placement: .platformTrailing) {
           NavigationLink {
             HomeBrowseView(title: "Cronologia", target: BrowseTarget(browseId: "FEmusic_history"))
           } label: {
-            Image(systemName: "clock.arrow.circlepath")
+            Label("Cronologia di YouTube Music", systemImage: "clock.arrow.circlepath")
           }
           .accessibilityLabel("Cronologia di YouTube Music")
         }
-        Button(action: onSearch) { Image(systemName: "magnifyingglass") }
+      }
+      ToolbarItem(placement: .platformTrailing) {
+        Button(action: onSearch) { Label("Cerca musica", systemImage: "magnifyingglass") }
           .accessibilityLabel("Cerca musica")
-        Button(action: onSettings) { Image(systemName: "gearshape.fill") }
+      }
+      ToolbarItem(placement: .platformTrailing) {
+        Button(action: onSettings) { Label("Impostazioni", systemImage: "gearshape.fill") }
           .accessibilityLabel("Impostazioni")
       }
     }

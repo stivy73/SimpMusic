@@ -392,3 +392,12 @@ Restano aperti i collaudi CarPlay e continuità sul conto Premium riportati sopr
 A ogni nuova build per TestFlight il sorgente corrispondente e la documentazione
 vengono sincronizzati sul fork GitHub `stivy73/SimpMusic`. Nessuna chiave personale,
 cookie, archivio firmato o screenshot locale viene incluso nel commit.
+
+
+## iPhone Duo — 0.7.0 (21)
+
+Interfaccia adattiva secondo le indicazioni Apple e SDK iOS 27.1: navigazione e
+mini-player nativi, player e testo affiancati nelle finestre ampie, controlli che
+si riordinano negli spazi ridotti, copertina intera e griglia album flessibile.
+Il minimo resta iOS 17; account, coda e servizi audio/IA sono condivisi.
+Dettagli e limiti di collaudo: [IPHONE_DUO.md](IPHONE_DUO.md).
