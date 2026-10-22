@@ -12,6 +12,10 @@ CarPlay entitlement in the signature and provisioning profile. The existing
 Store draft remains on build 20. Fold poses and real-vehicle behavior still need
 hardware validation; simulator build success alone does not establish these.
 
+Apple upload completed on 22 October 2026 at 15:34 Europe/Rome: Upload succeeded;
+package processing. Internal TestFlight only; tester assignment remains manual.
+No Store submission or public release.
+
 # NoteNarrate iOS 0.6.2 (20)
 
 Build 20 uses the same functional code as build 19 and enables App Store Connect
