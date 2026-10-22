@@ -60,5 +60,6 @@ A successful build is not proof of all device poses or real CarPlay behavior.
 - Android interpretation prompt and all ten Home filter parameters remain identical.
 - Device Hub UI automation timed out. Fold-angle/pose, external-display transitions
   and physical Duo/CarPlay audio are not yet verified. The lyric/rotation test is
-  supplementary; its live-network and new-runtime accessibility dependencies must
-  be distinguished from application build failures.
+  passed after adapting the test selectors to native vertical tabs and the
+  runtime menu accessibility. Lyrics and queue access survive rotation and
+  closing/reopening the player. Initial selector failures were not app crashes.

@@ -5,6 +5,8 @@ and ArrangementView. Player controls use available pane geometry; artwork fits
 without cropping, action targets are at least 44 pt and album columns flex.
 iOS 17 compatibility and the stable Mac playback hierarchy are preserved.
 
+Three targeted Duo simulator UI checks passed: native speech pause/resume,
+mini-player playback across tabs, and lyrics/player state across rotation.
 Release archive, Mac build and Apple-signed IPA verification passed, including
 CarPlay entitlement in the signature and provisioning profile. The existing
 Store draft remains on build 20. Fold poses and real-vehicle behavior still need
