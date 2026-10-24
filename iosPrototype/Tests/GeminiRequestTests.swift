@@ -113,6 +113,25 @@ final class GeminiRequestTests: XCTestCase {
     XCTAssertTrue(Interpretation.isExpectedLength(result))
   }
 
+  func testNarrationDoesNotDelayVoiceForALengthOnlyRewrite() async throws {
+    var calls = 0
+    let service = service { request in
+      calls += 1
+      XCTAssertEqual(request.timeoutInterval, 25)
+      return (
+        200,
+        try JSONSerialization.data(withJSONObject: [
+          "candidates": [["content": ["parts": [["text": "Risposta completa ma breve."]]]]]
+        ])
+      )
+    }
+    let result = try await service.explain(
+      key: "dummy", model: "gemini-3.8-flash",
+      title: "T", artist: "A", lyrics: "Testo sorgente", retryLength: false)
+    XCTAssertEqual(calls, 1)
+    XCTAssertEqual(result, "Risposta completa ma breve.")
+  }
+
   func testSpeechRequestPreservesWholeTextAndStyle() async throws {
     let transcript = String(repeating: "Significato. ", count: 80)
     let wav = Data([

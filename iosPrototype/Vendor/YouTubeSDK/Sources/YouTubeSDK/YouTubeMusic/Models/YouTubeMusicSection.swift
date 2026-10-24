@@ -35,6 +35,21 @@ public struct YouTubeMusicSection: Identifiable, Sendable {
     {
       return .song(song)
     }
+    if let row = data["musicResponsiveListItemRenderer"] as? [String: Any] {
+      let columns = row["flexColumns"] as? [[String: Any]] ?? []
+      func text(_ index: Int) -> Any {
+        guard columns.indices.contains(index),
+          let renderer = columns[index]["musicResponsiveListItemFlexColumnRenderer"]
+            as? [String: Any]
+        else { return [:] as [String: Any] }
+        return renderer["text"] ?? [:]
+      }
+      var box = row
+      box["title"] = text(0)
+      box["subtitle"] = text(1)
+      box["thumbnailRenderer"] = row["thumbnail"]
+      return item(["musicTwoRowItemRenderer": box])
+    }
     guard let box = data["musicTwoRowItemRenderer"] as? [String: Any] else { return nil }
     let runs = (box["title"] as? [String: Any])?["runs"] as? [[String: Any]]
     let nav =

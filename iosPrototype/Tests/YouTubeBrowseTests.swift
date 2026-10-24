@@ -78,6 +78,26 @@ final class YouTubeBrowseTests: XCTestCase {
     return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
   }
 
+  func testTypedSearchSendsQueryAndServerFilterOnSearchEndpoint() async throws {
+    let (transport, id) = transport()
+    defer { BrowseURLProtocol.store.remove(id) }
+    let browse = YouTubeBrowse(session: nil, transport: transport)
+    for filter in MusicSearchFilter.allCases {
+      _ = try await browse.search(query: "Fleetwood Mac", filter: filter)
+    }
+    let requests = BrowseURLProtocol.store.requests(id)
+    XCTAssertEqual(requests.count, 3)
+    var params = Set<String>()
+    for request in requests {
+      XCTAssertEqual(request.url?.path, "/youtubei/v1/search")
+      let json = try payload(request)
+      XCTAssertEqual(json["query"] as? String, "Fleetwood Mac")
+      XCTAssertNil(json["browseId"])
+      params.insert(try XCTUnwrap(json["params"] as? String))
+    }
+    XCTAssertEqual(params.count, 3)
+  }
+
   func testPlayerReusesTheConfirmedAccountAndExistingSDKParser() async throws {
     let body = #"""
       {"videoDetails":{"videoId":"fixture-video","title":"Fixture","viewCount":"1","author":"Artist","channelId":"artist","lengthSeconds":"180"},

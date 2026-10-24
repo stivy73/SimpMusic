@@ -1,3 +1,30 @@
+# NoteNarrate iOS 0.7.1 (22)
+
+CarPlay now has a Search tab with Songs, Artists and Albums server-side filters.
+It follows the last search submitted on the phone; audio-entitled apps cannot use
+Apple's navigation-only keyboard search template. Changing filters keeps the query.
+Results retain their real content type and browse IDs; song selection plays that
+result, while albums and artists open their own content. Now Playing adds album
+and artist icon buttons. Known IDs navigate directly; older items without IDs
+use a typed lookup rather than inventing an album or artist identifier.
+
+Automatic narration now uses one interpretation request, with a 25-second network
+timeout, and reads the complete returned answer without a second length-only
+rewrite. The Italian 900-character prompt is unchanged. This removes a potential
+conflict between two 90-second generation requests and the 45-second preparation
+watchdog. It does not establish that every prior vehicle failure had that cause.
+
+Validation: 90 core tests and two background CarPlay narration UI tests passed
+(native voice and PCM streaming fixtures, with music resuming afterward). Live
+Google test: interpretation 4.5 seconds, complete TTS response 14.25 seconds,
+57.36 seconds of PCM received. These server/fixture tests do not verify physical
+vehicle audibility. Typed live search returned songs, artists and albums. Release
+archive, Mac build and Apple-signed CarPlay IPA checks passed.
+
+The separate YouTube CDN HTTP 403 beyond 1 MiB is not fixed by this narration
+change. Vehicle playback and Premium-account transport remain open validation.
+No App Store submission or public release is requested.
+
 # NoteNarrate iOS 0.7.0 (21)
 
 Adaptive iPhone Duo interface using Apple's iOS 27.1 SDK, native tab accessory

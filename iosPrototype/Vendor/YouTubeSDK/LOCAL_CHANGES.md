@@ -24,7 +24,9 @@ Changed files:
 The app's `YouTubeBrowse` owns networking, authentication and account identity,
 shared with its existing read-only library transport. SDK networking is bypassed
 for these endpoints, avoiding raw authenticated responses in SDK error logs.
-No audio extraction, login, search or lyrics parser has been added or replaced.
+No audio extraction, login or lyrics parser has been added or replaced.
+Typed search also reuses this transport: the decoder recognizes search page
+envelopes and responsive artist/album rows, preserving their browse IDs.
 
 Architecture reference: SimpMusic Android HomeViewModel, HomeScreen,
 HomeRepositoryImpl, HomeParser and kotlinYtmusicScraper MoodAndGenres.

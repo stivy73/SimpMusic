@@ -12,6 +12,8 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
     public let title: String
     public let artists: [String]
     public let album: String?
+    public let albumBrowseID: String?
+    public let artistBrowseID: String?
     public let duration: TimeInterval?
     public let thumbnailURL: URL?
     public let videoId: String
@@ -56,6 +58,8 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
         // 3. Metadata (Flex Column 1: Artist, Album, Duration)
         var foundArtists: [String] = []
         var foundAlbum: String?
+        var foundAlbumID: String?
+        var foundArtistID: String?
         var foundDuration: TimeInterval?
         
         if let columns = data["flexColumns"] as? [[String: Any]], columns.count > 1 {
@@ -78,8 +82,10 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
                              
                              if type == "MUSIC_PAGE_TYPE_ARTIST" {
                                  foundArtists.append(text)
+                                 if foundArtistID == nil { foundArtistID = browse["browseId"] as? String }
                              } else if type == "MUSIC_PAGE_TYPE_ALBUM" {
                                  foundAlbum = text
+                                 foundAlbumID = browse["browseId"] as? String
                              }
                         } else {
                             // If it's a timestamp (e.g. "3:45"), parse it
@@ -93,6 +99,8 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
         }
         self.artists = foundArtists
         self.album = foundAlbum
+        self.albumBrowseID = foundAlbumID
+        self.artistBrowseID = foundArtistID
         self.duration = foundDuration
         
         // 4. Thumbnail

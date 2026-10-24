@@ -67,6 +67,14 @@
     private let home = CPListTemplate(title: "Home", sections: [])
     private let albums = CPListTemplate(title: "Album", sections: [])
     private let favorites = CPListTemplate(title: "Preferiti", sections: [])
+    private let search = CPListTemplate(title: "Cerca", sections: [])
+    private var searchQuery = ""
+    private var searchFilter = MusicSearchFilter.songs
+    private var searchTask: Task<Void, Never>?
+    private var searchRevision = UUID()
+    private var searchItems: [DiscoveryItem] = []
+    private var searchRenderedState = ""
+    private var searchMessage = "Cerca un brano, artista o album dal telefono"
 
     func templateApplicationScene(
       _ templateApplicationScene: CPTemplateApplicationScene,
@@ -79,8 +87,10 @@
       albums.tabImage = UIImage(systemName: "square.stack.fill")
       favorites.tabTitle = "Preferiti"
       favorites.tabImage = UIImage(systemName: "heart.fill")
+      search.tabTitle = "Cerca"
+      search.tabImage = UIImage(systemName: "magnifyingglass")
       interfaceController.setRootTemplate(
-        CPTabBarTemplate(templates: [home, albums, favorites]),
+        CPTabBarTemplate(templates: [home, albums, favorites, search]),
         animated: false, completion: { _, _ in })
       configureNowPlaying()
       app.library.$session.sink { [weak self] session in
@@ -103,6 +113,8 @@
       didDisconnectInterfaceController interfaceController: CPInterfaceController
     ) {
       if meaningAlert != nil { app.music.stopMeaning(resume: true) }
+      searchTask?.cancel()
+      searchRevision = UUID()
       subscriptions.removeAll()
       for task in tasks { task.cancel() }
       tasks = []
@@ -123,6 +135,10 @@
         detailRevision = UUID()
         for task in tasks { task.cancel() }
         tasks = []
+        searchTask?.cancel()
+        searchRevision = UUID()
+        searchItems = []
+        searchQuery = ""
         grids.removeAllObjects()
         controller?.popToRootTemplate(animated: false, completion: { _, _ in })
       }
@@ -205,7 +221,119 @@
           }, at: 0)
       }
       setTiles(preferred, in: favorites)
+      let query = app.music.lastSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !query.isEmpty && query != searchQuery { runSearch(query, filter: searchFilter) }
+      renderSearch()
       configureNowPlaying()
+    }
+
+    private func renderSearch() {
+      let state =
+        "\(searchQuery)|\(searchFilter.rawValue)|\(searchMessage)|\(searchItems.map(\.id).joined(separator: ","))"
+      guard state != searchRenderedState else { return }
+      searchRenderedState = state
+      let filters = MusicSearchFilter.allCases.map { filter in
+        let row = CPListItem(
+          text: filter.rawValue,
+          detailText: filter == searchFilter ? "Selezionato" : nil,
+          image: UIImage(
+            systemName: filter == .songs
+              ? "music.note" : filter == .artists ? "person.fill" : "square.stack.fill"))
+        row.handler = { [weak self] _, done in
+          done()
+          guard let self, !self.searchQuery.isEmpty else { return }
+          self.runSearch(self.searchQuery, filter: filter)
+        }
+        row.isEnabled = !searchQuery.isEmpty
+        return row
+      }
+      let songs = searchItems.filter { $0.kind == .song }.map(Song.init)
+      let results = searchItems.prefix(50).map { item in
+        let row = CPListItem(text: item.title, detailText: item.subtitle)
+        row.handler = { [weak self] _, done in
+          done()
+          guard let self else { return }
+          if item.kind == .song {
+            self.play(Song(item), queue: songs)
+          } else if let target = item.target {
+            self.browse(
+              target, title: item.title,
+              albumArtwork: item.kind == .album ? item.artwork : nil,
+              albumArtist: item.kind == .album ? item.subtitle : nil)
+          }
+        }
+        return row
+      }
+      let empty = CPListItem(text: searchMessage, detailText: nil)
+      empty.isEnabled = false
+      search.updateSections([
+        CPListSection(
+          items: filters, header: searchQuery.isEmpty ? "Filtra per" : searchQuery,
+          sectionIndexTitle: nil),
+        CPListSection(items: results.isEmpty ? [empty] : results),
+      ])
+    }
+
+    private func runSearch(_ query: String, filter: MusicSearchFilter) {
+      searchTask?.cancel()
+      let token = UUID()
+      searchRevision = token
+      searchQuery = query
+      searchFilter = filter
+      searchItems = []
+      searchMessage = "Ricerca in corso…"
+      renderSearch()
+      let session = app.library.session
+      searchTask = Task { [weak self] in
+        do {
+          try await Task.sleep(for: .milliseconds(400))
+          let items = try await HomeDiscovery(session: session).search(query: query, filter: filter)
+          try Task.checkCancellation()
+          guard let self, self.searchRevision == token, self.controller != nil else { return }
+          self.searchItems = items
+          self.searchMessage = "Nessun risultato"
+          self.renderSearch()
+        } catch {
+          guard let self, !Task.isCancelled, self.searchRevision == token else { return }
+          self.searchMessage = "Ricerca non disponibile. Seleziona un filtro per riprovare."
+          self.renderSearch()
+        }
+      }
+    }
+
+    private func openCurrentContext(_ filter: MusicSearchFilter) {
+      guard let song = app.music.current else { return }
+      if filter == .artists, let artistID = song.artistBrowseID {
+        browse(BrowseTarget(browseId: artistID), title: song.artist)
+        return
+      }
+      if filter == .albums, let albumID = song.albumBrowseID {
+        browse(
+          BrowseTarget(browseId: albumID), title: "Album", albumArtwork: song.artwork,
+          albumArtist: song.artist)
+        return
+      }
+      let query =
+        filter == .artists ? song.artist : "\(song.albumTitle ?? song.title) \(song.artist)"
+      let loading = CPListTemplate(title: filter == .artists ? "Artista" : "Album", sections: [])
+      setTiles([status("Caricamento…")], in: loading)
+      controller?.pushTemplate(loading, animated: true, completion: { _, _ in })
+      let expected = detailRevision
+      let account = app.library.session
+      tasks.append(
+        Task { [weak self] in
+          do {
+            let items = try await HomeDiscovery(session: account).search(
+              query: query, filter: filter)
+            try Task.checkCancellation()
+            guard let self, self.detailRevision == expected, self.controller != nil else { return }
+            self.setTiles(
+              items.isEmpty ? [self.status("Nessun risultato")] : self.tiles(items), in: loading)
+          } catch {
+            guard let self, !Task.isCancelled, self.detailRevision == expected else { return }
+            self.setTiles([self.status("Contenuto non disponibile")], in: loading)
+          }
+        })
     }
 
     private func sections(_ state: ContentState) -> [CPListSection] {
@@ -379,11 +507,12 @@
     }
 
     private func tiles(
-      _ items: [DiscoveryItem], albumArtwork: URL? = nil, albumArtist: String? = nil
+      _ items: [DiscoveryItem], albumArtwork: URL? = nil, albumArtist: String? = nil,
+      albumID: String? = nil
     ) -> [Tile] {
       let artist = AlbumTrackMetadata.artist(from: albumArtist)
       let songs = items.filter { $0.kind == .song }.map {
-        Song($0).withAlbumArtwork(albumArtwork, artist: artist)
+        Song($0).withAlbumArtwork(albumArtwork, artist: artist, albumID: albumID)
       }
       return items.map { item in
         Tile(
@@ -392,7 +521,9 @@
           videoID: item.kind == .song ? item.mediaId : nil
         ) { [weak self] in
           if item.kind == .song {
-            self?.play(Song(item).withAlbumArtwork(albumArtwork, artist: artist), queue: songs)
+            self?.play(
+              Song(item).withAlbumArtwork(albumArtwork, artist: artist, albumID: albumID),
+              queue: songs)
           } else if let target = item.target {
             self?.browse(
               target, title: item.title,
@@ -433,7 +564,9 @@
                 throw LibraryError.repeatedContinuation
               }
             } while token != nil
-            let content = tiles(items, albumArtwork: albumArtwork, albumArtist: albumArtist)
+            let content = tiles(
+              items, albumArtwork: albumArtwork, albumArtist: albumArtist,
+              albumID: albumArtwork != nil ? target.browseId : nil)
             setTiles(
               content.isEmpty ? [status("Nessun contenuto")] : content, in: loading,
               layout: albumArtwork != nil
@@ -457,7 +590,7 @@
     private func configureNowPlaying() {
       let active = app.music.busyMeaning || app.music.reading
       let enabled = app.music.current != nil && !app.music.player.isLoading
-      let state = "\(enabled):\(active)"
+      let state = "\(enabled):\(active):\(app.music.current?.id ?? "")"
       guard meaningButtonState != state else { return }
       meaningButtonState = state
       let light = CPNowPlayingImageButton(
@@ -473,7 +606,15 @@
         }
       }
       light.isEnabled = enabled
-      CPNowPlayingTemplate.shared.updateNowPlayingButtons([light])
+      let album = CPNowPlayingImageButton(image: UIImage(systemName: "square.stack.fill")!) {
+        [weak self] _ in self?.openCurrentContext(.albums)
+      }
+      let artist = CPNowPlayingImageButton(image: UIImage(systemName: "person.fill")!) {
+        [weak self] _ in self?.openCurrentContext(.artists)
+      }
+      album.isEnabled = app.music.current != nil && !active
+      artist.isEnabled = album.isEnabled
+      CPNowPlayingTemplate.shared.updateNowPlayingButtons([light, album, artist])
     }
 
     private func explain() {

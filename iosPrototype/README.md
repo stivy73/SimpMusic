@@ -401,3 +401,14 @@ mini-player nativi, player e testo affiancati nelle finestre ampie, controlli ch
 si riordinano negli spazi ridotti, copertina intera e griglia album flessibile.
 Il minimo resta iOS 17; account, coda e servizi audio/IA sono condivisi.
 Dettagli e limiti di collaudo: [IPHONE_DUO.md](IPHONE_DUO.md).
+
+
+## CarPlay — 0.7.1 (22)
+
+Scheda Cerca con filtri Canzoni, Artisti e Album sulla ricerca inviata dal telefono;
+icone Album e Artista nel player, con riferimenti reali conservati. Il template
+Apple con tastiera resta riservato alle app di navigazione. La lettura automatica
+non attende più una seconda generazione per correggere la lunghezza: prompt
+italiano invariato e risposta letta integralmente. Test core, narrazione in
+background e richiesta reale Google superati; l'udibilità in auto resta da provare.
+Il 403 CDN della musica è distinto e non è risolto da questa modifica.

@@ -63,11 +63,17 @@ public struct DiscoveryItem: Identifiable, Hashable, Sendable {
   public let artwork: URL?
   public let durationSeconds: Double?
   public var id: String { kind.rawValue + ":" + mediaId }
+  public var albumBrowseID: String? = nil
+  public var artistBrowseID: String? = nil
+  public var albumTitle: String? = nil
   public var target: BrowseTarget? { kind == .song ? nil : BrowseTarget(browseId: mediaId) }
 
   init(_ item: YouTubeMusicItem) {
     switch item {
     case .song(let value):
+      albumBrowseID = value.albumBrowseID
+      artistBrowseID = value.artistBrowseID
+      albumTitle = value.album
       kind = .song
       mediaId = value.videoId
       title = value.title
@@ -159,5 +165,39 @@ public struct HomeDiscovery: Sendable {
     let data = try await browse.request(
       browseId: target.browseId, params: target.params, token: continuation)
     return try await HomePage(parser.decodeDiscoveryPage(from: data))
+  }
+}
+
+/// Same typed search filters used by the Android fork; don't filter a songs-only response.
+public enum MusicSearchFilter: String, CaseIterable, Sendable {
+  case songs = "Canzoni"
+  case artists = "Artisti"
+  case albums = "Album"
+  public var params: String {
+    switch self {
+    case .songs: "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D"
+    case .artists: "EgWKAQIgAWoKEAkQChAFEAMQBA%3D%3D"
+    case .albums: "EgWKAQIYAWoKEAkQChAFEAMQBA%3D%3D"
+    }
+  }
+  public var kind: DiscoveryItem.Kind {
+    switch self {
+    case .songs: .song
+    case .artists: .artist
+    case .albums: .album
+    }
+  }
+}
+
+extension HomeDiscovery {
+  public func search(query: String, filter: MusicSearchFilter) async throws -> [DiscoveryItem] {
+    let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return [] }
+    let data = try await browse.search(query: query, filter: filter)
+    let page = try await HomePage(parser.decodeDiscoveryPage(from: data))
+    var seen = Set<String>()
+    return page.shelves.flatMap(\.items).filter {
+      $0.kind == filter.kind && seen.insert($0.id).inserted
+    }
   }
 }

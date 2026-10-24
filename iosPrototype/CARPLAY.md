@@ -126,3 +126,26 @@ hardware reale e la scena CarPlay non sono certificati dal solo test del core.
 Fonti: [entitlement](https://developer.apple.com/documentation/carplay/requesting-carplay-entitlements),
 [scene](https://developer.apple.com/documentation/carplay/cptemplateapplicationscenedelegate),
 [app musicali](https://developer.apple.com/documentation/carplay/integrating-carplay-with-your-music-app).
+
+
+## Build 22: ricerca e navigazione contestuale
+
+La scheda Cerca espone tre filtri server-side, riusando i parametri della versione
+Android. La query è l'ultima ricerca inviata sul telefono, non il testo ancora
+in digitazione. Le risposte cancellate o appartenenti al precedente account non
+aggiornano l'interfaccia. Artisti/album mantengono i browse ID, incluse le righe
+responsive che il decoder precedentemente scartava. Le icone del player usano i
+riferimenti del brano e conservano il contesto dell'album nel passaggio alla coda.
+Se il riferimento manca in un vecchio preferito, si apre una ricerca tipizzata.
+
+Apple documenta CPSearchTemplate tra i template di navigazione, non quelli audio:
+non viene usata una tastiera non autorizzata dall'entitlement CarPlay Audio.
+Riferimenti: https://developer.apple.com/documentation/carplay e
+https://developer.apple.com/documentation/carplay/cpnowplayingtemplate .
+
+La generazione automatica usa un singolo tentativo (timeout rete 25 secondi),
+compatibile con il watchdog generale di preparazione da 45 secondi. Il retry per
+sola lunghezza resta disponibile nel servizio per chiamanti che lo richiedono;
+non ritarda più la voce nel player mobile e CarPlay. I test di voce in background
+sono fixture reali del player, mentre la prova server Google usa testo recuperato
+online. Nessuno dei due dimostra l'uscita fisica CarPlay del veicolo.

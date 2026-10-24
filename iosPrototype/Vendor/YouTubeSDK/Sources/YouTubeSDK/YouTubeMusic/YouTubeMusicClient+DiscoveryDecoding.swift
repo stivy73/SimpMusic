@@ -54,7 +54,8 @@ extension YouTubeMusicClient {
       }
       for key in [
         "contents", "singleColumnBrowseResultsRenderer", "twoColumnBrowseResultsRenderer",
-        "tabRenderer", "content", "secondaryContents", "continuationContents",
+        "tabRenderer", "tabbedSearchResultsRenderer", "twoColumnSearchResultsRenderer",
+        "content", "secondaryContents", "continuationContents",
         "onResponseReceivedActions", "onResponseReceivedEndpoints",
       ] {
         if let child = object[key] { visit(child) }

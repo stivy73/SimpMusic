@@ -6,7 +6,7 @@ public struct GeminiService: Sendable {
 
   public func explain(
     key: String, model: String, title: String, artist: String, lyrics: String,
-    optimizeForLatency: Bool = true
+    optimizeForLatency: Bool = true, retryLength: Bool = true
   )
     async throws -> String
   {
@@ -17,7 +17,7 @@ public struct GeminiService: Sendable {
     let url = URL(
       string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent")!
     var text = ""
-    for attempt in 0..<2 {
+    for attempt in 0..<(retryLength ? 2 : 1) {
       try Task.checkCancellation()
       let instruction =
         Interpretation.systemPrompt
@@ -32,7 +32,7 @@ public struct GeminiService: Sendable {
       if optimizeForLatency && model == "gemini-3.8-flash" {
         body["generationConfig"] = ["thinkingConfig": ["thinkingLevel": "low"]]
       }
-      let json = try await post(url: url, key: key, body: body)
+      let json = try await post(url: url, key: key, body: body, timeout: retryLength ? 90 : 25)
       guard let candidates = json["candidates"] as? [[String: Any]],
         let content = candidates.first?["content"] as? [String: Any],
         let parts = content["parts"] as? [[String: Any]]
@@ -92,11 +92,13 @@ public struct GeminiService: Sendable {
     return data
   }
 
-  private func post(url: URL, key: String, body: [String: Any]) async throws -> [String: Any] {
+  private func post(url: URL, key: String, body: [String: Any], timeout: TimeInterval = 90)
+    async throws -> [String: Any]
+  {
     guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw PrototypeError.missingKey
     }
-    var request = URLRequest(url: url, timeoutInterval: 90)
+    var request = URLRequest(url: url, timeoutInterval: timeout)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue(key, forHTTPHeaderField: "x-goog-api-key")

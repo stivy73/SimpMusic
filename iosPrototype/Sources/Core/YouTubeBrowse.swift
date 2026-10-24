@@ -34,6 +34,10 @@ public final class YouTubeBrowse: Sendable {
     return try await send(endpoint: "browse", fields: fields)
   }
 
+  public func search(query: String, filter: MusicSearchFilter) async throws -> Data {
+    try await send(endpoint: "search", fields: ["query": query, "params": filter.params])
+  }
+
   /// Reuse the confirmed account identity for media, not just the library.
   public func player(videoID: String) async throws -> YouTubeVideo {
     let data = try await send(

@@ -62,6 +62,9 @@ struct Song: Identifiable, Codable, Hashable {
   let artist: String
   let artwork: URL?
   let durationSeconds: Double?
+  var albumBrowseID: String? = nil
+  var albumTitle: String? = nil
+  var artistBrowseID: String? = nil
   init(id: String, title: String, artist: String, artwork: URL?, durationSeconds: Double? = nil) {
     self.id = id
     self.title = title
@@ -70,19 +73,28 @@ struct Song: Identifiable, Codable, Hashable {
     self.durationSeconds = durationSeconds
   }
   init(_ item: DiscoveryItem) {
+    albumBrowseID = item.albumBrowseID
+    artistBrowseID = item.artistBrowseID
+    albumTitle = item.albumTitle
     id = item.mediaId
     title = item.title
     artist = item.subtitle
     artwork = item.artwork
     durationSeconds = item.durationSeconds
   }
-  func withAlbumArtwork(_ albumArtwork: URL?, artist albumArtist: String? = nil) -> Song {
-    Song(
+  func withAlbumArtwork(
+    _ albumArtwork: URL?, artist albumArtist: String? = nil, albumID: String? = nil
+  ) -> Song {
+    var result = Song(
       id: id, title: title,
       artist: artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         ? albumArtist ?? artist : artist,
       artwork: albumArtwork ?? artwork,
       durationSeconds: durationSeconds)
+    result.artistBrowseID = artistBrowseID
+    result.albumTitle = albumTitle
+    result.albumBrowseID = albumID ?? albumBrowseID
+    return result
   }
   init(_ song: YouTubeMusicSong, albumArtwork: URL? = nil) {
     id = song.videoId
@@ -90,6 +102,9 @@ struct Song: Identifiable, Codable, Hashable {
     artist = song.artistsDisplay
     artwork = albumArtwork ?? song.thumbnailURL
     durationSeconds = song.duration
+    albumTitle = song.album
+    albumBrowseID = song.albumBrowseID
+    artistBrowseID = song.artistBrowseID
   }
 }
 
@@ -118,6 +133,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   #endif
   @Published var query = ""
   @Published var songs: [Song] = []
+  @Published var lastSearchQuery = ""
   @Published var searching = false
   @Published var searchError: String?
   @Published var queue: [Song] = []
@@ -224,6 +240,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     if let suggested { query = suggested }
     let requested = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !requested.isEmpty else { return }
+    lastSearchQuery = requested
     searchTask?.cancel()
     searching = true
     searchError = nil
@@ -396,17 +413,21 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         let cacheKey = try InterpretationCache.key(
           model: textModel, title: song.title, artist: song.artist, lyrics: lyrics)
         let cached = force ? nil : await InterpretationCache.shared.read(cacheKey)
+        let interpretationStarted = Date()
         let result: String
         if let cached {
           result = cached
         } else {
           result = try await GeminiService().explain(
-            key: apiKey, model: textModel, title: song.title, artist: song.artist, lyrics: lyrics)
+            key: apiKey, model: textModel, title: song.title, artist: song.artist, lyrics: lyrics,
+            retryLength: false)
           try Task.checkCancellation()
           await InterpretationCache.shared.store(result, key: cacheKey)
         }
         try Task.checkCancellation()
         guard token == generation else { return }
+        narrationDiagnostic =
+          "Interpretazione pronta in \(Int(Date().timeIntervalSince(interpretationStarted))) s; preparo voce"
         meaning = result
         try await speak(result, token: token)
       } catch is CancellationError {} catch {

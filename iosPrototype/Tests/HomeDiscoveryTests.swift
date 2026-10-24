@@ -93,6 +93,60 @@ enum HomeFixture {
 }
 
 final class HomeDiscoveryTests: XCTestCase {
+  func testSearchEnvelopePreservesResponsiveArtistAndAlbumRows() async throws {
+    func row(_ id: String, type: String) -> [String: Any] {
+      var nav = HomeFixture.endpoint(id)
+      nav["browseEndpoint"] = [
+        "browseId": id,
+        "browseEndpointContextSupportedConfigs": [
+          "browseEndpointContextMusicConfig": ["pageType": type]
+        ],
+      ]
+      return [
+        "musicResponsiveListItemRenderer": [
+          "navigationEndpoint": nav,
+          "flexColumns": [
+            ["musicResponsiveListItemFlexColumnRenderer": ["text": HomeFixture.text("Nome")]],
+            ["musicResponsiveListItemFlexColumnRenderer": ["text": HomeFixture.text("Dettagli")]],
+          ], "thumbnail": HomeFixture.thumbnail,
+        ]
+      ]
+    }
+    let root: [String: Any] = [
+      "contents": [
+        "tabbedSearchResultsRenderer": [
+          "tabs": [
+            [
+              "tabRenderer": [
+                "selected": true,
+                "content": [
+                  "sectionListRenderer": [
+                    "contents": [
+                      [
+                        "musicShelfRenderer": [
+                          "title": HomeFixture.text("Risultati"),
+                          "contents": [
+                            row("UCartist", type: "MUSIC_PAGE_TYPE_ARTIST"),
+                            row("MPREalbum", type: "MUSIC_PAGE_TYPE_ALBUM"),
+                          ],
+                        ]
+                      ]
+                    ]
+                  ]
+                ],
+              ]
+            ]
+          ]
+        ]
+      ]
+    ]
+    let data = try JSONSerialization.data(withJSONObject: root)
+    let page = try await YouTubeMusicClient().decodeDiscoveryPage(from: data)
+    let items = HomePage(page).shelves.flatMap(\.items)
+    XCTAssertEqual(items.map(\.kind), [.artist, .album])
+    XCTAssertEqual(items.map(\.mediaId), ["UCartist", "MPREalbum"])
+  }
+
   func testMixedCarouselPreservesOrderMetadataAndNavigation() async throws {
     let data = try HomeFixture.data(
       rows: [HomeFixture.shelf(["song1", "MPREalbum", "VLplaylist", "UCartist"])],

@@ -15,6 +15,18 @@ final class ProbeTimings: NSObject, URLSessionTaskDelegate, @unchecked Sendable 
 
 do {
   let args = Array(CommandLine.arguments.dropFirst())
+  if args.first == "--typed-search" {
+    let discovery = HomeDiscovery(session: nil)
+    for filter in MusicSearchFilter.allCases {
+      let items = try await discovery.search(
+        query: args.count > 1 ? args[1] : "Fleetwood Mac", filter: filter)
+      print(
+        "Typed search \(filter.rawValue): \(items.count) results; types \(Set(items.map { $0.kind.rawValue }).sorted())"
+      )
+      guard !items.isEmpty else { throw URLError(.cannotParseResponse) }
+    }
+    exit(0)
+  }
   if try await probeAudioIfRequested(args) { exit(0) }
   if try await probeLyricsIfRequested(args) { exit(0) }
   if try await probeHomeIfRequested(args) { exit(0) }
@@ -64,7 +76,7 @@ do {
     let start = Date()
     let text = try await service.explain(
       key: key, model: "gemini-3.8-flash", title: song.title,
-      artist: song.artistsDisplay, lyrics: lyrics)
+      artist: song.artistsDisplay, lyrics: lyrics, retryLength: false)
     print(
       "Gemini interpretation OK: \(text.count) characters; expected length: \(Interpretation.isExpectedLength(text)); seconds: \(Int(Date().timeIntervalSince(start)))"
     )
