@@ -29,6 +29,9 @@ required to distinguish rejected login, malformed metadata and unavailable media
 Do not describe this build as a CDN fix. Existing interpretation prompt,
 search filters and Duo layout are unchanged. No public Store release requested.
 
+Apple upload completed on 24 October 2026: Upload succeeded, package processing.
+Build 23 is internal TestFlight only; tester assignment remains manual.
+
 # NoteNarrate iOS 0.7.1 (22)
 
 CarPlay now has a Search tab with Songs, Artists and Albums server-side filters.
