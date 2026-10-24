@@ -6,4 +6,6 @@
     <string name="notenarrate_original_website">Sito originale SimpMusic</string>
     <string name="notenarrate_fork_author">NoteNarrate sviluppata da Archetipi Digitali</string>
     <string name="google_tts_key_hint">Opzionale: lascia vuoto per usare la chiave API IA quando è selezionato Gemini.</string>
+    <string name="go_to_album">Vai all’album</string>
+    <string name="go_to_album_named">Vai all’album · %1$s</string>
 </resources>

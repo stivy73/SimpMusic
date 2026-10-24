@@ -184,6 +184,8 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+import simpmusic.composeapp.generated.resources.go_to_album
+import simpmusic.composeapp.generated.resources.go_to_album_named
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.add_to_a_playlist
 import simpmusic.composeapp.generated.resources.add_to_queue
@@ -1839,13 +1841,14 @@ fun NowPlayingBottomSheet(
                                 uiState.songUIState.album == null -> Res.string.no_album
                                 uiState.songUIState.album
                                     ?.name
-                                    .isNullOrBlank() -> Res.string.album
+                                    .isNullOrBlank() -> Res.string.go_to_album
                                 else -> null
                             },
                         textString =
                             uiState.songUIState.album
                                 ?.name
-                                ?.takeIf { it.isNotBlank() },
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { stringResource(Res.string.go_to_album_named, it) },
                         enable = uiState.songUIState.album != null,
                     ) {
                         uiState.songUIState.album?.id?.let { id ->
