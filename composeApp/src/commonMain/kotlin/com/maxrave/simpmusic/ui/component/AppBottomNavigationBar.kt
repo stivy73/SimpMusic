@@ -2,8 +2,8 @@ package com.maxrave.simpmusic.ui.component
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -271,15 +271,21 @@ fun AppNavigationRail(
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(Res.drawable.mono),
+                    painter = painterResource(Res.drawable.app_icon),
                     contentDescription = null,
                     modifier =
                         Modifier
-                            .height(32.dp)
+                            .size(48.dp)
                             .clip(CircleShape),
                 )
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Image(
+            painter = painterResource(Res.drawable.archetipi_digitali_logo),
+            contentDescription = "Archetipi Digitali",
+            modifier = Modifier.width(64.dp).height(28.dp),
+        )
         Spacer(Modifier.weight(1f))
         bottomNavScreens.forEach { screen ->
             NavigationRailItem(
@@ -321,6 +327,6 @@ fun AppNavigationRail(
                 },
             )
         }
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.size(48.dp))
     }
 }

@@ -104,6 +104,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
+            <!-- Now Playing sends a search with metadata extras and no data URI. -->
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
             <!-- Youtube filter -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />

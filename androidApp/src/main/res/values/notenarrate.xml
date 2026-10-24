@@ -1,0 +1,3 @@
+<resources>
+    <string name="notification_channel_name" translatable="false">NoteNarrate Playback</string>
+</resources>

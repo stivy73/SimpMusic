@@ -1,0 +1,9 @@
+<resources>
+    <string name="notenarrate_credit_app">NoteNarrate is an independent fork based on the open-source SimpMusic project by Tuan Minh Nguyen Duc (maxrave-dev). It adds AI song interpretation and expressive voice narration.\n\nOriginal source code: https://github.com/maxrave-dev/SimpMusic\nNoteNarrate source code: https://github.com/stivy73/SimpMusic\n\nLicensed under GNU GPL-3.0. Original copyright notices and third-party licenses are preserved.</string>
+    <string name="notenarrate_original_developer">Original SimpMusic developer: maxrave-dev</string>
+    <string name="notenarrate_source_code">NoteNarrate source code</string>
+    <string name="notenarrate_original_source_code">Original SimpMusic source code</string>
+    <string name="notenarrate_original_website">Original SimpMusic website</string>
+    <string name="notenarrate_fork_author">NoteNarrate developed by Archetipi Digitali</string>
+    <string name="google_tts_key_hint">Optional: leave empty to use the AI API key when Gemini is selected.</string>
+</resources>

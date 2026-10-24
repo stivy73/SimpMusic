@@ -145,7 +145,7 @@
     <string name="albums_inArtist">专辑</string>
     <string name="singles_inArtist">单个</string>
     <string name="fans_might_also_like_inArtist">粉丝可能也喜欢</string>
-    <string name="crash_log">SimpMusic 崩溃了。很抱歉出现此问题。\n将崩溃日志发给开发人员</string>
+    <string name="crash_log">NoteNarrate 崩溃了。很抱歉出现此问题。\n将崩溃日志发给开发人员</string>
     <string name="crash">崩溃</string>
     <string name="send">发送</string>
     <string name="mail_subject">报告崩溃</string>
@@ -204,7 +204,7 @@
     <string name="what_segments_will_be_skipped">将跳过哪些段</string>
     <string name="save">保存</string>
     <string name="saved">已保存</string>
-    <string name="sponsor_block_intro">SponsorBlock 是一个由众人组成的系统，用于跳过烦人的 YouTube 视频的部分。\n更多信息：https://sponsor.ajay.app/\n在 SimpMusic 中，SponsorBlock 仅在设备在线时可用</string>
+    <string name="sponsor_block_intro">SponsorBlock 是一个由众人组成的系统，用于跳过烦人的 YouTube 视频的部分。\n更多信息：https://sponsor.ajay.app/\n在 NoteNarrate 中，SponsorBlock 仅在设备在线时可用</string>
     <string name="skip_sponsor_part_of_video">跳过视频赞助部分</string>
     <string name="customactivityoncrash_error_activity_error_occurred_explanation">发生意外错误。很抱歉给您带来不便。</string>
     <string name="customactivityoncrash_error_activity_restart_app">重启应用</string>
@@ -245,7 +245,7 @@
     <string name="saved_to_local_playlist">已保存到本地歌单</string>
     <string name="if_you_want_to_unsync_this_playlist_please_go_to_local_playlist">如果您想要取消同步此歌单，请转到本地歌单</string>
     <string name="log_in_to_get_YouTube_playlist">登录以获取 YouTube 歌单</string>
-    <string name="sync_playlist_warning">SimpMusic 将自动创建 YouTube 音乐歌单。确定吗？</string>
+    <string name="sync_playlist_warning">NoteNarrate 将自动创建 YouTube 音乐歌单。确定吗？</string>
     <string name="syncing">同步中</string>
     <string name="unsync_playlist_warning">"取消同步此歌单吗？此歌单将不会从 YouTube Music 中删除 "</string>
     <string name="unsyncing">取消同步中</string>
@@ -262,7 +262,7 @@
     <string name="email">邮箱</string>
     <string name="password">密码</string>
     <string name="please_enter_your_email_and_password">请输入你的电子邮箱和密码</string>
-    <string name="translation_language_message">输入语言代码 (例如: en) (2 字符)。如果您想使用 SimpMusic 相同的语言设置，请将编辑框置空。</string>
+    <string name="translation_language_message">输入语言代码 (例如: en) (2 字符)。如果您想使用 NoteNarrate 相同的语言设置，请将编辑框置空。</string>
     <string name="invalid_language_code">无效的语言代码</string>
     <string name="lyrics_provider_youtube">歌词 by YouTube</string>
     <string name="lyrics_provider_betterlyrics">歌词由 BetterLyrics 提供</string>
@@ -320,7 +320,7 @@
     <string name="enable_spotify_lyrics">启用 Spotify 歌词</string>
     <string name="spotify_lyrícs_info">更多没有翻译的歌词</string>
     <string name="enable_canvas">启用 Canvas</string>
-    <string name="canvas_info">在 SimpMusic 中显示 Spotify Canvas</string>
+    <string name="canvas_info">在 NoteNarrate 中显示 Spotify Canvas</string>
     <string name="spotify_lyrics_provider">由 Spotify 提供的歌词</string>
     <string name="offline_mode">离线模式</string>
     <string name="added_to_youtube_liked">添加到 YouTube 赞过</string>
@@ -376,7 +376,7 @@
     <string name="loading">加载中</string>
     <string name="updating">更新中</string>
     <string name="go_to_log_in_page">转到登录页面</string>
-    <string name="log_in_warning">YouTube Music现在要求您登录以串流音乐，Piped实例有时也无法正常工作。 您应该登录到 YouTube 以获得更好的 SimpMusic 体验。</string>
+    <string name="log_in_warning">YouTube Music现在要求您登录以串流音乐，Piped实例有时也无法正常工作。 您应该登录到 YouTube 以获得更好的 NoteNarrate 体验。</string>
     <string name="spotify_canvas_cache">Spotify Canvas 缓存</string>
     <string name="clear_canvas_cache">清除 canvas 缓存</string>
     <string name="proxy">代理</string>
@@ -416,7 +416,7 @@
     <string name="other_version">其他版本</string>
     <string name="later">稍后询问</string>
     <string name="give_a_star">给颗星星</string>
-    <string name="enjoying_simpmusic">享受SimpMusic吧</string>
+    <string name="enjoying_simpmusic">享受NoteNarrate吧</string>
     <string name="if_you_enjoy_using_simpmusic_star_simpmusic_on_github_or_leave_a_review_on">如果你喜欢SimpMusic，别忘了在Github给SimpMusic点星星或留好评</string>
     <string name="if_you_love_my_work_consider">"如果你喜欢我的工作，请考虑： "</string>
     <string name="buying_me_a_coffee">软件称心多雅意，薄酬一杯解劳辛。</string>
@@ -516,8 +516,8 @@
     <string name="intro_login_to_lastfm">登录以记录您听到的内容</string>
     <string name="enable_scrobbling">启用播放记录</string>
     <string name="scrobbling_info">将您播放的内容发送到您的 Last.fm </string>
-    <string name="lastfm_login_step_1">打开 Last.fm 页面并授予SimpMusic 对您账户的访问权限。</string>
-    <string name="lastfm_login_step_2">若您授予访问权限，SimpMusic将再次打开 last.fm 登录页。</string>
+    <string name="lastfm_login_step_1">打开 Last.fm 页面并授予NoteNarrate 对您账户的访问权限。</string>
+    <string name="lastfm_login_step_2">若您授予访问权限，NoteNarrate将再次打开 last.fm 登录页。</string>
     <string name="lastfm_open_authorize_page">打开 Last.fm</string>
     <string name="lastfm_login_failed">无法登录到 Last.fm，请重试。</string>
     <string name="lastfm_paste_callback_title">没有自动返回？</string>
@@ -550,7 +550,7 @@
     <string name="downvote">点踩</string>
     <string name="vote_submitted">感谢您为这份歌词投票！</string>
     <string name="vote_error">发送失败</string>
-    <string name="open_app">打开 SimpMusic</string>
+    <string name="open_app">打开 NoteNarrate</string>
     <string name="close_miniplayer">关闭迷你播放器</string>
     <string name="open_miniplayer">打开迷你播放器</string>
     <string name="quit_app">退出应用</string>
@@ -575,6 +575,6 @@
     <string name="import_result">已创建 %1$d 播放列表并导入了 %2$d 首歌曲。</string>
     <string name="import_result_skipped">已跳过 %1$d 条目，因为文件中缺少相应的歌曲。</string>
     <string name="import_failed">导入失败</string>
-    <string name="import_invalid_file">此文件不是一个有效的 SimpMusic 导入文件。请先在simpmusic.org转换您的库。</string>
+    <string name="import_invalid_file">此文件不是一个有效的 NoteNarrate 导入文件。请先在simpmusic.org转换您的库。</string>
     <!-- Listen Together -->
 </resources>

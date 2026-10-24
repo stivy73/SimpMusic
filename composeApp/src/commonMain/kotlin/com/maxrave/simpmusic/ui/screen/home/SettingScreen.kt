@@ -100,9 +100,9 @@ import com.maxrave.common.SUPPORTED_LANGUAGE
 import com.maxrave.common.SUPPORTED_LOCATION
 import com.maxrave.common.SponsorBlockType
 import com.maxrave.common.VIDEO_QUALITY
-import com.maxrave.domain.extension.now
 import com.maxrave.domain.data.model.lyrics.RomanizationDictionaryState
 import com.maxrave.domain.data.model.lyrics.RomanizationLanguage
+import com.maxrave.domain.extension.now
 import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.manager.DataStoreManager.Values.TRUE
 import com.maxrave.domain.repository.ImportProgress
@@ -183,6 +183,7 @@ import simpmusic.composeapp.generated.resources.ai
 import simpmusic.composeapp.generated.resources.ai_api_key
 import simpmusic.composeapp.generated.resources.ai_provider
 import simpmusic.composeapp.generated.resources.android_system_voice
+import simpmusic.composeapp.generated.resources.animated_artwork_info
 import simpmusic.composeapp.generated.resources.anonymous
 import simpmusic.composeapp.generated.resources.app_name
 import simpmusic.composeapp.generated.resources.audio
@@ -207,7 +208,6 @@ import simpmusic.composeapp.generated.resources.blog_notification_description
 import simpmusic.composeapp.generated.resources.blog_notification_title
 import simpmusic.composeapp.generated.resources.buy_me_a_coffee
 import simpmusic.composeapp.generated.resources.cancel
-import simpmusic.composeapp.generated.resources.animated_artwork_info
 import simpmusic.composeapp.generated.resources.canvas_info
 import simpmusic.composeapp.generated.resources.categories_sponsor_block
 import simpmusic.composeapp.generated.resources.change
@@ -243,11 +243,11 @@ import simpmusic.composeapp.generated.resources.default_models
 import simpmusic.composeapp.generated.resources.description_and_licenses
 import simpmusic.composeapp.generated.resources.developer_blog
 import simpmusic.composeapp.generated.resources.developer_blog_tagline
+import simpmusic.composeapp.generated.resources.discord_integration
 import simpmusic.composeapp.generated.resources.display_mode
 import simpmusic.composeapp.generated.resources.display_mode_automatic
 import simpmusic.composeapp.generated.resources.display_mode_car
 import simpmusic.composeapp.generated.resources.display_mode_standard
-import simpmusic.composeapp.generated.resources.discord_integration
 import simpmusic.composeapp.generated.resources.donation
 import simpmusic.composeapp.generated.resources.download_quality
 import simpmusic.composeapp.generated.resources.downloaded_cache
@@ -266,6 +266,10 @@ import simpmusic.composeapp.generated.resources.equalizer_type_built_in
 import simpmusic.composeapp.generated.resources.equalizer_type_system
 import simpmusic.composeapp.generated.resources.free_space
 import simpmusic.composeapp.generated.resources.gemini
+import simpmusic.composeapp.generated.resources.google_tts_key_hint
+import simpmusic.composeapp.generated.resources.google_tts_api_key
+import simpmusic.composeapp.generated.resources.google_tts_get_api_key
+import simpmusic.composeapp.generated.resources.google_voice_ai_generated
 import simpmusic.composeapp.generated.resources.guest
 import simpmusic.composeapp.generated.resources.help_build_lyrics_database
 import simpmusic.composeapp.generated.resources.help_build_lyrics_database_description
@@ -317,27 +321,13 @@ import simpmusic.composeapp.generated.resources.login_sync_desktop_title
 import simpmusic.composeapp.generated.resources.login_sync_section
 import simpmusic.composeapp.generated.resources.lrclib
 import simpmusic.composeapp.generated.resources.lyrics
-import simpmusic.composeapp.generated.resources.lyrics_style
 import simpmusic.composeapp.generated.resources.lyrics_offset
 import simpmusic.composeapp.generated.resources.lyrics_offset_invalid
 import simpmusic.composeapp.generated.resources.lyrics_offset_message
 import simpmusic.composeapp.generated.resources.lyrics_offset_value
 import simpmusic.composeapp.generated.resources.lyrics_romanization
 import simpmusic.composeapp.generated.resources.lyrics_romanization_description
-import simpmusic.composeapp.generated.resources.romanization_belarusian
-import simpmusic.composeapp.generated.resources.romanization_bulgarian
-import simpmusic.composeapp.generated.resources.romanization_chinese
-import simpmusic.composeapp.generated.resources.romanization_hindi
-import simpmusic.composeapp.generated.resources.romanization_japanese
-import simpmusic.composeapp.generated.resources.romanization_japanese_dict_downloading
-import simpmusic.composeapp.generated.resources.romanization_japanese_dict_failed
-import simpmusic.composeapp.generated.resources.romanization_korean
-import simpmusic.composeapp.generated.resources.romanization_kyrgyz
-import simpmusic.composeapp.generated.resources.romanization_macedonian
-import simpmusic.composeapp.generated.resources.romanization_punjabi
-import simpmusic.composeapp.generated.resources.romanization_russian
-import simpmusic.composeapp.generated.resources.romanization_serbian
-import simpmusic.composeapp.generated.resources.romanization_ukrainian
+import simpmusic.composeapp.generated.resources.lyrics_style
 import simpmusic.composeapp.generated.resources.lyrics_style_apple_music
 import simpmusic.composeapp.generated.resources.lyrics_style_classic
 import simpmusic.composeapp.generated.resources.main_lyrics_provider
@@ -355,16 +345,8 @@ import simpmusic.composeapp.generated.resources.now_playing_style_spotify
 import simpmusic.composeapp.generated.resources.ok
 import simpmusic.composeapp.generated.resources.open_system_equalizer
 import simpmusic.composeapp.generated.resources.openai
-import simpmusic.composeapp.generated.resources.openai_voice_ai_generated
-import simpmusic.composeapp.generated.resources.google_voice_ai_generated
-import simpmusic.composeapp.generated.resources.google_tts_api_key
-import simpmusic.composeapp.generated.resources.google_tts_get_api_key
-import simpmusic.composeapp.generated.resources.song_meaning_voice_style
-import simpmusic.composeapp.generated.resources.song_meaning_style_professional
-import simpmusic.composeapp.generated.resources.song_meaning_style_dj
-import simpmusic.composeapp.generated.resources.song_meaning_style_empathetic
-import simpmusic.composeapp.generated.resources.song_meaning_voice
 import simpmusic.composeapp.generated.resources.openai_api_compatible
+import simpmusic.composeapp.generated.resources.openai_voice_ai_generated
 import simpmusic.composeapp.generated.resources.other_app
 import simpmusic.composeapp.generated.resources.play_explicit_content
 import simpmusic.composeapp.generated.resources.play_explicit_content_description
@@ -389,6 +371,20 @@ import simpmusic.composeapp.generated.resources.requires_android_12
 import simpmusic.composeapp.generated.resources.restore_your_data
 import simpmusic.composeapp.generated.resources.restore_your_saved_data
 import simpmusic.composeapp.generated.resources.rich_presence_info
+import simpmusic.composeapp.generated.resources.romanization_belarusian
+import simpmusic.composeapp.generated.resources.romanization_bulgarian
+import simpmusic.composeapp.generated.resources.romanization_chinese
+import simpmusic.composeapp.generated.resources.romanization_hindi
+import simpmusic.composeapp.generated.resources.romanization_japanese
+import simpmusic.composeapp.generated.resources.romanization_japanese_dict_downloading
+import simpmusic.composeapp.generated.resources.romanization_japanese_dict_failed
+import simpmusic.composeapp.generated.resources.romanization_korean
+import simpmusic.composeapp.generated.resources.romanization_kyrgyz
+import simpmusic.composeapp.generated.resources.romanization_macedonian
+import simpmusic.composeapp.generated.resources.romanization_punjabi
+import simpmusic.composeapp.generated.resources.romanization_russian
+import simpmusic.composeapp.generated.resources.romanization_serbian
+import simpmusic.composeapp.generated.resources.romanization_ukrainian
 import simpmusic.composeapp.generated.resources.save
 import simpmusic.composeapp.generated.resources.save_all_your_playlist_data
 import simpmusic.composeapp.generated.resources.save_playback_state
@@ -403,6 +399,11 @@ import simpmusic.composeapp.generated.resources.skip_no_music_part
 import simpmusic.composeapp.generated.resources.skip_silent
 import simpmusic.composeapp.generated.resources.skip_sponsor_part_of_video
 import simpmusic.composeapp.generated.resources.socks
+import simpmusic.composeapp.generated.resources.song_meaning_style_dj
+import simpmusic.composeapp.generated.resources.song_meaning_style_empathetic
+import simpmusic.composeapp.generated.resources.song_meaning_style_professional
+import simpmusic.composeapp.generated.resources.song_meaning_voice
+import simpmusic.composeapp.generated.resources.song_meaning_voice_style
 import simpmusic.composeapp.generated.resources.sponsorBlock
 import simpmusic.composeapp.generated.resources.sponsor_block_intro
 import simpmusic.composeapp.generated.resources.spotify
@@ -561,7 +562,6 @@ fun SettingScreen(
     val proxyPort by viewModel.proxyPort.collectAsStateWithLifecycle()
     val proxyUsername by viewModel.proxyUsername.collectAsStateWithLifecycle()
     val proxyPassword by viewModel.proxyPassword.collectAsStateWithLifecycle()
-    val autoCheckUpdate by viewModel.autoCheckUpdate.collectAsStateWithLifecycle()
     val aiProvider by viewModel.aiProvider.collectAsStateWithLifecycle()
     val isHasApiKey by viewModel.isHasApiKey.collectAsStateWithLifecycle()
     val songMeaningTtsProvider by viewModel.songMeaningTtsProvider.collectAsStateWithLifecycle()
@@ -1961,8 +1961,18 @@ fun SettingScreen(
                                     runBlocking { getString(Res.string.change) } to { state ->
                                         viewModel.setSongMeaningTtsProvider(
                                             when (state.selectOne?.getSelected()) {
-                                                runBlocking { getString(Res.string.openai_voice_ai_generated) } -> DataStoreManager.SONG_MEANING_TTS_OPENAI
-                                                runBlocking { getString(Res.string.google_voice_ai_generated) } -> DataStoreManager.SONG_MEANING_TTS_GOOGLE
+                                                runBlocking {
+                                                    getString(
+                                                        Res.string.openai_voice_ai_generated,
+                                                    )
+                                                },
+                                                -> DataStoreManager.SONG_MEANING_TTS_OPENAI
+                                                runBlocking {
+                                                    getString(
+                                                        Res.string.google_voice_ai_generated,
+                                                    )
+                                                },
+                                                -> DataStoreManager.SONG_MEANING_TTS_GOOGLE
                                                 else -> DataStoreManager.SONG_MEANING_TTS_ANDROID
                                             },
                                         )
@@ -1974,20 +1984,22 @@ fun SettingScreen(
                 )
                 SettingItem(
                     title = stringResource(Res.string.google_tts_api_key),
-                    subtitle = if (hasGoogleTtsApiKey) "XXXXXXXXXX" else "N/A",
+                    subtitle = if (hasGoogleTtsApiKey) "XXXXXXXXXX" else stringResource(Res.string.google_tts_key_hint),
                     onClick = {
                         viewModel.setAlertData(
                             SettingAlertState(
                                 title = runBlocking { getString(Res.string.google_tts_api_key) },
-                                textField = SettingAlertState.TextFieldData(
-                                    label = runBlocking { getString(Res.string.google_tts_api_key) },
-                                    value = "",
-                                    verifyCodeBlock = { true to "" },
-                                ),
+                                textField =
+                                    SettingAlertState.TextFieldData(
+                                        label = runBlocking { getString(Res.string.google_tts_api_key) },
+                                        value = "",
+                                        verifyCodeBlock = { true to "" },
+                                    ),
                                 message = "",
-                                confirm = runBlocking { getString(Res.string.set) } to { state ->
-                                    viewModel.setGoogleTtsApiKey(state.textField?.value.orEmpty())
-                                },
+                                confirm =
+                                    runBlocking { getString(Res.string.set) } to { state ->
+                                        viewModel.setGoogleTtsApiKey(state.textField?.value.orEmpty())
+                                    },
                                 dismiss = runBlocking { getString(Res.string.cancel) },
                             ),
                         )
@@ -1997,36 +2009,57 @@ fun SettingScreen(
                     title = stringResource(Res.string.google_tts_get_api_key),
                     onClick = { uriHandler.openUri("https://aistudio.google.com/apikey") },
                 )
-                if (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_GOOGLE) SettingItem(
-                    title = stringResource(Res.string.song_meaning_voice_style),
-                    subtitle = when (songMeaningVoiceStyle) {
-                        DataStoreManager.SONG_MEANING_STYLE_DJ -> stringResource(Res.string.song_meaning_style_dj)
-                        DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC -> stringResource(Res.string.song_meaning_style_empathetic)
-                        else -> stringResource(Res.string.song_meaning_style_professional)
-                    },
-                    onClick = {
-                        viewModel.setAlertData(
-                            SettingAlertState(
-                                title = runBlocking { getString(Res.string.song_meaning_voice_style) },
-                                selectOne = SettingAlertState.SelectData(
-                                    listSelect = listOf(
-                                        (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_PROFESSIONAL) to runBlocking { getString(Res.string.song_meaning_style_professional) },
-                                        (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_DJ) to runBlocking { getString(Res.string.song_meaning_style_dj) },
-                                        (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC) to runBlocking { getString(Res.string.song_meaning_style_empathetic) },
-                                    ),
+                if (songMeaningTtsProvider == DataStoreManager.SONG_MEANING_TTS_GOOGLE) {
+                    SettingItem(
+                        title = stringResource(Res.string.song_meaning_voice_style),
+                        subtitle =
+                            when (songMeaningVoiceStyle) {
+                                DataStoreManager.SONG_MEANING_STYLE_DJ -> stringResource(Res.string.song_meaning_style_dj)
+                                DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC -> stringResource(Res.string.song_meaning_style_empathetic)
+                                else -> stringResource(Res.string.song_meaning_style_professional)
+                            },
+                        onClick = {
+                            viewModel.setAlertData(
+                                SettingAlertState(
+                                    title = runBlocking { getString(Res.string.song_meaning_voice_style) },
+                                    selectOne =
+                                        SettingAlertState.SelectData(
+                                            listSelect =
+                                                listOf(
+                                                    (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_PROFESSIONAL) to
+                                                        runBlocking { getString(Res.string.song_meaning_style_professional) },
+                                                    (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_DJ) to
+                                                        runBlocking { getString(Res.string.song_meaning_style_dj) },
+                                                    (songMeaningVoiceStyle == DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC) to
+                                                        runBlocking { getString(Res.string.song_meaning_style_empathetic) },
+                                                ),
+                                        ),
+                                    confirm =
+                                        runBlocking { getString(Res.string.change) } to { state ->
+                                            viewModel.setSongMeaningVoiceStyle(
+                                                when (state.selectOne?.getSelected()) {
+                                                    runBlocking {
+                                                        getString(
+                                                            Res.string.song_meaning_style_dj,
+                                                        )
+                                                    },
+                                                    -> DataStoreManager.SONG_MEANING_STYLE_DJ
+                                                    runBlocking {
+                                                        getString(
+                                                            Res.string.song_meaning_style_empathetic,
+                                                        )
+                                                    },
+                                                    -> DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC
+                                                    else -> DataStoreManager.SONG_MEANING_STYLE_PROFESSIONAL
+                                                },
+                                            )
+                                        },
+                                    dismiss = runBlocking { getString(Res.string.cancel) },
                                 ),
-                                confirm = runBlocking { getString(Res.string.change) } to { state ->
-                                    viewModel.setSongMeaningVoiceStyle(when (state.selectOne?.getSelected()) {
-                                        runBlocking { getString(Res.string.song_meaning_style_dj) } -> DataStoreManager.SONG_MEANING_STYLE_DJ
-                                        runBlocking { getString(Res.string.song_meaning_style_empathetic) } -> DataStoreManager.SONG_MEANING_STYLE_EMPATHETIC
-                                        else -> DataStoreManager.SONG_MEANING_STYLE_PROFESSIONAL
-                                    })
-                                },
-                                dismiss = runBlocking { getString(Res.string.cancel) },
-                            ),
-                        )
-                    },
-                )
+                            )
+                        },
+                    )
+                }
                 SettingItem(
                     title = stringResource(Res.string.custom_ai_model_id),
                     subtitle = customModelId.ifEmpty { stringResource(Res.string.default_models) },
@@ -2830,11 +2863,6 @@ fun SettingScreen(
                     onClick = {
                         navController.navigate(CreditDestination)
                     },
-                )
-                SettingItem(
-                    title = stringResource(Res.string.auto_check_for_update),
-                    subtitle = stringResource(Res.string.auto_check_for_update_description),
-                    switch = (autoCheckUpdate to { viewModel.setAutoCheckUpdate(it) }),
                 )
                 SettingItem(
                     title = stringResource(Res.string.update_channel),

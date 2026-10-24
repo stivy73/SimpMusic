@@ -145,7 +145,7 @@
     <string name="albums_inArtist">Album</string>
     <string name="singles_inArtist">Singoli</string>
     <string name="fans_might_also_like_inArtist">Ai fan potrebbe anche piacere</string>
-    <string name="crash_log">SimpMusic ha subito un arresto anomalo. Ci scusiamo per questo problema.\nInvia il log del suo arresto allo sviluppatore</string>
+    <string name="crash_log">NoteNarrate ha subito un arresto anomalo. Ci scusiamo per questo problema.\nInvia il log del suo arresto allo sviluppatore</string>
     <string name="crash">Arresto anomalo</string>
     <string name="send">Invia</string>
     <string name="mail_subject">Segnala arresto</string>
@@ -205,7 +205,7 @@
     <string name="what_segments_will_be_skipped">Quali segmenti verranno saltati</string>
     <string name="save">Salva</string>
     <string name="saved">Salvato</string>
-    <string name="sponsor_block_intro">SponsorBlock è un sistema di crowdsourcing per saltare parti fastidiose dei video di YouTube.\nUlteriori informazioni: https://sponsor.ajay.app/\nIn SimpMusic, SponsorBlock è disponibile solo quando il dispositivo è online</string>
+    <string name="sponsor_block_intro">SponsorBlock è un sistema di crowdsourcing per saltare parti fastidiose dei video di YouTube.\nUlteriori informazioni: https://sponsor.ajay.app/\nIn NoteNarrate, SponsorBlock è disponibile solo quando il dispositivo è online</string>
     <string name="skip_sponsor_part_of_video">Salta la parte dello sponsor del video</string>
     <string name="customactivityoncrash_error_activity_error_occurred_explanation">Si è verificato un errore imprevisto. Ci dispiace per l'inconvenienza.</string>
     <string name="customactivityoncrash_error_activity_restart_app">Riavvia l'applicazione</string>
@@ -246,7 +246,7 @@
     <string name="saved_to_local_playlist">Salvato nella playlist locale</string>
     <string name="if_you_want_to_unsync_this_playlist_please_go_to_local_playlist">se desideri annullare la sincronizzazione di questa playlist, vai alla playlist locale</string>
     <string name="log_in_to_get_YouTube_playlist">Accedi per ottenere la playlist di YouTube</string>
-    <string name="sync_playlist_warning">SimpMusic creerà automaticamente una playlist musicale di YouTube. Sei sicuro?</string>
+    <string name="sync_playlist_warning">NoteNarrate creerà automaticamente una playlist musicale di YouTube. Sei sicuro?</string>
     <string name="syncing">Sincronizzazione</string>
     <string name="unsync_playlist_warning">"Vuoi sincronizzare questa playlist? Questa playlist non verrà rimossa da YouTube Music"</string>
     <string name="unsyncing">Desincronizzazione</string>
@@ -263,7 +263,7 @@
     <string name="email">Posta elettronica</string>
     <string name="password">Password</string>
     <string name="please_enter_your_email_and_password">Per favore inserisci le tue credenziali</string>
-    <string name="translation_language_message">Digitare il codice della lingua (Es: it) (2 lettere). Se vuoi impostare lo stesso con la lingua di SimpMusic, lascia vuota la casella di modifica.</string>
+    <string name="translation_language_message">Digitare il codice della lingua (Es: it) (2 lettere). Se vuoi impostare lo stesso con la lingua di NoteNarrate, lascia vuota la casella di modifica.</string>
     <string name="invalid_language_code">Codice lingua non valido</string>
     <string name="lyrics_provider_youtube">Testi forniti da YouTube</string>
     <string name="lyrics_provider_betterlyrics">Testi forniti da BetterLyrics</string>
@@ -320,7 +320,7 @@
     <string name="equalizer_autoeq_unavailable">Impossibile raggiungere AutoEq. Controlla la tua connessione e riprova.</string>
     <string name="equalizer_autoeq_empty">Nessuna cuffia corrisponde a quel nome</string>
     <string name="equalizer_autoeq_failed">Impossibile caricare quel profilo — la prima volta necessita una connessione</string>
-    <string name="sync_follow_to_youtube_description">Seguire un artista su SimpMusic ti iscrive anche al suo canale sul tuo account YouTube</string>
+    <string name="sync_follow_to_youtube_description">Seguire un artista su NoteNarrate ti iscrive anche al suo canale sul tuo account YouTube</string>
     <string name="sync_follow_failed">Impossibile aggiornare la tua iscrizione su YouTube</string>
     <string name="subscribed_on_youtube">Iscritto su YouTube</string>
     <string name="unsubscribed_on_youtube">Disiscritto da YouTube</string>
@@ -341,7 +341,7 @@
     <string name="enable_spotify_lyrics">Abilita testi da Spotify</string>
     <string name="spotify_lyrícs_info">Più testi senza traduzione</string>
     <string name="enable_canvas">Abilita Canvas</string>
-    <string name="canvas_info">Mostra i Canvas di Spotify in SimpMusic</string>
+    <string name="canvas_info">Mostra i Canvas di Spotify in NoteNarrate</string>
     <string name="spotify_lyrics_provider">Testi forniti da Spotify</string>
     <string name="offline_mode">Modalità disconnessa</string>
     <string name="added_to_youtube_liked">Aggiunto ai mi piace di YouTube</string>
@@ -407,7 +407,7 @@
     <string name="loading">Caricamento</string>
     <string name="updating">Aggiornando</string>
     <string name="go_to_log_in_page">Vai alla pagina di accesso</string>
-    <string name="log_in_warning">YouTube Music ora richiede di accedere per riprodurre musica, quindi l'istanza Piped potrebbe occasionalmente non funzionare. Si consiglia di accedere a YouTube per ottenere un'esperienza migliore con SimpMusic.</string>
+    <string name="log_in_warning">YouTube Music ora richiede di accedere per riprodurre musica, quindi l'istanza Piped potrebbe occasionalmente non funzionare. Si consiglia di accedere a YouTube per ottenere un'esperienza migliore con NoteNarrate.</string>
     <string name="spotify_canvas_cache">Cache di Spotify Canvas</string>
     <string name="clear_canvas_cache">Pulisci la cache di Spotify Canvas</string>
     <string name="listening_history">Cronologia d'ascolto</string>
@@ -454,7 +454,7 @@
     <string name="other_version">Altra versione</string>
     <string name="later">Dopo</string>
     <string name="give_a_star">Dai una stella</string>
-    <string name="enjoying_simpmusic">Divertiti con SimpMusic</string>
+    <string name="enjoying_simpmusic">Divertiti con NoteNarrate</string>
     <string name="if_you_enjoy_using_simpmusic_star_simpmusic_on_github_or_leave_a_review_on">Se ti piace usare SimpMusic, stella SimpMusic su GitHub o lasciare una recensione su</string>
     <string name="if_you_love_my_work_consider">"Se ami il mio lavoro, considera"</string>
     <string name="buying_me_a_coffee">di offrirmi un caffè.</string>
@@ -614,7 +614,7 @@
     <string name="downvote">Vota negativamente</string>
     <string name="vote_submitted">Grazie per aver votato questo testo!</string>
     <string name="vote_error">Invio non riuscito</string>
-    <string name="open_app">Apri SimpMusic</string>
+    <string name="open_app">Apri NoteNarrate</string>
     <string name="close_miniplayer">Chiudi il mini-lettore</string>
     <string name="open_miniplayer">Apri il mini-lettore</string>
     <string name="quit_app">Esci dall'applicazione</string>

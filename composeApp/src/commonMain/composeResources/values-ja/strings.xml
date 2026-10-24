@@ -143,7 +143,7 @@
     <string name="albums_inArtist">アルバム</string>
     <string name="singles_inArtist">シングル</string>
     <string name="fans_might_also_like_inArtist">他の人はこんな音楽も聞いています</string>
-    <string name="crash_log">SimpMusic がクラッシュしました。申し訳ありません。\n開発者にクラッシュログを送信してください。</string>
+    <string name="crash_log">NoteNarrate がクラッシュしました。申し訳ありません。\n開発者にクラッシュログを送信してください。</string>
     <string name="crash">クラッシュ</string>
     <string name="send">送信</string>
     <string name="mail_subject">クラッシュを報告</string>
@@ -202,7 +202,7 @@
     <string name="what_segments_will_be_skipped">スキップしたいシーンを選択</string>
     <string name="save">保存</string>
     <string name="saved">保存しました</string>
-    <string name="sponsor_block_intro">SponsorBlock は、YouTube 動画の余分なシーンをスキップするための、クラウドソースのシステムです。\n詳細: https://sponsor.ajay.app/\nSimpMusic では、SponsorBlock は端末がネットに接続中の場合にのみ利用できます。</string>
+    <string name="sponsor_block_intro">SponsorBlock は、YouTube 動画の余分なシーンをスキップするための、クラウドソースのシステムです。\n詳細: https://sponsor.ajay.app/\nNoteNarrate では、SponsorBlock は端末がネットに接続中の場合にのみ利用できます。</string>
     <string name="skip_sponsor_part_of_video">動画の協賛シーンなどをスキップします</string>
     <string name="customactivityoncrash_error_activity_error_occurred_explanation">予期しないエラーが発生しました。ご迷惑をおかけして申し訳ありません。</string>
     <string name="customactivityoncrash_error_activity_restart_app">アプリを再起動</string>
@@ -242,7 +242,7 @@
     <string name="saved_to_local_playlist">端末内の再生リストに保存しました</string>
     <string name="if_you_want_to_unsync_this_playlist_please_go_to_local_playlist">この再生リストの同期を解除したい場合、端末内の再生リストに移動してください</string>
     <string name="log_in_to_get_YouTube_playlist">ログインしてYouTubeの再生リストを取得</string>
-    <string name="sync_playlist_warning">SimpMusic は YouTube ミュージックの再生リストを自動で作成します。よろしいですか？</string>
+    <string name="sync_playlist_warning">NoteNarrate は YouTube ミュージックの再生リストを自動で作成します。よろしいですか？</string>
     <string name="syncing">同期中</string>
     <string name="unsync_playlist_warning">"この再生リストの同期を解除しますか？この再生リストはYouTubeミュージックから削除されません "</string>
     <string name="unsyncing">同期を解除中</string>
@@ -259,7 +259,7 @@
     <string name="email">メールアドレス</string>
     <string name="password">パスワード</string>
     <string name="please_enter_your_email_and_password">メールアドレスとパスワードを入力してください。</string>
-    <string name="translation_language_message">言語コードを入力してください (2文字、例: en)。SimpMusic の言語と同じに設定にするには、編集欄を空にしてください。</string>
+    <string name="translation_language_message">言語コードを入力してください (2文字、例: en)。NoteNarrate の言語と同じに設定にするには、編集欄を空にしてください。</string>
     <string name="invalid_language_code">無効な言語コードです</string>
     <string name="lyrics_provider_youtube">歌詞の提供元 YouTube</string>
     <string name="limit_player_cache">プレイヤーのキャッシュを制限</string>
@@ -315,7 +315,7 @@
     <string name="enable_spotify_lyrics">Spotifyの歌詞を有効化</string>
     <string name="spotify_lyrícs_info">翻訳機能なしで歌詞を表示</string>
     <string name="enable_canvas">キャンバスを有効にする</string>
-    <string name="canvas_info">SpotifyのキャンバスをSimpMusicで表示</string>
+    <string name="canvas_info">SpotifyのキャンバスをNoteNarrateで表示</string>
     <string name="spotify_lyrics_provider">歌詞の提供元 Spotify</string>
     <string name="offline_mode">オフラインモード</string>
     <string name="added_to_youtube_liked">YouTubeの高評価に追加しました</string>
@@ -362,7 +362,7 @@
     <string name="loading">読み込み中</string>
     <string name="updating">更新中</string>
     <string name="go_to_log_in_page">ログインページに移動</string>
-    <string name="log_in_warning">YouTube Music は現在、音楽をストリーミングするためにログインが必要です。また、Pipedインスタンスは頻繁に動作しないことがあります。SimpMusicをより良い体験にするために、YouTubeにログインすることをお勧めします。</string>
+    <string name="log_in_warning">YouTube Music は現在、音楽をストリーミングするためにログインが必要です。また、Pipedインスタンスは頻繁に動作しないことがあります。NoteNarrateをより良い体験にするために、YouTubeにログインすることをお勧めします。</string>
     <string name="spotify_canvas_cache">Spotify Canvas キャッシュ</string>
     <string name="clear_canvas_cache">Canvas のキャッシュを消去</string>
     <string name="proxy">プロキシ</string>
@@ -397,7 +397,7 @@
     <string name="other_version">他のバージョン</string>
     <string name="later">また今度</string>
     <string name="give_a_star">星マークを押す</string>
-    <string name="enjoying_simpmusic">SimpMusicを楽しんでください</string>
+    <string name="enjoying_simpmusic">NoteNarrateを楽しんでください</string>
     <string name="if_you_enjoy_using_simpmusic_star_simpmusic_on_github_or_leave_a_review_on">SimpMusicで楽しんでいたら、GitHubで星マークを押すか、ここにレビューを投稿してください:</string>
     <string name="if_you_love_my_work_consider">"私のアプリを気に入ったら、"</string>
     <string name="buying_me_a_coffee">コーヒーを一杯ご馳走してください。</string>

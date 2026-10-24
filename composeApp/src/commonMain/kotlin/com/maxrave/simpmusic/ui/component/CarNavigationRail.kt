@@ -43,10 +43,10 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.albums
+import simpmusic.composeapp.generated.resources.app_icon
 import simpmusic.composeapp.generated.resources.car_downloads
 import simpmusic.composeapp.generated.resources.favorite
 import simpmusic.composeapp.generated.resources.home
-import simpmusic.composeapp.generated.resources.mono
 
 private data class CarNavigationItem(
     val id: String,
@@ -109,9 +109,9 @@ fun CarNavigationRail(navController: NavController) {
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(Res.drawable.mono),
+                painter = painterResource(Res.drawable.app_icon),
                 contentDescription = null,
-                modifier = Modifier.size(34.dp).clip(CircleShape),
+                modifier = Modifier.size(52.dp).clip(CircleShape),
             )
         }
         Spacer(Modifier.weight(1f))

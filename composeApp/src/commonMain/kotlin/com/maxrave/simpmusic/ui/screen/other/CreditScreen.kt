@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -98,9 +99,23 @@ fun CreditScreen(
             fontSize = 13.sp,
         )
 
-        // Developer - clickable, opens dev blog
+        Spacer(modifier = Modifier.height(20.dp))
         Text(
-            text = stringResource(Res.string.maxrave_dev),
+            text = stringResource(Res.string.notenarrate_fork_author),
+            style = typo().bodyMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 25.dp),
+        )
+        Image(
+            painter = painterResource(Res.drawable.archetipi_digitali_logo),
+            contentDescription = "Archetipi Digitali",
+            modifier = Modifier.width(280.dp).height(120.dp).padding(vertical = 8.dp),
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Credit the original SimpMusic author separately from the fork author.
+        Text(
+            text = stringResource(Res.string.notenarrate_original_developer),
             style = typo().bodyMedium,
             textDecoration = TextDecoration.Underline,
             modifier =
@@ -113,7 +128,7 @@ fun CreditScreen(
 
         // App description
         Text(
-            text = stringResource(Res.string.credit_app),
+            text = stringResource(Res.string.notenarrate_credit_app),
             style = typo().bodyMedium,
             modifier =
                 Modifier
@@ -136,7 +151,7 @@ fun CreditScreen(
                         .padding(horizontal = 25.dp)
                         .defaultMinSize(minHeight = 1.dp, minWidth = 1.dp),
             ) {
-                Text(text = stringResource(Res.string.website))
+                Text(text = stringResource(Res.string.notenarrate_original_website))
             }
 
             // Developer blog button
@@ -159,10 +174,10 @@ fun CreditScreen(
                 }
             }
 
-            // GitHub button
+            // Fork source code
             TextButton(
                 onClick = {
-                    openUrl("https://github.com/maxrave-dev/SimpMusic")
+                    openUrl("https://github.com/stivy73/SimpMusic")
                 },
                 modifier =
                     Modifier
@@ -170,13 +185,24 @@ fun CreditScreen(
                         .padding(horizontal = 25.dp)
                         .defaultMinSize(minHeight = 1.dp, minWidth = 1.dp),
             ) {
-                Text(text = stringResource(Res.string.github))
+                Text(text = stringResource(Res.string.notenarrate_source_code))
+            }
+
+            TextButton(
+                onClick = { openUrl("https://github.com/maxrave-dev/SimpMusic") },
+                modifier =
+                    Modifier
+                        .align(Alignment.Start)
+                        .padding(horizontal = 25.dp)
+                        .defaultMinSize(minHeight = 1.dp, minWidth = 1.dp),
+            ) {
+                Text(text = stringResource(Res.string.notenarrate_original_source_code))
             }
 
             // Issue tracker button
             TextButton(
                 onClick = {
-                    openUrl("https://github.com/maxrave-dev/SimpMusic/issues")
+                    openUrl("https://github.com/stivy73/SimpMusic/issues")
                 },
                 modifier =
                     Modifier

@@ -145,7 +145,7 @@
     <string name="albums_inArtist">Album</string>
     <string name="singles_inArtist">Single</string>
     <string name="fans_might_also_like_inArtist">Penggemar mungkin juga suka</string>
-    <string name="crash_log">SimpMusic mengalami (crashed) kerusakan. Maaf atas masalah ini.\nKirim catatan kerusakan ke pengembang</string>
+    <string name="crash_log">NoteNarrate mengalami (crashed) kerusakan. Maaf atas masalah ini.\nKirim catatan kerusakan ke pengembang</string>
     <string name="crash">Rusak (crash)</string>
     <string name="send">Kirim</string>
     <string name="mail_subject">Laporkan Kerusakan</string>
@@ -206,7 +206,7 @@
     <string name="save">Simpan</string>
     <string name="crop_cover">Potong cover</string>
     <string name="saved">Tersimpan</string>
-    <string name="sponsor_block_intro">SponsorBlock adalah sistem yang bersumber dari banyak orang untuk melewatkan bagian video YouTube yang mengganggu.\nInformasi lebih lanjut: https://sponsor.ajay.app/\nDi SimpMusic, SponsorBlock hanya tersedia saat perangkat online</string>
+    <string name="sponsor_block_intro">SponsorBlock adalah sistem yang bersumber dari banyak orang untuk melewatkan bagian video YouTube yang mengganggu.\nInformasi lebih lanjut: https://sponsor.ajay.app/\nDi NoteNarrate, SponsorBlock hanya tersedia saat perangkat online</string>
     <string name="skip_sponsor_part_of_video">Lewati bagian sponsor dari video</string>
     <string name="customactivityoncrash_error_activity_error_occurred_explanation">Terjadi kesalahan yang tidak terduga. Mohon maaf atas ketidaknyamanan ini.</string>
     <string name="customactivityoncrash_error_activity_restart_app">Mulai ulang aplikasi</string>
@@ -247,7 +247,7 @@
     <string name="saved_to_local_playlist">Disimpan ke daftar putar lokal</string>
     <string name="if_you_want_to_unsync_this_playlist_please_go_to_local_playlist">jika Anda ingin membatalkan sinkronisasi daftar putar ini, silakan ke daftar putar lokal</string>
     <string name="log_in_to_get_YouTube_playlist">Masuk untuk mendapatkan Daftar Putar YouTube</string>
-    <string name="sync_playlist_warning">SimpMusic akan membuat Daftar Putar YouTube Music secara otomatis. Apakah Anda yakin?</string>
+    <string name="sync_playlist_warning">NoteNarrate akan membuat Daftar Putar YouTube Music secara otomatis. Apakah Anda yakin?</string>
     <string name="syncing">Sinkronisasi</string>
     <string name="unsync_playlist_warning">"Batalkan sinkronisasi daftar putar ini? Daftar putar ini tidak akan dihapus dari YouTube Music "</string>
     <string name="unsyncing">Membatalkan sinkronisasi</string>
@@ -264,7 +264,7 @@
     <string name="email">Email</string>
     <string name="password">Kata Sandi</string>
     <string name="please_enter_your_email_and_password">Silakan masukkan email dan kata sandi Anda</string>
-    <string name="translation_language_message">Ketik kode bahasa (Misalnya: en) (2 huruf). Jika Anda ingin mengatur bahasa yang sama dengan bahasa SimpMusic, silakan kosongkan kotak edit.</string>
+    <string name="translation_language_message">Ketik kode bahasa (Misalnya: en) (2 huruf). Jika Anda ingin mengatur bahasa yang sama dengan bahasa NoteNarrate, silakan kosongkan kotak edit.</string>
     <string name="invalid_language_code">Kode bahasa tidak sah</string>
     <string name="lyrics_provider_youtube">Lirik disediakan oleh YouTube</string>
     <string name="lyrics_provider_betterlyrics">Lirik disediakan oleh BetterLyrics</string>
@@ -326,7 +326,7 @@
     <string name="enable_spotify_lyrics">Aktifkan Lirik Spotify</string>
     <string name="spotify_lyrícs_info">Lirik lainnya tanpa terjemahan</string>
     <string name="enable_canvas">Aktifkan Kanvas</string>
-    <string name="canvas_info">Tampilkan Kanvas Spotify di SimpMusic</string>
+    <string name="canvas_info">Tampilkan Kanvas Spotify di NoteNarrate</string>
     <string name="spotify_lyrics_provider">Lirik disediakan oleh Spotify</string>
     <string name="offline_mode">Mode Offline</string>
     <string name="added_to_youtube_liked">Ditambahkan ke Disukai di YouTube</string>
@@ -382,7 +382,7 @@
     <string name="loading">Memuat</string>
     <string name="updating">Memperbarui</string>
     <string name="go_to_log_in_page">Pergi ke halaman masuk</string>
-    <string name="log_in_warning">YouTube Music sekarang mengharuskan Anda masuk untuk melakukan streaming musik, Piped Instance terkadang tidak dapat berfungsi juga. Anda harus masuk ke YouTube untuk mendapatkan pengalaman yang lebih baik dengan SimpMusic.</string>
+    <string name="log_in_warning">YouTube Music sekarang mengharuskan Anda masuk untuk melakukan streaming musik, Piped Instance terkadang tidak dapat berfungsi juga. Anda harus masuk ke YouTube untuk mendapatkan pengalaman yang lebih baik dengan NoteNarrate.</string>
     <string name="spotify_canvas_cache">Tembolok Kanvas Spotify</string>
     <string name="clear_canvas_cache">Hapus tembolok kanvas</string>
     <string name="clear_listening_history_confirm">Statistik mendengarkan dan sumber daya yang tidak terpakai Anda akan dihapus. Tindakan ini tidak dapat dibatalkan — harap buat cadangan terlebih dahulu.</string>
@@ -423,7 +423,7 @@
     <string name="other_version">Versi lainnya</string>
     <string name="later">Nanti</string>
     <string name="give_a_star">Berikan bintang</string>
-    <string name="enjoying_simpmusic">Menikmati SimpMusic</string>
+    <string name="enjoying_simpmusic">Menikmati NoteNarrate</string>
     <string name="if_you_enjoy_using_simpmusic_star_simpmusic_on_github_or_leave_a_review_on">Jika Anda menikmati penggunaan SimpMusic, beri bintang pada SimpMusic di GitHub atau tinggalkan ulasan di sana</string>
     <string name="if_you_love_my_work_consider">"Jika Anda menyukai karya saya, pertimbangkan "</string>
     <string name="buying_me_a_coffee">membelikanku secangkir kopi.</string>
@@ -542,7 +542,7 @@
     <string name="downvote">Beri nilai buruk</string>
     <string name="vote_submitted">Terima kasih telah menilai lirik ini!</string>
     <string name="vote_error">Gagal mengirimkan</string>
-    <string name="open_app">Buka SimpMusic</string>
+    <string name="open_app">Buka NoteNarrate</string>
     <string name="close_miniplayer">Tutup pemutar Mini</string>
     <string name="open_miniplayer">Buka pemutar Mini</string>
     <string name="quit_app">Keluar aplikasi</string>

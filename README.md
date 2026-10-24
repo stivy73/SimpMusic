@@ -33,3 +33,13 @@ git submodule update --init --recursive
 Il codice di SimpMusic e del submodule `core` mantiene la licenza **GNU General Public License v3**: [LICENSE](LICENSE) e [core/LICENSE](core/LICENSE). Il progetto originale e i suoi autori restano accreditati; le modifiche di questo fork sono consultabili nella cronologia Git. Consulta le rispettive licenze e gli avvisi inclusi nei sorgenti prima di ridistribuire versioni modificate.
 
 Sorgenti originali: [maxrave-dev/SimpMusic](https://github.com/maxrave-dev/SimpMusic) (`dev`) e [maxrave-dev/core](https://github.com/maxrave-dev/core) (`multiplatform`). Questo fork non dichiara affiliazione con Google, YouTube Music o il progetto upstream.
+
+
+### NoteNarrate Android Auto — 2.3.11
+
+- Search can be filtered to songs, artists or albums using the category selector above the results.
+- Album results open the existing album browser and playback queue. Artist results open the artist catalog of albums and singles.
+- The playback header includes album and artist icon actions when their identifiers are available, alongside song meaning and queue actions.
+- Retains the 2.3.10 fix for empty-queue transitions when starting a radio station.
+
+The Android APK source is maintained on this personal fork and its `stivy73/core` submodule; upstream SimpMusic attribution and GPL licensing are preserved.

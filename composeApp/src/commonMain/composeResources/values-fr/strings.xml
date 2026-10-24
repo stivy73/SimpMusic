@@ -145,7 +145,7 @@
     <string name="albums_inArtist">Albums</string>
     <string name="singles_inArtist">Singles</string>
     <string name="fans_might_also_like_inArtist">Vous aimeriez peut-être aussi</string>
-    <string name="crash_log">SimpMusic a planté. Nous sommes désolés pour ce problème.\nEnvoyez le journal d'erreur au développeur.</string>
+    <string name="crash_log">NoteNarrate a planté. Nous sommes désolés pour ce problème.\nEnvoyez le journal d'erreur au développeur.</string>
     <string name="crash">Plantage</string>
     <string name="send">Envoyer</string>
     <string name="mail_subject">Signaler un plantage</string>
@@ -206,7 +206,7 @@
     <string name="save">Sauvegarder</string>
     <string name="crop_cover">Couverture végétale</string>
     <string name="saved">Sauvegarde</string>
-    <string name="sponsor_block_intro">SponsorBlock est un système qui permet de sauter les parties gênantes des vidéos YouTube.\nPlus d'informations : https://sponsor.ajay.app/\nDans SimpMusic, SponsorBlock n'est disponible que lorsque l'appareil est en ligne.</string>
+    <string name="sponsor_block_intro">SponsorBlock est un système qui permet de sauter les parties gênantes des vidéos YouTube.\nPlus d'informations : https://sponsor.ajay.app/\nDans NoteNarrate, SponsorBlock n'est disponible que lorsque l'appareil est en ligne.</string>
     <string name="skip_sponsor_part_of_video">Ignorer la partie sponsorisée de la vidéo</string>
     <string name="customactivityoncrash_error_activity_error_occurred_explanation">Une erreur inattendue s'est produite. Veuillez nous excuser pour ce désagrément.</string>
     <string name="customactivityoncrash_error_activity_restart_app">Redémarrer l'application</string>
@@ -247,7 +247,7 @@
     <string name="saved_to_local_playlist">Enregistré dans la playlist locale</string>
     <string name="if_you_want_to_unsync_this_playlist_please_go_to_local_playlist">si vous souhaitez désynchroniser cette playlist, veuillez accéder à la playlist locale.</string>
     <string name="log_in_to_get_YouTube_playlist">Connectez-vous pour obtenir une playlist YouTube.</string>
-    <string name="sync_playlist_warning">SimpMusic va créer une playlist YouTube Music automatiquement. Êtes-vous sûr ?</string>
+    <string name="sync_playlist_warning">NoteNarrate va créer une playlist YouTube Music automatiquement. Êtes-vous sûr ?</string>
     <string name="syncing">Synchronisation</string>
     <string name="unsync_playlist_warning">"Désynchroniser cette playlist ? Cette playlist ne sera pas supprimée de YouTube Music."</string>
     <string name="unsyncing">Désynchronisation</string>
@@ -264,7 +264,7 @@
     <string name="email">E-mail</string>
     <string name="password">Mot de passe</string>
     <string name="please_enter_your_email_and_password">Veuillez entrer votre e-mail et votre mot de passe.</string>
-    <string name="translation_language_message">Saisissez le code de langue (par exemple : en) (2 lettres). Si vous souhaitez définir la même langue que celle de SimpMusic, veuillez laisser la zone d'édition vide.</string>
+    <string name="translation_language_message">Saisissez le code de langue (par exemple : en) (2 lettres). Si vous souhaitez définir la même langue que celle de NoteNarrate, veuillez laisser la zone d'édition vide.</string>
     <string name="invalid_language_code">Code de langue invalide</string>
     <string name="lyrics_provider_youtube">Paroles fournies par YouTube</string>
     <string name="lyrics_provider_betterlyrics">Paroles fournies par BetterLyrics</string>
@@ -331,7 +331,7 @@
     <string name="reverb_help_hall">Une salle de concert. Un son long mais net, typique des enregistrements au tempo ralenti et avec réverbération.</string>
     <string name="reverb_help_plate">Une plaque de studio. Pas de vide avant la réverbération, un son brillant et dense, qui s'accorde bien avec les voix.</string>
     <string name="reverb_help_cathedral">Une cathédrale. Très longue et sombre, le son se perd dans l'espace.</string>
-    <string name="sync_follow_to_youtube_description">Suivre un artiste sur SimpMusic revient également à s'abonner à sa chaîne depuis votre compte YouTube</string>
+    <string name="sync_follow_to_youtube_description">Suivre un artiste sur NoteNarrate revient également à s'abonner à sa chaîne depuis votre compte YouTube</string>
     <string name="sync_follow_failed">Impossible de mettre à jour votre abonnement YouTube</string>
     <string name="subscribed_on_youtube">Abonné sur YouTube</string>
     <string name="unsubscribed_on_youtube">Désabonné sur YouTube</string>
@@ -352,7 +352,7 @@
     <string name="enable_spotify_lyrics">Activer les paroles Spotify</string>
     <string name="spotify_lyrícs_info">Plus de paroles sans traduction</string>
     <string name="enable_canvas">Activer la toile</string>
-    <string name="canvas_info">Afficher la toile Spotify dans SimpMusic</string>
+    <string name="canvas_info">Afficher la toile Spotify dans NoteNarrate</string>
     <string name="enable_animated_artwork">Illustrations animées</string>
     <string name="animated_artwork_info">Lancez la pochette animée de l'album à la place d'un Canvas. Aucun compte n'est nécessaire. Les albums qui n'en ont pas conservent leur pochette statique.</string>
     <string name="spotify_lyrics_provider">Paroles fournies par Spotify</string>
@@ -420,7 +420,7 @@
     <string name="loading">Chargement</string>
     <string name="updating">Mise à jour</string>
     <string name="go_to_log_in_page">Accéder à la page de connexion</string>
-    <string name="log_in_warning">YouTube Music nécessite désormais que vous vous connectiez pour diffuser de la musique. Piped Instance ne peut parfois pas fonctionner non plus. Vous devez vous connecter à YouTube pour bénéficier d'une meilleure expérience avec SimpMusic.</string>
+    <string name="log_in_warning">YouTube Music nécessite désormais que vous vous connectiez pour diffuser de la musique. Piped Instance ne peut parfois pas fonctionner non plus. Vous devez vous connecter à YouTube pour bénéficier d'une meilleure expérience avec NoteNarrate.</string>
     <string name="spotify_canvas_cache">Cache de la toile Spotify</string>
     <string name="clear_canvas_cache">Vider le cache de la toile</string>
     <string name="listening_history">Historique d'écoute</string>
@@ -467,7 +467,7 @@
     <string name="other_version">Autre version</string>
     <string name="later">Plus tard</string>
     <string name="give_a_star">Donner une étoile</string>
-    <string name="enjoying_simpmusic">Vous appréciez SimpMusic</string>
+    <string name="enjoying_simpmusic">Vous appréciez NoteNarrate</string>
     <string name="if_you_enjoy_using_simpmusic_star_simpmusic_on_github_or_leave_a_review_on">Si vous aimez utiliser SimpMusic, donnez une étoile à SimpMusic sur GitHub ou laissez un avis sur</string>
     <string name="if_you_love_my_work_consider">"Si vous aimez mon travail, considérez "</string>
     <string name="buying_me_a_coffee">m'offrir un café.</string>
@@ -575,8 +575,8 @@
     <string name="intro_login_to_lastfm">Connectez-vous pour enregistrer ce que vous écoutez</string>
     <string name="enable_scrobbling">Activer le scrobbling</string>
     <string name="scrobbling_info">Envoyez ce que vous écoutez sur votre profil Last.fm</string>
-    <string name="lastfm_login_step_1">Ouvrez la page Last.fm et autorisez SimpMusic à accéder à votre compte.</string>
-    <string name="lastfm_login_step_2">SimpMusic se relance automatiquement dès que vous lui avez accordé l'accès.</string>
+    <string name="lastfm_login_step_1">Ouvrez la page Last.fm et autorisez NoteNarrate à accéder à votre compte.</string>
+    <string name="lastfm_login_step_2">NoteNarrate se relance automatiquement dès que vous lui avez accordé l'accès.</string>
     <string name="lastfm_open_authorize_page">Ouvrir Last.fm</string>
     <string name="lastfm_login_failed">Impossible de se connecter à Last.fm. Veuillez réessayer.</string>
     <string name="lastfm_paste_callback_title">Ça n'est pas revenu automatiquement ?</string>
@@ -649,7 +649,7 @@
     <string name="downvote">Vote négatif</string>
     <string name="vote_submitted">Merci d'avoir voté pour ces paroles !</string>
     <string name="vote_error">Échec de la soumission</string>
-    <string name="open_app">Ouvrir SimpMusic</string>
+    <string name="open_app">Ouvrir NoteNarrate</string>
     <string name="close_miniplayer">Fermer le mini-lecteur</string>
     <string name="open_miniplayer">Ouvrir le mini-lecteur</string>
     <string name="quit_app">Quitter l'application</string>
@@ -673,13 +673,13 @@
     <string name="not_available_while_casting">Indisponible pendant le casting</string>
     <string name="import_data">Importer des playlists</string>
     <string name="import_playlists_from_other_apps">Importer des playlists depuis une autre application</string>
-    <string name="import_data_intro">La fonction d'importation permet d'importer des playlists converties depuis Spotify ou une autre application cliente de YouTube Music.\nOutil de conversion : https://www.simpmusic.org/tools\nDans SimpMusic, seules les playlists au format propre à l'application peuvent être importées</string>
+    <string name="import_data_intro">La fonction d'importation permet d'importer des playlists converties depuis Spotify ou une autre application cliente de YouTube Music.\nOutil de conversion : https://www.simpmusic.org/tools\nDans NoteNarrate, seules les playlists au format propre à l'application peuvent être importées</string>
     <string name="import_reading_file">Lecture du fichier…</string>
     <string name="import_progress_songs">%1$d sur %2$d titres</string>
     <string name="import_result">%1$d playlists ont été créées et %2$d titres ont été importés.</string>
     <string name="import_result_skipped">%1$d entrées ont été ignorées car le titre correspondant était absente du fichier.</string>
     <string name="import_failed">Échec de l'importation</string>
-    <string name="import_invalid_file">Ce fichier n'est pas un fichier d'importation SimpMusic valide. Commencez par convertir votre bibliothèque sur simpmusic.org.</string>
+    <string name="import_invalid_file">Ce fichier n'est pas un fichier d'importation NoteNarrate valide. Commencez par convertir votre bibliothèque sur simpmusic.org.</string>
     <string name="analytics">Analyse</string>
     <string name="select_all">Tout sélectionner</string>
     <string name="n_selected">%1$d sélectionnés</string>
@@ -749,7 +749,7 @@
     <string name="wrapped_share">Partager</string>
     <string name="wrapped_save">Enregistrer</string>
     <string name="wrapped_opening_title">Votre année musicale</string>
-    <string name="wrapped_opening_lead">Vous avez ouvert SimpMusic le</string>
+    <string name="wrapped_opening_lead">Vous avez ouvert NoteNarrate le</string>
     <string name="wrapped_opening_days">%1$s sur %2$s jours</string>
     <string name="wrapped_opening_tracks">%1$s titres se sont succédé.</string>
     <string name="wrapped_minutes_title">Vous avez passé tout ce temps cette année à écouter</string>
