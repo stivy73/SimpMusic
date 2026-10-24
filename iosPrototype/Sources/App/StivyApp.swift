@@ -786,7 +786,11 @@ struct SettingsView: View {
   }
   private var diagnostics: String {
     #if os(iOS)
-      "Voce: " + model.narrationDiagnostic + "\nMusica: " + model.player.networkDiagnostic
+      "Build: " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")
+        + " (" + (Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?") + ")"
+        + "\nVoce: " + model.narrationDiagnostic + "\nAccount audio: "
+        + model.player.sourceDiagnostic
+        + "\nMusica: " + model.player.networkDiagnostic
     #else
       "Voce: " + model.narrationDiagnostic
     #endif

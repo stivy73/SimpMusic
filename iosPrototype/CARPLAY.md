@@ -149,3 +149,21 @@ sola lunghezza resta disponibile nel servizio per chiamanti che lo richiedono;
 non ritarda più la voce nel player mobile e CarPlay. I test di voce in background
 sono fixture reali del player, mentre la prova server Google usa testo recuperato
 online. Nessuno dei due dimostra l'uscita fisica CarPlay del veicolo.
+
+
+## Build 23: passaggio dalla musica alla voce
+
+La preparazione CarPlay non mette più subito in pausa AVPlayer. La pausa avviene
+all'arrivo del primo blocco PCM o appena prima dell'avvio AVSpeechSynthesizer.
+La revisione/token continua a impedire l'avvio tardivo dopo stop/cambio canzone.
+Il watchdog e il task UIKit restano limitati; non viene riprodotto audio fittizio
+per mantenere viva l'app. Il player PCM aspetta un clock di rendering valido,
+usa playAudio() su iOS/macOS27 e termina con errore se l'uscita non parte.
+
+La documentazione Apple distingue l'esecuzione audio dal tempo limitato concesso
+ai task di preparazione: https://developer.apple.com/documentation/backgroundtasks/choosing-background-strategies-for-your-app .
+API player: https://developer.apple.com/documentation/avfaudio/avaudioplayernode/playaudio() .
+
+Il CDN403 è riprodotto separatamente e non corretto. La diagnostica deve essere
+letta dalla build corrente nel veicolo: una prova Google sul Mac non dimostra né
+l'audio fisico CarPlay né che la sessione Premium del telefono sia riutilizzata.

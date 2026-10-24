@@ -78,7 +78,21 @@ public final class PCMStreamPlayer {
         }
       }
       if !started {
-        node.play()
+        // Route activation is asynchronous, especially on wireless CarPlay.
+        // Don't invoke the legacy throwing Objective-C path before hardware renders.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while engine.outputNode.lastRenderTime?.isHostTimeValid != true {
+          try check()
+          guard ContinuousClock.now < deadline, engine.isRunning else {
+            throw SpeechStreamError.playbackStopped
+          }
+          try await Task.sleep(for: .milliseconds(20))
+        }
+        if #available(iOS 27.0, macOS 27.0, *) {
+          try node.playAudio()
+        } else {
+          node.play()
+        }
         started = true
         onStart()
       }

@@ -59,11 +59,13 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
     }
   }
   if args.first == "--audio-ranges" {
-    for mode in ["header", "query", "both", "query-relative", "full-scope"] {
+    for mode in [
+      "header", "query", "both", "query-relative", "full-scope", "whole-get", "whole-range",
+    ] {
       var url = URLComponents(url: source.url, resolvingAgainstBaseURL: false)!
       var query = url.queryItems ?? []
       query.removeAll { $0.name == "range" }
-      if mode != "header" {
+      if !["header", "whole-get", "whole-range"].contains(mode) {
         query.append(
           URLQueryItem(
             name: "range",
@@ -73,9 +75,11 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
       var request = URLRequest(url: url.url!, timeoutInterval: 20)
       request.cachePolicy = .reloadIgnoringLocalCacheData
       request.setValue(source.userAgent, forHTTPHeaderField: "User-Agent")
-      if mode != "query" {
+      if mode != "query" && mode != "whole-get" {
         request.setValue(
-          mode == "query-relative" ? "bytes=0-524287" : "bytes=1048576-1572863",
+          mode == "whole-range"
+            ? "bytes=0-\((source.byteCount ?? 1) - 1)"
+            : mode == "query-relative" ? "bytes=0-524287" : "bytes=1048576-1572863",
           forHTTPHeaderField: "Range")
       }
       let session = URLSession(configuration: .ephemeral)

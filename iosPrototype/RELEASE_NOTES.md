@@ -1,3 +1,34 @@
+# NoteNarrate iOS 0.7.2 (23)
+
+CarPlay keeps the current song playing while lyrics, interpretation and cloud
+voice are prepared. It pauses music only when the first narration audio is
+available (or immediately before native speech starts), then resumes afterward.
+This avoids dropping active background music before asynchronous preparation.
+No silent keepalive audio or extra background mode is introduced.
+
+PCM playback waits for a valid output render clock before starting the player
+node, with a bounded timeout/cancellation. iOS/macOS 27 use Apple's throwing
+playAudio API instead of the legacy Objective-C exception path. Audio-session
+interruptions and route disconnections now leave a specific voice diagnostic.
+
+The diagnostics share includes version/build and the reason the authenticated
+media source was rejected before public fallback. No cookies, keys or signed
+URLs are included. This is necessary to diagnose the unresolved Premium path.
+
+Validation: 90 core tests passed, including PCM playback. Native and streaming
+CarPlay background UI checks passed; the streaming test adds a 20-second
+preparation delay and asserts music continues while waiting for audio. These
+checks do not establish physical-car audibility.
+
+The music stop after approximately a minute remains unresolved: the anonymous
+CDN source reproduced HTTP 403 beyond 1 MiB, including full-transfer attempts.
+Alternative client probes required login or returned unplayable media. A live
+Premium-account test was unavailable because the probe had no existing Keychain
+access; no credential access permission was changed. A new vehicle diagnostic is
+required to distinguish rejected login, malformed metadata and unavailable media.
+Do not describe this build as a CDN fix. Existing interpretation prompt,
+search filters and Duo layout are unchanged. No public Store release requested.
+
 # NoteNarrate iOS 0.7.1 (22)
 
 CarPlay now has a Search tab with Songs, Artists and Albums server-side filters.

@@ -360,7 +360,10 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     meaningPresentationOnPhone = presentOnPhone
     stopMeaning(resume: false)
     resumeSongID = player.wantsPlayback ? song.id : nil
-    player.pause()
+    // CarPlay is often the only active scene. Pausing before network preparation
+    // removes background audio execution before Google has returned the voice.
+    // Keep music until the first audio chunk is ready, then pause for narration.
+    if presentOnPhone { player.pause() }
     showMeaning = presentOnPhone
     busyMeaning = true
     meaningProgress = loadingLyrics ? lyricsProgress : "Recupero il testo…"
@@ -374,7 +377,10 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       do {
         #if DEBUG
           if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
-            try await Task.sleep(for: .seconds(4))
+            let delay =
+              ProcessInfo.processInfo.arguments.contains("--test-carplay-delayed-preparation")
+              ? 20 : 4
+            try await Task.sleep(for: .seconds(delay))
           }
           if ProcessInfo.processInfo.arguments.contains("--test-stream-meaning") {
             meaning = "Interpretazione di prova streaming " + UUID().uuidString
@@ -498,11 +504,13 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       }
       do {
         if let cached = await cache.read(cacheKey) {
+          try pauseForNarration(token: token)
           try await output.enqueue(cached, onStart: started)
         } else {
           let recording = SpeechRecording()
           let receive: @Sendable (Data) async throws -> Void = { chunk in
             try await recording.append(chunk)
+            try await self.pauseForNarration(token: token)
             try await output.enqueue(chunk, onStart: started)
           }
           #if DEBUG
@@ -544,6 +552,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       utterance.voice = AVSpeechSynthesisVoice(language: "it-IT")
       utterance.rate = AVSpeechUtteranceDefaultSpeechRate
       activeUtterance = utterance
+      try pauseForNarration(token: token)
       synthesizer.speak(utterance)
       voiceStartTimeout?.cancel()
       voiceStartTimeout = Task { [weak self] in
@@ -559,7 +568,15 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     }
   }
 
-  func stopMeaning(resume: Bool = true) {
+  private func pauseForNarration(token: UUID) throws {
+    try Task.checkCancellation()
+    guard generation == token else { throw CancellationError() }
+    player.pause()
+  }
+
+  func stopMeaning(resume: Bool = true, reason: String? = nil) {
+    if let reason, busyMeaning || reading { narrationDiagnostic = reason }
+
     generation = UUID()
     explanationTask?.cancel()
     explanationTask = nil

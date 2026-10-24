@@ -28,6 +28,9 @@
     @Published var durationSeconds = 0.0
     @Published var playing = false
     @Published var volume = 100.0
+    @Published var sourceDiagnostic =
+      UserDefaults.standard.string(forKey: "lastAudioSourceDiagnostic") ?? "Flusso non verificato"
+    { didSet { UserDefaults.standard.set(sourceDiagnostic, forKey: "lastAudioSourceDiagnostic") } }
     @Published var networkDiagnostic =
       UserDefaults.standard.string(forKey: "lastAudioNetworkDiagnostic")
       ?? "Nessun errore CDN registrato"
@@ -116,6 +119,7 @@
           #endif
           try Task.checkCancellation()
           guard intent.revision == expected else { return }
+          sourceDiagnostic = source.accountDiagnostic
           networkDiagnostic =
             source.authenticated
             ? "Flusso account YouTube Music; controllo finale superato"

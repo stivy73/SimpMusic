@@ -412,3 +412,13 @@ non attende più una seconda generazione per correggere la lunghezza: prompt
 italiano invariato e risposta letta integralmente. Test core, narrazione in
 background e richiesta reale Google superati; l'udibilità in auto resta da provare.
 Il 403 CDN della musica è distinto e non è risolto da questa modifica.
+
+
+## CarPlay — 0.7.2 (23)
+
+La canzone continua durante la preparazione della narrazione e si ferma quando
+la voce è pronta. Il player PCM attende l'uscita audio e registra gli errori di
+avvio/interruzione. Novanta test core e due prove UI in background superati,
+compresa una preparazione rallentata. L'udibilità nell'auto resta da confermare.
+Il blocco CDN oltre il primo MiB non è risolto: Condividi diagnostica include ora
+versione/build e la causa dello scarto del flusso account prima del fallback.

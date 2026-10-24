@@ -95,7 +95,7 @@
             guard let self else { return }
             if type == AVAudioSession.InterruptionType.began.rawValue {
               if self.model.busyMeaning || self.model.reading {
-                self.model.stopMeaning(resume: false)
+                self.model.stopMeaning(resume: false, reason: "Voce interrotta dal sistema audio")
                 self.model.showMeaning = false
               }
               self.model.player.interruptionBegan()
@@ -114,7 +114,8 @@
             return
           }
           Task { @MainActor [weak self] in
-            self?.model.stopMeaning(resume: false)
+            self?.model.stopMeaning(
+              resume: false, reason: "Voce interrotta: uscita audio scollegata")
             self?.model.player.pause()
           }
         }.store(in: &subscriptions)
@@ -123,7 +124,8 @@
         .sink { [weak self] _ in
           Task { @MainActor [weak self] in
             guard let self else { return }
-            self.model.stopMeaning(resume: false)
+            self.model.stopMeaning(
+              resume: false, reason: "Voce interrotta: servizi audio riavviati")
             self.model.player.pause()
             self.model.player.playbackError =
               "Il sistema audio è stato riavviato. Seleziona nuovamente il brano."

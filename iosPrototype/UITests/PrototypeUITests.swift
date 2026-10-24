@@ -533,6 +533,7 @@ final class PrototypeUITests: XCTestCase {
       "--test-native-audio", "--test-carplay-meaning",
       streaming ? "--test-stream-meaning" : "--test-meaning",
     ]
+    if streaming { app.launchArguments.append("--test-carplay-delayed-preparation") }
     app.launch()
     let toggle = app.buttons["playback-toggle"]
     XCTAssertTrue(toggle.waitForExistence(timeout: 15))
@@ -553,6 +554,12 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertFalse(
       app.staticTexts["meaning-text"].exists, "CarPlay must not open the phone meaning sheet")
     XCTAssertTrue(diagnostics.label.hasSuffix(":true"), "Preparation has a background task")
+    if streaming {
+      XCTAssertTrue(diagnostics.label.hasPrefix("0:0:false:true:"))
+      XCTAssertEqual(
+        toggle.value as? String, "Riproduzione attiva",
+        "CarPlay must keep music active until narration audio is ready")
+    }
     XCUIDevice.shared.press(.home)
     XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10))
     Thread.sleep(forTimeInterval: streaming ? 18 : 14)

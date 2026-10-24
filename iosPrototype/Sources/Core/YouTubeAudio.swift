@@ -17,9 +17,10 @@ public struct YouTubeAudio: Sendable {
     public let byteCount: Int64?
     public let isHLS: Bool
     public let authenticated: Bool
+    public let accountDiagnostic: String
     public init(
       url: URL, duration: Double, userAgent: String, byteCount: Int64?, isHLS: Bool,
-      authenticated: Bool = false
+      authenticated: Bool = false, accountDiagnostic: String = ""
     ) {
       self.url = url
       self.duration = duration
@@ -27,6 +28,7 @@ public struct YouTubeAudio: Sendable {
       self.byteCount = byteCount
       self.isHLS = isHLS
       self.authenticated = authenticated
+      self.accountDiagnostic = accountDiagnostic
     }
   }
   public init() {}
@@ -47,6 +49,7 @@ public struct YouTubeAudio: Sendable {
   public func resolve(videoID: String, session account: YouTubeSession? = nil) async throws
     -> Source
   {
+    var accountDiagnostic = "Nessuna sessione YouTube Music disponibile"
     if let account {
       do {
         let video = try await YouTubeBrowse(session: account).player(videoID: videoID)
@@ -54,11 +57,26 @@ public struct YouTubeAudio: Sendable {
           video: video, userAgent: ClientConfig.webRemix.userAgent, validateTail: true)
       } catch is CancellationError { throw CancellationError() } catch {
         try Task.checkCancellation()
+        if case DecodingError.keyNotFound(let key, _) = error {
+          let field = String(
+            key.stringValue.filter { $0.isASCII && ($0.isLetter || $0.isNumber) }.prefix(40))
+          accountDiagnostic = "Account: risposta player incompleta (" + field + ")"
+        } else if case LibraryError.authentication = error {
+          accountDiagnostic = "Account: sessione rifiutata da YouTube Music"
+        } else if case LibraryError.http(let status) = error {
+          accountDiagnostic = "Account: player HTTP \(status)"
+        } else {
+          accountDiagnostic = "Account: nessuno stream completo validato"
+        }
       }
     }
     let video = try await YouTubeClient().video(id: videoID)
-    return try await source(
+    let fallback = try await source(
       video: video, userAgent: ClientConfig.ios.userAgent, validateTail: false)
+    return Source(
+      url: fallback.url, duration: fallback.duration, userAgent: fallback.userAgent,
+      byteCount: fallback.byteCount, isHLS: fallback.isHLS, authenticated: false,
+      accountDiagnostic: accountDiagnostic)
   }
 
   private func source(video: YouTubeVideo, userAgent: String, validateTail: Bool) async throws
