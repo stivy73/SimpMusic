@@ -25,6 +25,9 @@ The separate YouTube CDN HTTP 403 beyond 1 MiB is not fixed by this narration
 change. Vehicle playback and Premium-account transport remain open validation.
 No App Store submission or public release is requested.
 
+Apple upload completed on 24 October 2026: Upload succeeded, package processing.
+Build 22 is internal TestFlight only; tester assignment remains manual.
+
 # NoteNarrate iOS 0.7.0 (21)
 
 Adaptive iPhone Duo interface using Apple's iOS 27.1 SDK, native tab accessory
