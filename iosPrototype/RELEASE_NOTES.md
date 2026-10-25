@@ -1,5 +1,8 @@
 # NoteNarrate iOS 0.8.1 (25)
 
+Uploaded to Apple on 25 October 2026 for internal TestFlight: Upload succeeded,
+package processing. Tester assignment remains manual. Build source: 267fb837.
+
 Playback queue editing: reorder by drag, remove by swipe/menu, Play next and
 Add to queue from search, discovery, library, playlist tracks and player menu.
 Queue occurrences have stable IDs, so repeated songs remain independently editable.

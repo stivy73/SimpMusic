@@ -4,6 +4,11 @@ Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con a
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
 
+**Consegna 0.8.1 (25), 25 ottobre 2026:** caricamento Apple riuscito per
+TestFlight interno, pacchetto in elaborazione. Assegnazione ai tester manuale.
+Sorgenti della build: `267fb837` su `stivy73/SimpMusic`. Verificati 121 test core,
+quattro scenari UI e firma/profili CarPlay Audio e Siri.
+
 La **0.8.1 (25)** completa la coda di riproduzione: trascinamento per riordinare,
 scorrimento o menu per rimuovere, Riproduci dopo e Aggiungi alla coda da ricerca,
 Home, libreria, playlist e menu del player. Le copie dello stesso brano restano
@@ -14,7 +19,7 @@ e separata dalle playlist salvate nell'account. Shuffle e ripetizione della buil
 sono stati verificati prima dell'integrazione. I problemi audio CDN/narrazione
 restano riservati al collaudo sul Duo fisico.
 
-**Consegna 25 ottobre 2026:** build 0.8.0 (24) caricata su Apple per TestFlight
+**Consegna precedente, 25 ottobre 2026:** build 0.8.0 (24) caricata su Apple per TestFlight
 interno, stato al termine del comando: pacchetto in elaborazione. Assegnazione
 ai tester manuale. Sorgenti della build: commit `bc23b4b1` su `stivy73/SimpMusic`.
 Verificati firma/profili CarPlay Audio e Siri, 114 test core e quattro test UI.
