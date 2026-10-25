@@ -45,7 +45,9 @@
 
   /// Native large cover rows and track lists; no lyrics, interpretation text or video on the vehicle display.
   @MainActor
-  final class CarPlayScene: UIResponder, CPTemplateApplicationSceneDelegate {
+  final class CarPlayScene: UIResponder, CPTemplateApplicationSceneDelegate,
+    CPNowPlayingTemplateObserver
+  {
     private enum Layout { case covers, tracks }
     private struct Tile {
       let id: String
@@ -98,6 +100,8 @@
     private var searchRenderedState = ""
     private var searchMessage = "Chiedi a Siri una canzone, un artista o un album in NoteNarrate"
     private var voiceQueryID: UUID?
+    private let queueTemplate = CPListTemplate(title: "Coda", sections: [])
+    private var queueOffset = 0
 
     func templateApplicationScene(
       _ templateApplicationScene: CPTemplateApplicationScene,
@@ -117,6 +121,7 @@
       interfaceController.setRootTemplate(
         CPTabBarTemplate(templates: [home, albums, favorites, search]),
         animated: false, completion: { _, _ in })
+      CPNowPlayingTemplate.shared.add(self)
       configureNowPlaying()
       app.library.$session.sink { [weak self] session in
         Task { @MainActor [weak self] in await self?.configureAccount(session) }
@@ -137,6 +142,7 @@
       _ templateApplicationScene: CPTemplateApplicationScene,
       didDisconnectInterfaceController interfaceController: CPInterfaceController
     ) {
+      CPNowPlayingTemplate.shared.remove(self)
       if meaningAlert != nil { app.music.stopMeaning(resume: true) }
       searchTask?.cancel()
       searchRevision = UUID()
@@ -253,6 +259,7 @@
         (controller?.rootTemplate as? CPTabBarTemplate)?.select(search)
       }
       renderSearch()
+      renderQueue()
       configureNowPlaying()
     }
 
@@ -616,7 +623,87 @@
         })
     }
 
+    nonisolated func nowPlayingTemplateUpNextButtonTapped(
+      _ nowPlayingTemplate: CPNowPlayingTemplate
+    ) {
+      Task { @MainActor [weak self] in self?.openQueue() }
+    }
+
+    private func openQueue() {
+      queueOffset = 0
+      renderQueue()
+      controller?.pushTemplate(queueTemplate, animated: true, completion: { _, _ in })
+    }
+
+    private func renderQueue() {
+      let entries = app.music.queueRows
+      let page = CarPlayPage(count: entries.count, offset: queueOffset, capacity: 20)
+      queueOffset = page.range.lowerBound
+      var rows: [CPListItem] = []
+      for position in page.range {
+        let entry = entries[position]
+        let active = app.music.queueIndex == entry.index
+        let row = CPListItem(
+          text: "\(position + 1). \(entry.song.title)",
+          detailText: active ? "Brano corrente · " + entry.song.artist : entry.song.artist,
+          image: UIImage(systemName: active ? "waveform" : "music.note"))
+        row.accessoryType = .disclosureIndicator
+        row.handler = { [weak self] _, done in
+          done()
+          guard let self else { return }
+          let play = CPAlertAction(title: "Riproduci", style: .default) { [weak self] _ in
+            guard let self else { return }
+            self.app.music.playQueueOccurrence(entry.id)
+            self.controller?.dismissTemplate(animated: true, completion: { _, _ in })
+          }
+          let next = CPAlertAction(title: "Riproduci dopo", style: .default) { [weak self] _ in
+            self?.app.music.playQueueOccurrenceNext(entry.id)
+            self?.controller?.dismissTemplate(animated: true, completion: { _, _ in })
+          }
+          let remove = CPAlertAction(title: "Rimuovi dalla coda", style: .destructive) {
+            [weak self] _ in
+            self?.app.music.removeQueueOccurrence(entry.id)
+            self?.controller?.dismissTemplate(animated: true, completion: { _, _ in })
+          }
+          let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
+            self?.controller?.dismissTemplate(animated: true, completion: { _, _ in })
+          }
+          self.controller?.presentTemplate(
+            CPActionSheetTemplate(
+              title: entry.song.title,
+              message: nil, actions: [play, next, remove, cancel]), animated: true,
+            completion: { _, _ in })
+        }
+        rows.append(row)
+      }
+      if let previous = page.previous {
+        let row = CPListItem(text: "Precedenti", detailText: nil)
+        row.handler = { [weak self] _, done in
+          done()
+          self?.queueOffset = previous
+          self?.renderQueue()
+        }
+        rows.insert(row, at: 0)
+      }
+      if let next = page.next {
+        let row = CPListItem(text: "Successivi", detailText: nil)
+        row.handler = { [weak self] _, done in
+          done()
+          self?.queueOffset = next
+          self?.renderQueue()
+        }
+        rows.append(row)
+      }
+      if rows.isEmpty {
+        let empty = CPListItem(text: "Coda vuota", detailText: nil)
+        empty.isEnabled = false
+        rows = [empty]
+      }
+      queueTemplate.updateSections([CPListSection(items: rows)])
+    }
+
     private func configureNowPlaying() {
+      CPNowPlayingTemplate.shared.isUpNextButtonEnabled = !app.music.queue.isEmpty
       let active = app.music.busyMeaning || app.music.reading
       let enabled = app.music.current != nil && !app.music.player.isLoading
       let state =

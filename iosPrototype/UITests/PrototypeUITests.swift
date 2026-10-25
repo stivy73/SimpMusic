@@ -98,6 +98,79 @@ final class PrototypeUITests: XCTestCase {
     for id in 1...3 { XCTAssertTrue(app.buttons["queue-order-\(id)"].exists) }
   }
 
+  @MainActor
+  func testAddingDuplicateSongsAndRemovingUpcomingDoesNotRestartCurrent() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-remote-library"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+    app.buttons["Altre opzioni"].tap()
+    app.buttons["Aggiungi alla coda"].tap()
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+    app.buttons["Altre opzioni"].tap()
+    app.buttons["Riproduci dopo"].tap()
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+    app.buttons["show-queue"].tap()
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "5 brani")
+    XCTAssertEqual(app.buttons.matching(identifier: "queue-order-1").count, 3)
+    let upcoming = app.buttons["queue-order-3"]
+    upcoming.press(forDuration: 1.1)
+    app.buttons["Rimuovi dalla coda"].tap()
+    XCTAssertFalse(upcoming.waitForExistence(timeout: 2))
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "4 brani")
+    XCTAssertEqual(app.buttons.matching(identifier: "queue-order-1").count, 3)
+    app.buttons["Chiudi"].tap()
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+  }
+
+  @MainActor
+  func testReorderingQueuePreservesCurrentOccurrenceAndShuffleState() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-remote-library"]
+    app.launch()
+    let shuffle = app.buttons["playback-shuffle"]
+    XCTAssertTrue(shuffle.waitForExistence(timeout: 10))
+    shuffle.tap()
+    app.buttons["show-queue"].tap()
+    let edit = app.buttons["Edit"].exists ? app.buttons["Edit"] : app.buttons["Modifica"]
+    edit.tap()
+    let source = app.cells.containing(.button, identifier: "queue-order-3").firstMatch
+    let target = app.cells.containing(.button, identifier: "queue-order-1").firstMatch
+    source.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).press(
+      forDuration: 1.0,
+      thenDragTo: target.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.1)))
+    let current = app.buttons["queue-order-1"]
+    XCTAssertEqual(current.value as? String, "Brano corrente")
+    XCTAssertLessThan(app.buttons["queue-order-3"].frame.minY, current.frame.minY)
+    XCTAssertEqual(
+      app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "queue-order-")).count, 3
+    )
+    app.buttons["Chiudi"].tap()
+    XCTAssertEqual(shuffle.value as? String, "Attiva")
+    XCTAssertEqual(app.buttons["playback-toggle"].value as? String, "In pausa")
+  }
+
+  @MainActor
+  func testRemovingLastQueueItemDismissesPlayer() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-remote-library"]
+    app.launch()
+    XCTAssertTrue(app.buttons["show-queue"].waitForExistence(timeout: 10))
+    app.buttons["show-queue"].tap()
+    for index in [3, 2, 1] {
+      let cell = app.cells.containing(.button, identifier: "queue-order-\(index)").firstMatch
+      XCTAssertTrue(cell.waitForExistence(timeout: 5))
+      cell.swipeLeft()
+      let delete = app.buttons["Delete"].exists ? app.buttons["Delete"] : app.buttons["Elimina"]
+      XCTAssertTrue(delete.waitForExistence(timeout: 5))
+      delete.tap()
+    }
+    XCTAssertFalse(app.buttons["open-player"].waitForExistence(timeout: 2))
+    XCTAssertFalse(app.buttons["playback-toggle"].exists)
+  }
+
   override func setUpWithError() throws {
     continueAfterFailure = false
     XCUIDevice.shared.orientation = .portrait

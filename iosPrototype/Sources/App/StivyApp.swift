@@ -224,6 +224,7 @@ struct SongList: View {
         }.padding(.vertical, 5)
       }.accessibilityIdentifier("song-\(song.id)")
         .contextMenu {
+          QueueActions(song: song)
           YouTubeLikeButton(song: song)
           Button("Aggiungi a playlist") { playlistSong = song }
           Button {
@@ -237,6 +238,70 @@ struct SongList: View {
         }
     }.listStyle(.plain)
       .sheet(item: $playlistSong) { song in AddToPlaylistSheet(song: song) }
+  }
+}
+
+/// Shared by search, library, discovery, playlist tracks and the player's menu.
+struct QueueActions: View {
+  @EnvironmentObject var model: MusicModel
+  let song: Song
+  var body: some View {
+    Button {
+      model.enqueue(song, playNext: true)
+    } label: {
+      Label("Riproduci dopo", systemImage: "text.line.first.and.arrowtriangle.forward")
+    }
+    Button {
+      model.enqueue(song)
+    } label: {
+      Label("Aggiungi alla coda", systemImage: "text.append")
+    }
+  }
+}
+
+struct QueueScreen: View {
+  @EnvironmentObject var model: MusicModel
+  @Environment(\.dismiss) private var dismiss
+  var body: some View {
+    NavigationStack {
+      List {
+        Text("\(model.queue.count) brani").font(.caption).foregroundStyle(.secondary)
+          .accessibilityIdentifier("queue-count")
+        ForEach(model.queueRows) { row in
+          Button {
+            model.playQueueOccurrence(row.id)
+            dismiss()
+          } label: {
+            HStack {
+              Artwork(url: row.song.artwork).frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+              VStack(alignment: .leading) {
+                Text(row.song.title)
+                Text(row.song.artist).font(.caption).foregroundStyle(.secondary)
+              }
+              Spacer()
+              if model.queueIndex == row.index { Image(systemName: "waveform") }
+            }
+          }.accessibilityIdentifier("queue-" + row.song.id)
+            .accessibilityValue(model.queueIndex == row.index ? "Brano corrente" : "In coda")
+            .contextMenu {
+              Button("Riproduci dopo") { model.playQueueOccurrenceNext(row.id) }
+                .disabled(model.queueIndex == row.index)
+              Button("Rimuovi dalla coda", role: .destructive) {
+                model.removeQueueOccurrence(row.id)
+              }
+            }
+        }
+        .onMove { offsets, destination in model.moveQueuedSongs(from: offsets, to: destination) }
+        .onDelete { offsets in model.removeQueuedSongs(at: offsets) }
+      }.navigationTitle("Coda").accessibilityIdentifier("playback-queue")
+        .toolbar {
+          #if os(iOS)
+            ToolbarItem(placement: .platformLeading) { EditButton() }
+          #endif
+          ToolbarItem(placement: .platformTrailing) { Button("Chiudi") { dismiss() } }
+        }
+    }
   }
 }
 
@@ -340,28 +405,7 @@ struct PlayerScreen: View {
         MeaningView().environmentObject(model).platformSheetSize()
       }
       .sheet(item: $playlistSong) { song in AddToPlaylistSheet(song: song) }
-      .sheet(isPresented: $showQueue) {
-        NavigationStack {
-          List(model.orderedQueueIndices, id: \.self) { index in
-            let song = model.queue[index]
-            Button {
-              model.playQueuePosition(index)
-              showQueue = false
-            } label: {
-              HStack {
-                Artwork(url: song.artwork).frame(width: 44, height: 44).clipShape(
-                  RoundedRectangle(cornerRadius: 6))
-                VStack(alignment: .leading) {
-                  Text(song.title)
-                  Text(song.artist).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if model.queueIndex == index { Image(systemName: "waveform") }
-              }
-            }.accessibilityIdentifier("queue-\(song.id)")
-          }.navigationTitle("Coda").toolbar { Button("Chiudi") { showQueue = false } }
-        }
-      }
+      .sheet(isPresented: $showQueue) { QueueScreen() }
       .sheet(isPresented: $expandedLyrics) {
         NavigationStack {
           LyricsContent().environmentObject(model).padding().navigationTitle("Testo").toolbar {
@@ -530,6 +574,7 @@ struct PlayerScreen: View {
         }
       #endif
       Menu {
+        QueueActions(song: song)
         Button("Aggiungi a playlist") { playlistSong = song }
         Button {
           model.toggleFavorite(song)

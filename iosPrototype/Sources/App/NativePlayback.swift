@@ -202,6 +202,27 @@
       backgroundTask = .invalid
     }
 
+    func clear() {
+      request?.cancel()
+      request = nil
+      finishLoadingTask()
+      intent.load()
+      intent.pause()
+      nativePlayer.pause()
+      nativePlayer.replaceCurrentItem(with: nil)
+      rangeLoader = nil
+      statusObservation = nil
+      if let ended { NotificationCenter.default.removeObserver(ended) }
+      ended = nil
+      videoId = ""
+      loadID = intent.revision
+      elapsed = 0
+      durationSeconds = 0
+      playing = false
+      isLoading = false
+      playbackError = nil
+    }
+
     func play() {
       do {
         try AppleAudioSession.activate()

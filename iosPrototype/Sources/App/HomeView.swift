@@ -223,7 +223,7 @@ private struct DiscoveryItemLink<Content: View>: View {
           model.play(Song(item), queue: queue.map(Song.init))
         } label: {
           content()
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).contextMenu { QueueActions(song: Song(item)) }
       } else if item.kind == .album {
         NavigationLink {
           AlbumView(

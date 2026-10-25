@@ -59,6 +59,7 @@ struct RemotePlaylistView: View {
               }
             }
           }.accessibilityIdentifier("playlist-track-" + entry.id).contextMenu {
+            QueueActions(song: Song(entry.item))
             YouTubeLikeButton(song: Song(entry.item))
             if detail.editable, let setID = entry.setVideoID {
               Button("Rimuovi dalla playlist", role: .destructive) {

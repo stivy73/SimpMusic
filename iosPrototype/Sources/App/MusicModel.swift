@@ -34,6 +34,16 @@ import YouTubeSDK
       wantsPlayback = true
       loadID = UUID()
     }
+    func clear() {
+      pause()
+      webView?.stopLoading()
+      videoId = ""
+      loadID = UUID()
+      elapsed = 0
+      durationSeconds = 0
+      isLoading = false
+      playbackError = nil
+    }
     func play() {
       wantsPlayback = true
       webView?.evaluateJavaScript("player.playVideo()", completionHandler: nil)
@@ -114,6 +124,12 @@ struct Song: Identifiable, Codable, Hashable {
   }
 }
 
+struct QueueRow: Identifiable {
+  let id: UUID
+  let index: Int
+  let song: Song
+}
+
 @MainActor
 final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
   let player = PlaybackPlayer()
@@ -143,7 +159,8 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   @Published var carPlayVoiceQuery: CarPlayVoiceQuery?
   @Published var searching = false
   @Published var searchError: String?
-  @Published var queue: [Song] = []
+  @Published private(set) var queue: [Song] = []
+  private var queueIDs: [UUID] = []
   @Published private(set) var sequence = PlaybackSequence()
   @Published private(set) var shuffleEnabled = false
   @Published var repeatMode = PlaybackRepeatMode.off
@@ -228,6 +245,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         queue = (1...3).map {
           Song(id: "order-\($0)", title: "Brano \($0)", artist: "Prova ordine", artwork: nil)
         }
+        queueIDs = queue.map { _ in UUID() }
         sequence.reset(count: queue.count, selected: 0, shuffle: false)
         current = queue.first
         showPlayer = true
@@ -282,6 +300,62 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   var hasPrevious: Bool { sequence.previous(repeatMode: repeatMode) != nil }
   var hasNext: Bool { sequence.next(repeatMode: repeatMode) != nil }
   var orderedQueueIndices: [Int] { sequence.order }
+  var queueRows: [QueueRow] {
+    sequence.order.compactMap { index in
+      guard queue.indices.contains(index), queueIDs.indices.contains(index) else { return nil }
+      return QueueRow(id: queueIDs[index], index: index, song: queue[index])
+    }
+  }
+
+  func enqueue(_ song: Song, playNext: Bool = false) {
+    guard current != nil, !queue.isEmpty else {
+      play(song, queue: [song])
+      return
+    }
+    queue.append(song)
+    queueIDs.append(UUID())
+    sequence.append(playNext: playNext)
+  }
+
+  func moveQueuedSongs(from offsets: IndexSet, to destination: Int) {
+    sequence.move(from: offsets, to: destination)
+  }
+
+  func playQueuedSongNext(_ index: Int) { sequence.playNext(index) }
+
+  func removeQueuedSongs(at offsets: IndexSet) {
+    let indices = Set(
+      offsets.compactMap { offset in
+        sequence.order.indices.contains(offset) ? sequence.order[offset] : nil
+      })
+    let removedCurrent = sequence.current.map { indices.contains($0) } ?? false
+    let wasPlaying = player.wantsPlayback
+    let removed = sequence.remove(indices)
+    guard !removed.isEmpty else { return }
+    queue = queue.enumerated().filter { !removed.contains($0.offset) }.map(\.element)
+    queueIDs = queueIDs.enumerated().filter { !removed.contains($0.offset) }.map(\.element)
+    guard removedCurrent else { return }
+    if let index = sequence.current {
+      playQueuePosition(index)
+      if !wasPlaying { player.pause() }
+    } else {
+      stopMeaning(resume: false)
+      player.clear()
+      lyricsTask?.cancel()
+      lyricsGeneration = UUID()
+      loadingLyrics = false
+      lyrics = ""
+      lyricsSource = nil
+      lyricsSourceURL = nil
+      lyricsError = nil
+      meaning = ""
+      meaningError = nil
+      manualLyrics = ""
+      showMeaning = false
+      current = nil
+      showPlayer = false
+    }
+  }
   func setShuffle(_ value: Bool) {
     shuffleEnabled = value
     sequence.setShuffled(value)
@@ -290,6 +364,17 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     guard queue.indices.contains(index) else { return }
     sequence.select(index)
     play(queue[index])
+  }
+  func playQueueOccurrence(_ id: UUID) {
+    if let index = queueIDs.firstIndex(of: id) { playQueuePosition(index) }
+  }
+  func playQueueOccurrenceNext(_ id: UUID) {
+    if let index = queueIDs.firstIndex(of: id) { sequence.playNext(index) }
+  }
+  func removeQueueOccurrence(_ id: UUID) {
+    guard let index = queueIDs.firstIndex(of: id), let offset = sequence.order.firstIndex(of: index)
+    else { return }
+    removeQueuedSongs(at: IndexSet(integer: offset))
   }
   func previousSong() {
     if player.elapsed > 3 {
@@ -353,11 +438,13 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   func play(_ song: Song, queue newQueue: [Song]? = nil, selectedIndex: Int? = nil) {
     if let newQueue {
       queue = newQueue
+      queueIDs = queue.map { _ in UUID() }
       sequence.reset(
         count: queue.count, selected: selectedIndex ?? queue.firstIndex { $0.id == song.id } ?? 0,
         shuffle: shuffleEnabled)
     } else if !queue.contains(where: { $0.id == song.id }) {
       queue = [song]
+      queueIDs = [UUID()]
       sequence.reset(count: 1, selected: 0, shuffle: shuffleEnabled)
     } else if let index = queue.firstIndex(where: { $0.id == song.id }),
       sequence.current.flatMap({ queue.indices.contains($0) ? queue[$0].id : nil }) != song.id

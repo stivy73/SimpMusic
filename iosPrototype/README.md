@@ -1,8 +1,18 @@
-# NoteNarrate iOS — 0.8.0 (24)
+# NoteNarrate iOS — 0.8.1 (25)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
+
+La **0.8.1 (25)** completa la coda di riproduzione: trascinamento per riordinare,
+scorrimento o menu per rimuovere, Riproduci dopo e Aggiungi alla coda da ricerca,
+Home, libreria, playlist e menu del player. Le copie dello stesso brano restano
+occorrenze distinte. Le modifiche ai brani successivi conservano la sessione audio
+corrente, anche con shuffle attivo. In CarPlay il pulsante Coda apre la stessa
+lista, paginata, con azioni Riproduci, Riproduci dopo e Rimuovi. La coda è temporanea
+e separata dalle playlist salvate nell'account. Shuffle e ripetizione della build24
+sono stati verificati prima dell'integrazione. I problemi audio CDN/narrazione
+restano riservati al collaudo sul Duo fisico.
 
 **Consegna 25 ottobre 2026:** build 0.8.0 (24) caricata su Apple per TestFlight
 interno, stato al termine del comando: pacchetto in elaborazione. Assegnazione

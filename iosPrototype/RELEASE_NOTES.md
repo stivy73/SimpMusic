@@ -1,3 +1,27 @@
+# NoteNarrate iOS 0.8.1 (25)
+
+Playback queue editing: reorder by drag, remove by swipe/menu, Play next and
+Add to queue from search, discovery, library, playlist tracks and player menu.
+Queue occurrences have stable IDs, so repeated songs remain independently editable.
+Edits to noncurrent items preserve playback and the current occurrence. Removing
+the current entry selects its successor (or its predecessor at the end), preserving
+paused intent. Removing the final entry cancels loading, stops audio/narration and
+clears the player. The queue is session state, distinct from saved playlists.
+
+Shuffle/repeat from build24 were checked first. Queue edits preserve shuffled
+history without reshuffling; explicit drag order becomes the canonical order.
+CarPlay has the system Up Next entry point and a paginated shared queue, with
+Play, Play next and Remove actions. Its callback dispatches to the main actor.
+
+Core validation: 121 tests passed, including duplicate occurrences, current-index
+remapping, manual moves, mixed edits, append/play-next and repeat boundaries.
+Four unique UI scenarios passed (five test executions across two runs), including
+actual reorder geometry and final-entry removal. Apple signature and CarPlay/Siri
+profiles verified; details in VERIFICATION.md.
+Real vehicle audio/CDN defects remain outside this change as agreed with the user.
+
+---
+
 # NoteNarrate iOS 0.8.0 (24)
 
 Uploaded to Apple on 25 October 2026 for internal TestFlight: Upload succeeded,

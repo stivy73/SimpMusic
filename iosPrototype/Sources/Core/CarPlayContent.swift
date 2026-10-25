@@ -97,11 +97,13 @@ public enum PlaybackRepeatMode: String, CaseIterable, Sendable {
 /// Indices preserve duplicate playlist occurrences; shuffle never drops or repeats an index.
 public struct PlaybackSequence: Equatable, Sendable {
   public private(set) var order: [Int] = []
+  private var naturalOrder: [Int] = []
   public private(set) var current: Int?
   public private(set) var shuffled = false
   public init() {}
   public mutating func reset(count: Int, selected: Int, shuffle: Bool) {
     order = Array(0..<max(0, count))
+    naturalOrder = order
     current = order.contains(selected) ? selected : nil
     shuffled = false
     if shuffle { setShuffled(true) }
@@ -113,7 +115,68 @@ public struct PlaybackSequence: Equatable, Sendable {
     if value, let current {
       order = [current] + order.filter { $0 != current }.shuffled()
     } else {
-      order.sort()
+      order = naturalOrder
+    }
+  }
+
+  /// New occurrences are appended to storage, without reshuffling existing playback history.
+  @discardableResult
+  public mutating func append(playNext: Bool = false) -> Int {
+    let index = naturalOrder.count
+    Self.insert(index, into: &naturalOrder, after: playNext ? current : nil)
+    Self.insert(index, into: &order, after: playNext ? current : nil)
+    if current == nil { current = index }
+    return index
+  }
+
+  /// A manual drag establishes the new canonical order, including while shuffle is enabled.
+  @discardableResult
+  public mutating func move(from offsets: IndexSet, to destination: Int) -> Bool {
+    guard !offsets.isEmpty, offsets.allSatisfy({ order.indices.contains($0) }),
+      (0...order.count).contains(destination)
+    else { return false }
+    let selected = offsets.map { order[$0] }
+    var result = order.enumerated().filter { !offsets.contains($0.offset) }.map(\.element)
+    let adjusted = destination - offsets.filter { $0 < destination }.count
+    result.insert(contentsOf: selected, at: adjusted)
+    order = result
+    naturalOrder = result
+    return true
+  }
+
+  public mutating func playNext(_ index: Int) {
+    guard order.contains(index), index != current else { return }
+    naturalOrder.removeAll { $0 == index }
+    order.removeAll { $0 == index }
+    Self.insert(index, into: &naturalOrder, after: current)
+    Self.insert(index, into: &order, after: current)
+  }
+
+  /// Returns removed storage indices. Survivors are remapped to the compacted song array.
+  @discardableResult
+  public mutating func remove(_ indices: Set<Int>) -> Set<Int> {
+    let removed = indices.intersection(order)
+    guard !removed.isEmpty else { return [] }
+    let survivors = (0..<naturalOrder.count).filter { !removed.contains($0) }
+    let mapping = Dictionary(
+      uniqueKeysWithValues: survivors.enumerated().map { ($0.element, $0.offset) })
+    var selected = current
+    if let current, removed.contains(current), let offset = order.firstIndex(of: current) {
+      selected =
+        order.dropFirst(offset + 1).first { !removed.contains($0) }
+        ?? order.prefix(offset).last { !removed.contains($0) }
+    }
+    order = order.compactMap { mapping[$0] }
+    naturalOrder = naturalOrder.compactMap { mapping[$0] }
+    current = selected.flatMap { mapping[$0] }
+    return removed
+  }
+
+  private static func insert(_ value: Int, into values: inout [Int], after index: Int?) {
+    if let index, let offset = values.firstIndex(of: index) {
+      values.insert(value, at: offset + 1)
+    } else {
+      values.append(value)
     }
   }
   public func next(repeatMode: PlaybackRepeatMode, automatic: Bool = false) -> Int? {
