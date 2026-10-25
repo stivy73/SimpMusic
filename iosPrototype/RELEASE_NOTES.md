@@ -21,8 +21,10 @@ The shared Mac build is a compilation check, not Mac offline/DSP runtime proof.
 163 core tests and six feature UI scenarios passed, plus the search pagination/queue
 regression. Live public lyrics/AutoEq probe succeeded. Release iOS archive and shared
 Mac compilation succeeded; exported IPA verifies Apple signature, CarPlay Audio and
-Siri app/extension profiles. Internal TestFlight upload pending. Tester assignment remains manual; no public
-App Store submission. Physical-car narration and long YouTube CDN playback remain
+Siri app/extension profiles. Uploaded to Apple on 25 October 2026 at 22:35 Europe/Rome:
+Upload succeeded, package processing, export exit 0. Source commit 9fea26af was pushed
+and verified on both personal fork branches before upload. Tester assignment remains
+manual; no public App Store submission. Physical-car narration and long YouTube CDN playback remain
 reserved for the separate Duo test, regardless of local-file simulator results.
 
 ---

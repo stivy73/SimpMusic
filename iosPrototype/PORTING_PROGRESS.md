@@ -41,3 +41,8 @@ logged. Release archive/signature/upload status is in README and RELEASE_NOTES.
 - Shared Mac compilation is verified, not Mac offline/DSP/crossfade runtime parity.
   Live Premium CDN continuity and narration audibility in a physical car remain the
   distinct Duo/CarPlay tests postponed by the user.
+
+Delivery: Apple upload succeeded on 25 October 2026 at 22:35 Europe/Rome, package
+processing, command exit 0. Source `9fea26af62a608a859f3be99f73cd9fd0655387b`
+pushed and verified on personal `dev` and `feature/youtube-library-albums` before upload.
+IPA Apple/CarPlay/Siri verification passed; tester assignment manual.

@@ -21,7 +21,7 @@ La generazione del significato usa il provider IA selezionato e richiede la rela
 ## NoteNarrate per iOS
 
 Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
-rispetto ad Android. La candidata **0.9.0 (28)** porta download/offline, testi sincronizzati,
+rispetto ad Android. La **0.9.0 (28)**, caricata su TestFlight interno, porta download/offline, testi sincronizzati,
 timer e ripristino coda, qualità audio, EQ/AutoEq ed effetti, crossfade/DJ, strumenti
 per i testi, statistiche e Wrapped locali. Stato, prove e limiti sono nel
 [registro del porting](iosPrototype/PORTING_PROGRESS.md). Distribuzione tramite

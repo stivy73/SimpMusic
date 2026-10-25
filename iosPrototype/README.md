@@ -4,10 +4,15 @@ Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con a
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
 
-La **0.9.0 (28)** integra i punti 10–19 del porting. Candidata verificata in locale: 163 test core e sei scenari UI delle nuove funzioni,
-più una regressione della ricerca. Archivio Release e firma Apple, CarPlay Audio/Siri
-verificati nell’IPA; caricamento TestFlight interno in preparazione. L’assegnazione ai tester
-resta manuale. [Stato dettagliato ed evidenze](PORTING_PROGRESS.md).
+**Consegna 0.9.0 (28), 25 ottobre 2026 ore 22:35 Europe/Rome:** caricamento
+Apple riuscito per TestFlight interno (`Upload succeeded`, pacchetto in elaborazione,
+comando terminato con esito 0). L’assegnazione ai tester resta manuale.
+Sorgenti della build: `9fea26af` su entrambi i branch del fork personale.
+
+Questa versione integra i punti 10–19 del porting. Verificati 163 test core e sei
+scenari UI delle nuove funzioni, più una regressione della ricerca. Archivio Release,
+compilazione condivisa Mac e firma/profili Apple CarPlay Audio/Siri verificati.
+[Stato dettagliato ed evidenze](PORTING_PROGRESS.md).
 
 - **Download e offline:** Scarica dal menu del brano; raccolta in Libreria, disponibile
   anche nei Preferiti CarPlay. Due trasferimenti in background, solo Wi-Fi opzionale,
