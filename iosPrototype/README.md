@@ -1,8 +1,32 @@
-# NoteNarrate iOS — 0.8.1 (25)
+# NoteNarrate iOS — 0.8.2 (26)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
+
+**Candidata 0.8.2 (26), 25 ottobre 2026:** 129 test core, cinque scenari UI,
+compilazione iOS/Mac e verifica IPA firmato Apple riusciti, inclusi CarPlay Audio
+e Siri nell’app e nell’estensione. Upload interno da completare; assegnazione ai
+tester manuale.
+
+La **0.8.2 (26)** porta radio e riproduzione automatica (punto 8 del porting).
+“Avvia radio” è disponibile dal menu di un brano; “Radio dell’artista” dal menu
+quando l’artista è noto e dalla sua pagina. Il catalogo e le continuation arrivano
+da YouTube Music, tramite lo stesso endpoint `next`, il pulsante radio dell’artista
+e i rimandi automix usati da Android. Viene riusato l’account collegato.
+
+Terminata la coda scelta dall’utente, la riproduzione automatica prosegue con
+suggerimenti, recuperati in anticipo durante l’ultimo brano. Non anticipa i brani
+aggiunti manualmente e scarta suggerimenti già in coda, duplicati e voci non
+riproducibili. L’interruttore è in Impostazioni e Coda, anche in CarPlay; ripetizione
+brano/coda ha precedenza sulla continuazione automatica. La radio esplicita sostituisce
+la coda soltanto dopo una risposta valida; errori, pause, nuove selezioni e cambi
+account non autorizzano una vecchia richiesta a riavviare la musica. In CarPlay
+radio e comandi sono nella Coda e nella pagina artista.
+
+Verifica online anonima: 50 brani da radio canzone, 49 nella continuation e 50 da
+radio artista. Questo verifica il catalogo reale, non il flusso audio dell’account
+Premium né l’ascolto nell’auto fisica. Quei difetti restano da collaudare sul Duo.
 
 **Consegna 0.8.1 (25), 25 ottobre 2026:** caricamento Apple riuscito per
 TestFlight interno, pacchetto in elaborazione. Assegnazione ai tester manuale.

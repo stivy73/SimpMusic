@@ -106,6 +106,8 @@ struct HomeView: View {
 
 struct HomeBrowseView: View {
   let title: String
+  let target: BrowseTarget
+  @EnvironmentObject private var model: MusicModel
   @EnvironmentObject private var library: LibraryModel
   @Environment(\.dismiss) private var dismiss
   @StateObject private var home: HomeModel
@@ -113,6 +115,7 @@ struct HomeBrowseView: View {
 
   init(title: String, target: BrowseTarget) {
     self.title = title
+    self.target = target
     _home = StateObject(wrappedValue: HomeModel(target: target))
   }
 
@@ -131,6 +134,15 @@ struct HomeBrowseView: View {
         DiscoveryContinuation(home: home)
       }.padding(.vertical, 16)
     }.navigationTitle(title).inlineNavigationTitle()
+      .toolbar {
+        if target.browseId.hasPrefix("UC") {
+          Button {
+            model.startRadio(artistID: target.browseId, title: title)
+          } label: {
+            Label("Radio dell’artista", systemImage: "dot.radiowaves.left.and.right")
+          }
+        }
+      }
       .refreshable { await home.refresh() }
       .task {
         identity = library.session?.identity
@@ -238,7 +250,15 @@ private struct DiscoveryItemLink<Content: View>: View {
           HomeBrowseView(title: item.title, target: target)
         } label: {
           content()
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).contextMenu {
+          if item.kind == .artist {
+            Button {
+              model.startRadio(artistID: item.mediaId, title: item.title)
+            } label: {
+              Label("Radio dell’artista", systemImage: "dot.radiowaves.left.and.right")
+            }
+          }
+        }
       }
     }.accessibilityIdentifier("home-item-\(item.id)")
   }

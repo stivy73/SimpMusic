@@ -12,9 +12,13 @@
     let library = LibraryModel()
     let home = HomeModel()
     private var media: AppleMediaSession!
+    private var radioSubscription: AnyCancellable?
     private init() {
       music.player.accountProvider = { [weak library] in library?.session }
       media = AppleMediaSession(model: music)
+      radioSubscription = library.$session.sink { [weak music] session in
+        music?.configureRadio(session: session)
+      }
     }
   }
 

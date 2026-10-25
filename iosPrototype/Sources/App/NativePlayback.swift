@@ -98,6 +98,12 @@
       playing = false
       playbackError = nil
       isLoading = true
+      #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--test-playback-order") {
+          isLoading = false
+          return
+        }
+      #endif
       // Allow the next track to resolve while the phone remains locked.
       backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Prepare music") {
         [weak self] in
@@ -223,7 +229,10 @@
       playbackError = nil
     }
 
+    private(set) var controlRevision = UUID()
+
     func play() {
+      controlRevision = UUID()
       do {
         try AppleAudioSession.activate()
         intent.play()
@@ -237,6 +246,7 @@
       }
     }
     func pause() {
+      controlRevision = UUID()
       intent.pause()
       nativePlayer.pause()
       playing = false

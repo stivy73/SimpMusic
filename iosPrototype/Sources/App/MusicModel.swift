@@ -18,6 +18,7 @@ import YouTubeSDK
     @Published var volume = 100.0
     var onEnded: (() -> Void)?
     var wantsPlayback = false
+    private(set) var controlRevision = UUID()
     weak var webView: WKWebView?
     var rate: Float { playing ? 1 : 0 }
     var timeControlStatus: AVPlayer.TimeControlStatus { playing ? .playing : .paused }
@@ -45,10 +46,12 @@ import YouTubeSDK
       playbackError = nil
     }
     func play() {
+      controlRevision = UUID()
       wantsPlayback = true
       webView?.evaluateJavaScript("player.playVideo()", completionHandler: nil)
     }
     func pause() {
+      controlRevision = UUID()
       wantsPlayback = false
       webView?.evaluateJavaScript("player.pauseVideo()", completionHandler: nil)
       playing = false
@@ -152,6 +155,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   private var resumeSongID: String?
   #if os(iOS)
     private var meaningBackgroundTask = UIBackgroundTaskIdentifier.invalid
+    private var radioBackgroundTask = UIBackgroundTaskIdentifier.invalid
   #endif
   @Published var query = ""
   @Published var songs: [Song] = []
@@ -164,6 +168,27 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   @Published private(set) var sequence = PlaybackSequence()
   @Published private(set) var shuffleEnabled = false
   @Published var repeatMode = PlaybackRepeatMode.off
+  @Published var autoplayEnabled =
+    UserDefaults.standard.object(forKey: "autoplayEnabled") as? Bool ?? true
+  {
+    didSet {
+      UserDefaults.standard.set(autoplayEnabled, forKey: "autoplayEnabled")
+      invalidateRadioRequest()
+      if autoplayEnabled { prepareRadio() }
+    }
+  }
+  @Published private(set) var loadingRadio = false
+  @Published var radioError: String?
+  @Published var radioActionError: String?
+  @Published private(set) var radioTitle: String?
+  private var radioRetryAction: (song: Song?, artistID: String?, title: String?)?
+  private var radioAccount: YouTubeSession?
+  private var radioTask: Task<Void, Never>?
+  private var radioRevision = UUID()
+  private var radioCursor: RadioCursor?
+  private var radioBuffer: [DiscoveryItem] = []
+  private var waitingForRadio: (load: UUID, control: UUID)?
+
   @Published var lyrics = ""
   @Published var loadingLyrics = false
   @Published var lyricsError: String?
@@ -249,6 +274,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         sequence.reset(count: queue.count, selected: 0, shuffle: false)
         current = queue.first
         showPlayer = true
+        autoplayEnabled = ProcessInfo.processInfo.arguments.contains("--test-radio")
       }
       if ProcessInfo.processInfo.arguments.contains("--test-native-audio") {
         Task {
@@ -298,7 +324,9 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
 
   var queueIndex: Int? { sequence.current }
   var hasPrevious: Bool { sequence.previous(repeatMode: repeatMode) != nil }
-  var hasNext: Bool { sequence.next(repeatMode: repeatMode) != nil }
+  var hasNext: Bool {
+    sequence.next(repeatMode: repeatMode) != nil || (autoplayEnabled && current != nil)
+  }
   var orderedQueueIndices: [Int] { sequence.order }
   var queueRows: [QueueRow] {
     sequence.order.compactMap { index in
@@ -315,6 +343,10 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     queue.append(song)
     queueIDs.append(UUID())
     sequence.append(playNext: playNext)
+    if waitingForRadio != nil {
+      waitingForRadio = nil
+      nextSong()
+    }
   }
 
   func moveQueuedSongs(from offsets: IndexSet, to destination: Int) {
@@ -329,6 +361,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         sequence.order.indices.contains(offset) ? sequence.order[offset] : nil
       })
     let removedCurrent = sequence.current.map { indices.contains($0) } ?? false
+    if removedCurrent { invalidateRadioRequest() }
     let wasPlaying = player.wantsPlayback
     let removed = sequence.remove(indices)
     guard !removed.isEmpty else { return }
@@ -352,6 +385,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       meaningError = nil
       manualLyrics = ""
       showMeaning = false
+      resetRadio()
       current = nil
       showPlayer = false
     }
@@ -384,6 +418,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     }
   }
   func nextSong(automatic: Bool = false) {
+    if automatic && (busyMeaning || reading) { return }
     if let index = sequence.next(repeatMode: repeatMode, automatic: automatic) {
       if automatic && index == sequence.current {
         player.seek(to: .zero)
@@ -391,7 +426,210 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       } else {
         playQueuePosition(index)
       }
+    } else if autoplayEnabled, current != nil {
+      waitingForRadio = (player.loadID, player.controlRevision)
+      if !advanceRadio() { prepareRadio() }
     }
+  }
+
+  func configureRadio(session: YouTubeSession?) {
+    guard radioAccount != session else { return }
+    radioAccount = session
+    resetRadio()
+    prepareRadio()
+  }
+
+  private func invalidateRadioRequest() {
+    radioTask?.cancel()
+    radioTask = nil
+    radioRevision = UUID()
+    waitingForRadio = nil
+    loadingRadio = false
+    endRadioBackgroundTask()
+  }
+  private func resetRadio() {
+    invalidateRadioRequest()
+    radioCursor = nil
+    radioBuffer = []
+    radioTitle = nil
+    radioError = nil
+    radioActionError = nil
+    radioRetryAction = nil
+  }
+
+  /// Radio is resolved before replacing the user's queue; a failed request leaves it untouched.
+  func startRadio(song: Song? = nil, artistID: String? = nil, title: String? = nil) {
+    guard song != nil || artistID != nil else { return }
+    invalidateRadioRequest()
+    radioRetryAction = (song, artistID, title)
+    radioActionError = nil
+    let token = radioRevision
+    let load = player.loadID
+    let control = player.controlRevision
+    let service = MusicRadio(session: radioAccount)
+    loadingRadio = true
+    radioError = nil
+    beginRadioBackgroundTask()
+    radioTask = Task {
+      do {
+        let endpoint: RadioEndpoint
+        if let artistID {
+          endpoint = try await service.artistEndpoint(id: artistID)
+        } else {
+          endpoint = .song(song!.id)
+        }
+        let page = try await fetchRadio(service: service, endpoint: endpoint, continuation: nil)
+        try Task.checkCancellation()
+        guard radioRevision == token, player.loadID == load, player.controlRevision == control
+        else {
+          if radioRevision == token { invalidateRadioRequest() }
+          return
+        }
+        var cursor = RadioCursor(endpoint: endpoint)
+        let items = try cursor.accept(page, excluding: [])
+        guard !items.isEmpty else { throw RadioError.unavailable }
+        let songs = items.map(Song.init)
+        let selected = song.flatMap { seed in songs.firstIndex { $0.id == seed.id } } ?? 0
+        play(songs[selected], queue: songs, selectedIndex: selected, preserveRadio: true)
+        radioCursor = cursor
+        radioBuffer = []
+        radioTitle = "Radio · " + (title ?? song?.title ?? "Artista")
+        radioRetryAction = nil
+        loadingRadio = false
+        radioTask = nil
+        endRadioBackgroundTask()
+        prepareRadio()
+      } catch {
+        guard radioRevision == token, !Task.isCancelled else { return }
+        loadingRadio = false
+        radioTask = nil
+        endRadioBackgroundTask()
+        radioError = error.localizedDescription
+        radioActionError = error.localizedDescription
+      }
+    }
+  }
+
+  func retryRadio() {
+    if let request = radioRetryAction {
+      startRadio(song: request.song, artistID: request.artistID, title: request.title)
+    } else {
+      radioError = nil
+      prepareRadio()
+    }
+  }
+
+  private func beginRadioBackgroundTask() {
+    #if os(iOS)
+      endRadioBackgroundTask()
+      radioBackgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Prepare radio") {
+        [weak self] in
+        Task { @MainActor [weak self] in
+          self?.invalidateRadioRequest()
+          self?.radioError = "Preparazione radio interrotta. Riprova."
+        }
+      }
+    #endif
+  }
+  private func endRadioBackgroundTask() {
+    #if os(iOS)
+      if radioBackgroundTask != .invalid {
+        UIApplication.shared.endBackgroundTask(radioBackgroundTask)
+        radioBackgroundTask = .invalid
+      }
+    #endif
+  }
+
+  private func fetchRadio(service: MusicRadio, endpoint: RadioEndpoint, continuation: String?)
+    async throws -> RadioPage
+  {
+    #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-radio") {
+        try await Task.sleep(
+          for: .milliseconds(
+            ProcessInfo.processInfo.arguments.contains("--test-radio-slow") ? 6000 : 900))
+        if ProcessInfo.processInfo.arguments.contains("--test-radio-failure") {
+          throw RadioError.unavailable
+        }
+        let contents = (1...3).map { n in
+          "{\"playlistPanelVideoRenderer\":{\"videoId\":\"radio-\(n)\",\"title\":{\"simpleText\":\"Suggerimento \(n)\"},\"longBylineText\":{\"simpleText\":\"Artista radio\"}}}"
+        }.joined(separator: ",")
+        return try RadioPage.decode(
+          Data(
+            "{\"continuationContents\":{\"playlistPanelContinuation\":{\"contents\":[\(contents)]}}}"
+              .utf8), endpoint: endpoint)
+      }
+    #endif
+    return try await service.page(endpoint: endpoint, continuation: continuation)
+  }
+
+  /// Prefetch only at the tail. Suggestions stay buffered until the manual queue is consumed.
+  private func prepareRadio() {
+    guard autoplayEnabled, let current, sequence.next(repeatMode: .off) == nil,
+      radioTask == nil, radioBuffer.isEmpty
+    else { return }
+    let token = radioRevision
+    let service = MusicRadio(session: radioAccount)
+    var cursor = radioCursor ?? RadioCursor(endpoint: .song(current.id))
+    if cursor.exhausted { cursor = RadioCursor(endpoint: .song(current.id)) }
+    let excluded = Set(queue.map(\.id))
+    loadingRadio = true
+    radioError = nil
+    beginRadioBackgroundTask()
+    radioTask = Task {
+      do {
+        var items: [DiscoveryItem] = []
+        // Skip repeated/removed/seed tracks without looping indefinitely on duplicate-only pages.
+        for _ in 0..<4 {
+          let page = try await fetchRadio(
+            service: service, endpoint: cursor.endpoint, continuation: cursor.continuation)
+          try Task.checkCancellation()
+          items = try cursor.accept(page, excluding: excluded)
+          if !items.isEmpty || cursor.exhausted { break }
+        }
+        guard radioRevision == token else { return }
+        guard !items.isEmpty else { throw RadioError.unavailable }
+        radioCursor = cursor
+        radioBuffer = items
+        loadingRadio = false
+        radioTask = nil
+        endRadioBackgroundTask()
+        _ = advanceRadio()
+      } catch {
+        guard radioRevision == token, !Task.isCancelled else { return }
+        loadingRadio = false
+        radioTask = nil
+        endRadioBackgroundTask()
+        waitingForRadio = nil
+        radioError = error.localizedDescription
+      }
+    }
+  }
+
+  @discardableResult
+  private func advanceRadio() -> Bool {
+    guard let expected = waitingForRadio, !radioBuffer.isEmpty else { return false }
+    guard autoplayEnabled, player.loadID == expected.load,
+      player.controlRevision == expected.control,
+      !reading, !busyMeaning
+    else {
+      waitingForRadio = nil
+      return false
+    }
+    var seen = Set(queue.map(\.id))
+    let songs = radioBuffer.filter { seen.insert($0.mediaId).inserted }.map(Song.init)
+    radioBuffer = []
+    guard !songs.isEmpty || sequence.next(repeatMode: .off) != nil else { return false }
+    waitingForRadio = nil
+    // A manual insertion made while waiting always takes precedence.
+    for song in songs {
+      queue.append(song)
+      queueIDs.append(UUID())
+      sequence.append()
+    }
+    guard let index = sequence.next(repeatMode: .off) else { return false }
+    playQueuePosition(index)
+    return true
   }
 
   func loadLyrics(force: Bool = false) {
@@ -435,7 +673,17 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     if busyMeaning { meaningProgress = lyricsProgress }
   }
 
-  func play(_ song: Song, queue newQueue: [Song]? = nil, selectedIndex: Int? = nil) {
+  func play(
+    _ song: Song, queue newQueue: [Song]? = nil, selectedIndex: Int? = nil,
+    preserveRadio: Bool = false
+  ) {
+    if !preserveRadio {
+      if newQueue != nil || !queue.contains(where: { $0.id == song.id }) {
+        resetRadio()
+      } else {
+        invalidateRadioRequest()
+      }
+    }
     if let newQueue {
       queue = newQueue
       queueIDs = queue.map { _ in UUID() }
@@ -465,7 +713,16 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     meaning = ""
     showPlayer = true
     player.load(videoId: song.id)
-    loadLyrics()  // Fetch alongside playback, before the user asks for the interpretation.
+    #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-playback-order") {
+        player.pause()
+      } else {
+        loadLyrics()
+      }
+    #else
+      loadLyrics()  // Fetch alongside playback, before the user asks for the interpretation.
+    #endif
+    if !preserveRadio { prepareRadio() }
   }
 
   func minimizePlayer() {

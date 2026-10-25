@@ -15,6 +15,29 @@ final class ProbeTimings: NSObject, URLSessionTaskDelegate, @unchecked Sendable 
 
 do {
   let args = Array(CommandLine.arguments.dropFirst())
+  if args.first == "--radio" {
+    let service = MusicRadio(session: nil)
+    let endpoint = RadioEndpoint.song(args.count > 1 ? args[1] : "ZmzqqdVFw8g")
+    let page = try await service.page(endpoint: endpoint)
+    print("Radio: \(page.items.count) tracks; continuation: \(page.continuation != nil)")
+    guard !page.items.isEmpty else { throw RadioError.unavailable }
+    if let token = page.continuation {
+      let next = try await service.page(endpoint: page.endpoint, continuation: token)
+      print("Radio continuation: \(next.items.count) tracks")
+      guard !next.items.isEmpty else { throw RadioError.unavailable }
+    }
+    let search = try await HomeDiscovery(session: nil).search(
+      query: "The Alan Parsons Project", filter: .artists)
+    if let artist = search.first {
+      let artistEndpoint = try await service.artistEndpoint(id: artist.mediaId)
+      let artistPage = try await service.page(endpoint: artistEndpoint)
+      print("Artist radio: \(artistPage.items.count) tracks")
+      guard !artistPage.items.isEmpty else { throw RadioError.unavailable }
+    } else {
+      throw RadioError.unavailable
+    }
+    exit(0)
+  }
   if args.first == "--typed-search" {
     let discovery = HomeDiscovery(session: nil)
     for filter in MusicSearchFilter.allCases {

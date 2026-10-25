@@ -240,6 +240,32 @@ final class YouTubeBrowseTests: XCTestCase {
     XCTAssertEqual(continuedClient?["visitorData"] as? String, "fixture-visitor")
   }
 
+  func testRadioNextKeepsWatchContextAndAuthenticatedDelegatedAccount() async throws {
+    let (transport, id) = transport()
+    defer { BrowseURLProtocol.store.remove(id) }
+    let session = YouTubeSession(
+      cookies: "SAPISID=test", accountIndex: "2", delegatedID: "brand", identity: "fixture",
+      clientVersion: "version")
+    let browse = YouTubeBrowse(session: session, transport: transport)
+    let endpoint = RadioEndpoint(
+      videoID: "seed", playlistID: "RDradio", params: "server-params", index: 3,
+      playlistSetVideoID: "occurrence")
+    _ = try await browse.next(endpoint: endpoint, continuation: "next-token")
+    let request = try XCTUnwrap(BrowseURLProtocol.store.requests(id).first)
+    XCTAssertEqual(request.url?.path, "/youtubei/v1/next")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-AuthUser"), "2")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-PageId"), "brand")
+    XCTAssertNotNil(request.value(forHTTPHeaderField: "Authorization"))
+    let json = try payload(request)
+    XCTAssertEqual(json["videoId"] as? String, "seed")
+    XCTAssertEqual(json["playlistId"] as? String, "RDradio")
+    XCTAssertEqual(json["playlistSetVideoId"] as? String, "occurrence")
+    XCTAssertEqual(json["index"] as? Int, 3)
+    XCTAssertEqual(json["params"] as? String, "server-params")
+    XCTAssertEqual(json["continuation"] as? String, "next-token")
+    XCTAssertNil(json["browseId"])
+  }
+
   func testAnonymousHomeHasNoAuthenticationHeaders() async throws {
     let (transport, id) = transport()
     defer { BrowseURLProtocol.store.remove(id) }

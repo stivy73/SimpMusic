@@ -38,6 +38,15 @@ public final class YouTubeBrowse: Sendable {
     try await send(endpoint: "search", fields: ["query": query, "params": filter.params])
   }
 
+  public func next(endpoint: RadioEndpoint, continuation: String? = nil) async throws -> Data {
+    guard endpoint.videoID?.isEmpty == false || endpoint.playlistID?.isEmpty == false else {
+      throw RadioError.unavailable
+    }
+    var fields = endpoint.fields
+    if let continuation { fields["continuation"] = continuation }
+    return try await send(endpoint: "next", fields: fields)
+  }
+
   /// The same authenticated rate endpoints used by the Android fork. Never send anonymously.
   public func setLiked(videoID: String, liked: Bool) async throws {
     guard session != nil else { throw LibraryError.authentication }

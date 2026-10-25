@@ -67,6 +67,7 @@ struct RootView: View {
         }
       }
     }.clipped()
+      .modifier(RadioFeedback())
   }
 
   private var navigation: some View {
@@ -242,6 +243,22 @@ struct SongList: View {
 }
 
 /// Shared by search, library, discovery, playlist tracks and the player's menu.
+struct RadioFeedback: ViewModifier {
+  @EnvironmentObject var model: MusicModel
+  func body(content: Content) -> some View {
+    content.alert(
+      "Radio YouTube Music",
+      isPresented: Binding(
+        get: { model.radioActionError != nil }, set: { if !$0 { model.radioActionError = nil } }
+      )
+    ) {
+      Button("OK") { model.radioActionError = nil }
+    } message: {
+      Text(model.radioActionError ?? "")
+    }
+  }
+}
+
 struct QueueActions: View {
   @EnvironmentObject var model: MusicModel
   let song: Song
@@ -256,6 +273,18 @@ struct QueueActions: View {
     } label: {
       Label("Aggiungi alla coda", systemImage: "text.append")
     }
+    Button {
+      model.startRadio(song: song)
+    } label: {
+      Label("Avvia radio", systemImage: "dot.radiowaves.left.and.right")
+    }
+    if let artistID = song.artistBrowseID {
+      Button {
+        model.startRadio(artistID: artistID, title: song.artist)
+      } label: {
+        Label("Radio dell’artista", systemImage: "person.wave.2")
+      }
+    }
   }
 }
 
@@ -265,6 +294,33 @@ struct QueueScreen: View {
   var body: some View {
     NavigationStack {
       List {
+        Section {
+          Toggle("Riproduzione automatica", isOn: $model.autoplayEnabled)
+            .accessibilityIdentifier("queue-autoplay")
+          if let title = model.radioTitle {
+            Label(title, systemImage: "dot.radiowaves.left.and.right")
+          }
+          if model.loadingRadio {
+            ProgressView("Preparo la radio…").accessibilityIdentifier("radio-loading")
+          }
+          if let error = model.radioError {
+            Text(error).font(.caption).foregroundStyle(.orange).accessibilityIdentifier(
+              "radio-error")
+            Button("Riprova suggerimenti") { model.retryRadio() }
+          }
+          #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--test-radio") {
+              Button("Simula fine brano") { model.player.onEnded?() }
+                .accessibilityIdentifier("radio-test-ended")
+              Button("Simula pausa") { model.player.pause() }
+                .accessibilityIdentifier("radio-test-pause")
+            }
+          #endif
+        } footer: {
+          Text(
+            "A coda terminata prosegue con i suggerimenti di YouTube Music. La ripetizione ha precedenza."
+          )
+        }
         Text("\(model.queue.count) brani").font(.caption).foregroundStyle(.secondary)
           .accessibilityIdentifier("queue-count")
         ForEach(model.queueRows) { row in
@@ -853,6 +909,13 @@ struct SettingsView: View {
           Button("Accedi a YouTube Music") { library.showLogin = true }
         }
         if let error = library.error { Text(error).font(.caption).foregroundStyle(.orange) }
+      }
+      Section("Riproduzione") {
+        Toggle("Riproduzione automatica", isOn: $model.autoplayEnabled)
+        Text(
+          "Terminata la coda, continua con brani suggeriti da YouTube Music. Puoi avviare una radio dal menu di un brano o di un artista."
+        )
+        .font(.caption).foregroundStyle(.secondary)
       }
       Section("Interpretazione IA") {
         SecureField("Chiave API Google Gemini", text: $model.apiKey).verbatimTextInput()

@@ -2,6 +2,83 @@ import XCTest
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testRadioReplacesQueueOnlyAfterServerResponse() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-remote-library", "--test-radio"]
+    app.launch()
+    app.buttons["Altre opzioni"].tap()
+    app.buttons["Avvia radio"].tap()
+    app.buttons["show-queue"].tap()
+    XCTAssertTrue(app.buttons["queue-radio-1"].waitForExistence(timeout: 10))
+    XCTAssertEqual(app.buttons["queue-radio-1"].value as? String, "Brano corrente")
+    XCTAssertFalse(app.buttons["queue-order-1"].exists)
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
+  }
+
+  @MainActor
+  func testAutoplayWaitsForManualQueueAndHonorsDisabledSetting() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-remote-library", "--test-radio"]
+    app.launch()
+    app.buttons["show-queue"].tap()
+    app.buttons["radio-test-ended"].tap()
+    XCTAssertEqual(app.buttons["queue-order-2"].value as? String, "Brano corrente")
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
+    app.buttons["radio-test-ended"].tap()
+    XCTAssertEqual(app.buttons["queue-order-3"].value as? String, "Brano corrente")
+    app.buttons["radio-test-ended"].tap()
+    XCTAssertTrue(app.buttons["queue-radio-1"].waitForExistence(timeout: 10))
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "6 brani")
+    XCTAssertEqual(app.buttons["queue-radio-1"].value as? String, "Brano corrente")
+    let automatic = app.switches["queue-autoplay"]
+    automatic.tap()
+    app.buttons["radio-test-ended"].tap()
+    app.buttons["radio-test-ended"].tap()
+    app.buttons["radio-test-ended"].tap()
+    app.swipeUp()
+    XCTAssertEqual(app.buttons["queue-radio-3"].value as? String, "Brano corrente")
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "6 brani")
+  }
+
+  @MainActor
+  func testPauseWhileWaitingForRecommendationsDoesNotStartPlayback() {
+    let app = XCUIApplication()
+    app.launchArguments = [
+      "--test-playback-order", "--test-remote-library", "--test-radio", "--test-radio-slow",
+    ]
+    app.launch()
+    app.buttons["show-queue"].tap()
+    app.buttons["radio-test-ended"].tap()
+    app.buttons["radio-test-ended"].tap()
+    app.buttons["radio-test-ended"].tap()
+    app.buttons["radio-test-pause"].tap()
+    let loading = app.descendants(matching: .any)["radio-loading"]
+    XCTAssertTrue(loading.waitForExistence(timeout: 2))
+    let finished = NSPredicate(format: "exists == false")
+    expectation(for: finished, evaluatedWith: loading)
+    waitForExpectations(timeout: 12)
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
+    XCTAssertEqual(app.buttons["queue-order-3"].value as? String, "Brano corrente")
+    XCTAssertFalse(app.buttons["queue-radio-1"].exists)
+  }
+
+  @MainActor
+  func testRadioFailureKeepsExistingQueue() {
+    let app = XCUIApplication()
+    app.launchArguments = [
+      "--test-playback-order", "--test-remote-library", "--test-radio", "--test-radio-failure",
+    ]
+    app.launch()
+    app.buttons["Altre opzioni"].tap()
+    app.buttons["Avvia radio"].tap()
+    XCTAssertTrue(app.alerts["Radio YouTube Music"].waitForExistence(timeout: 10))
+    app.alerts.buttons["OK"].tap()
+    app.buttons["show-queue"].tap()
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
+    XCTAssertEqual(app.buttons["queue-order-1"].value as? String, "Brano corrente")
+  }
+
+  @MainActor
   func testRemoteLibrarySectionsAndAccountLikeStaySeparateFromLocalFavorites() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-remote-library"]

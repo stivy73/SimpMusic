@@ -582,6 +582,14 @@
       let loading = CPListTemplate(title: title, sections: [])
       setTiles([status("Caricamento…")], in: loading)
       controller?.pushTemplate(loading, animated: true, completion: { _, _ in })
+      if target.browseId.hasPrefix("UC") {
+        loading.trailingNavigationBarButtons = [
+          CPBarButton(title: "Radio") { [weak self] _ in
+            self?.app.music.startRadio(artistID: target.browseId, title: title)
+            self?.openQueue()
+          }
+        ]
+      }
       tasks.append(
         Task {
           do {
@@ -699,7 +707,47 @@
         empty.isEnabled = false
         rows = [empty]
       }
-      queueTemplate.updateSections([CPListSection(items: rows)])
+      let automatic = CPListItem(
+        text: "Riproduzione automatica",
+        detailText: app.music.autoplayEnabled ? "Attiva" : "Disattivata",
+        image: UIImage(systemName: "infinity"))
+      automatic.handler = { [weak self] _, done in
+        done()
+        self?.app.music.autoplayEnabled.toggle()
+      }
+      var radioRows = [automatic]
+      if let song = app.music.current {
+        let radio = CPListItem(
+          text: "Radio del brano", detailText: song.title,
+          image: UIImage(systemName: "dot.radiowaves.left.and.right"))
+        radio.handler = { [weak self] _, done in
+          done()
+          self?.app.music.startRadio(song: song)
+        }
+        radioRows.append(radio)
+        if let id = song.artistBrowseID {
+          let artist = CPListItem(
+            text: "Radio dell’artista", detailText: song.artist,
+            image: UIImage(systemName: "person.fill"))
+          artist.handler = { [weak self] _, done in
+            done()
+            self?.app.music.startRadio(artistID: id, title: song.artist)
+          }
+          radioRows.append(artist)
+        }
+      }
+      if app.music.loadingRadio || app.music.radioError != nil {
+        let status = CPListItem(
+          text: app.music.loadingRadio ? "Preparo la radio…" : "Suggerimenti non disponibili",
+          detailText: app.music.radioError == nil ? nil : "Tocca per riprovare")
+        status.isEnabled = !app.music.loadingRadio
+        status.handler = { [weak self] _, done in
+          done()
+          self?.app.music.retryRadio()
+        }
+        radioRows.append(status)
+      }
+      queueTemplate.updateSections([CPListSection(items: radioRows), CPListSection(items: rows)])
     }
 
     private func configureNowPlaying() {

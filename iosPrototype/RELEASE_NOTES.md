@@ -1,3 +1,32 @@
+# NoteNarrate iOS 0.8.2 (26)
+
+Radio and autoplay (iOS parity point 8): start a song radio from track/player
+menus or an artist radio from its page and linked artist action. The authenticated
+WEB_REMIX next transport preserves video/playlist/params/index, account identity
+and continuation context. Artist radio uses the server's actual radio endpoint;
+automix pointers follow Android's flow with bounded cycle protection.
+
+Autoplay is enabled by default and can be changed in Settings, Queue or CarPlay.
+The final manual track prefetches recommendations into a buffer. They are appended
+only after the existing queue is consumed; repeat one/all takes precedence.
+Queue entries and unavailable/duplicate suggestions are filtered. Requests are
+cancelled/invalidated on context or account changes. A pause during delayed
+preparation prevents playback from restarting. Explicit radio errors preserve
+the current queue, and retry does not skip a song. iOS preparation has a bounded
+background task. CarPlay exposes radio and autoplay in the shared queue and a
+Radio action on artist pages, preserving the existing Now Playing buttons.
+
+Live anonymous catalog probe: song radio 50 tracks, continuation 49 tracks,
+artist radio 50 tracks. Core tests: 129 passed. Simulator UI scenarios cover
+successful and rejected radio, continuation after the manual queue, disabled
+autoplay and pause during a pending request. No physical-car/Premium-audio
+runtime proof is implied; existing CDN/narration defects remain deferred.
+
+Delivery status will be updated after Apple upload verification. Tester assignment
+remains manual; no App Store submission.
+
+---
+
 # NoteNarrate iOS 0.8.1 (25)
 
 Uploaded to Apple on 25 October 2026 for internal TestFlight: Upload succeeded,
