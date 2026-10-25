@@ -23,8 +23,11 @@ Three simulator UI scenarios passed: filter/pagination through an eight-item
 playback queue, album/artist/playlist navigation, partial failure and history deletion.
 A native category menu and automatic chip scrolling keep all filters reachable on
 narrow displays. Release iOS archive and shared Mac compilation succeeded. Internal
-TestFlight delivery status will follow. No live account mutation or physical-car
-audio claim is made by these search tests.
+TestFlight upload completed on 25 October 2026 at 21:16 Europe/Rome: Upload succeeded,
+package processing, export exit 0. Build source: 2eb8818b, pushed to both personal
+fork branches. Tester assignment remains manual; no App Store submission. Final
+IPA verifies Apple signature and CarPlay Audio/Siri profiles for app and extension.
+No live account mutation or physical-car audio claim is made by these search tests.
 
 ---
 

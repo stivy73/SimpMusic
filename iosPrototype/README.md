@@ -4,6 +4,11 @@ Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con a
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
 
+**Consegna 0.8.3 (27), 25 ottobre 2026 ore 21:16:** caricamento Apple riuscito
+per TestFlight interno, pacchetto in elaborazione. Assegnazione ai tester manuale.
+Sorgenti della build: `2eb8818b` su `stivy73/SimpMusic`. Verificati 142 test core,
+tre scenari UI, catalogo reale e firma/profili CarPlay Audio e Siri.
+
 La **0.8.3 (27)** completa la ricerca sul telefono (punto 9): Tutto, Canzoni,
 Album, Artisti, Playlist di YouTube Music, Playlist della community, Video e
 Podcast. In Tutto le categorie vengono cercate in parallelo, come in Android,
@@ -23,8 +28,7 @@ Verifica online anonima: risultati in tutte e sette le categorie e seconde pagin
 per canzoni, album, playlist, video e podcast (per la query artista usata la prima
 pagina era completa). 142 test core e tre scenari UI superati; compilazione Release
 iOS e Mac riuscita. Il menu Categorie rende raggiungibili rapidamente tutti i filtri
-anche sugli schermi stretti. Firma Apple, CarPlay Audio e Siri verificate nell’IPA finale. Caricamento interno
-da completare; assegnazione ai tester manuale.
+anche sugli schermi stretti. Firma Apple, CarPlay Audio e Siri verificate nell’IPA finale.
 
 **Consegna 0.8.2 (26), 25 ottobre 2026 ore 20:47:** caricamento Apple riuscito
 per TestFlight interno, pacchetto in elaborazione. Assegnazione ai tester manuale.
