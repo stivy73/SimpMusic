@@ -1,5 +1,8 @@
 # NoteNarrate iOS 0.8.0 (24)
 
+Uploaded to Apple on 25 October 2026 for internal TestFlight: Upload succeeded,
+package processing. Tester assignment remains manual. Build source: bc23b4b1.
+
 Library now includes remote saved songs, account likes, library playlists and
 subscribed artists alongside saved albums. Collections follow every continuation,
 deduplicate media IDs and reject repeated tokens or unrecognized media instead

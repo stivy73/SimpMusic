@@ -4,6 +4,13 @@ Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con a
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
 
+**Consegna 25 ottobre 2026:** build 0.8.0 (24) caricata su Apple per TestFlight
+interno, stato al termine del comando: pacchetto in elaborazione. Assegnazione
+ai tester manuale. Sorgenti della build: commit `bc23b4b1` su `stivy73/SimpMusic`.
+Verificati firma/profili CarPlay Audio e Siri, 114 test core e quattro test UI.
+Sincronizzazione Google reale, riconoscimento Siri e audio in auto da collaudare
+sul dispositivo; nessuna dichiarazione di risoluzione del difetto CDN.
+
 La **0.8.0 (24)** estende la Libreria alle raccolte remote Brani salvati, Mi piace,
 Playlist e Artisti seguiti, oltre agli Album. Ogni raccolta legge tutte le pagine,
 senza duplicati; gli errori non trasformano una risposta parziale in una raccolta
