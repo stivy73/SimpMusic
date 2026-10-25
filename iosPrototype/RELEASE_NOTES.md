@@ -22,8 +22,10 @@ successful and rejected radio, continuation after the manual queue, disabled
 autoplay and pause during a pending request. No physical-car/Premium-audio
 runtime proof is implied; existing CDN/narration defects remain deferred.
 
-Delivery status will be updated after Apple upload verification. Tester assignment
-remains manual; no App Store submission.
+Uploaded to Apple on 25 October 2026 at 20:47 Europe/Rome for internal TestFlight:
+Upload succeeded, package processing, export exit 0. Build source: a3c6bbab.
+Apple signature, CarPlay Audio and Siri profiles/signatures verified in app and
+media intent extension. Tester assignment remains manual; no App Store submission.
 
 ---
 
