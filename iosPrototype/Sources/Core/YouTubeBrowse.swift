@@ -34,8 +34,15 @@ public final class YouTubeBrowse: Sendable {
     return try await send(endpoint: "browse", fields: fields)
   }
 
-  public func search(query: String, filter: MusicSearchFilter) async throws -> Data {
-    try await send(endpoint: "search", fields: ["query": query, "params": filter.params])
+  public func search(query: String, filter: MusicSearchFilter, continuation: String? = nil)
+    async throws -> Data
+  {
+    if let continuation {
+      guard !continuation.isEmpty else { throw LibraryError.malformed }
+      return try await send(
+        endpoint: "search", fields: ["continuation": continuation], continuationQuery: continuation)
+    }
+    return try await send(endpoint: "search", fields: ["query": query, "params": filter.params])
   }
 
   public func next(endpoint: RadioEndpoint, continuation: String? = nil) async throws -> Data {
@@ -127,10 +134,23 @@ public final class YouTubeBrowse: Sendable {
     return try JSONDecoder().decode(YouTubeVideo.self, from: data)
   }
 
-  private func send(endpoint: String, fields: [String: Any]) async throws -> Data {
+  private func send(endpoint: String, fields: [String: Any], continuationQuery: String? = nil)
+    async throws -> Data
+  {
     let context = InnerTubeContext(client: .webRemix, cookies: session?.cookies, gl: "IT", hl: "it")
+    var url = URLComponents(
+      string: "https://music.youtube.com/youtubei/v1/\(endpoint)?prettyPrint=false")!
+    if let token = continuationQuery {
+      url.queryItems =
+        (url.queryItems ?? []) + [
+          URLQueryItem(name: "continuation", value: token),
+          URLQueryItem(name: "ctoken", value: token),
+        ]
+      // A literal plus in opaque tokens must not become a form-encoded space.
+      url.percentEncodedQuery = url.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+    }
     var request = URLRequest(
-      url: URL(string: "https://music.youtube.com/youtubei/v1/\(endpoint)?prettyPrint=false")!,
+      url: url.url!,
       timeoutInterval: endpoint == "player" ? 15 : 45)
     request.httpMethod = "POST"
     request.allHTTPHeaderFields = context.headers

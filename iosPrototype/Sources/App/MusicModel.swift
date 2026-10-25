@@ -136,7 +136,6 @@ struct QueueRow: Identifiable {
 @MainActor
 final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
   let player = PlaybackPlayer()
-  private let music = YouTubeMusicClient()
   private let lyricsResolver = LyricsResolver()
   private let synthesizer = AVSpeechSynthesizer()
   private var streamingAudio: PCMStreamPlayer?
@@ -150,19 +149,44 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   {
     didSet { UserDefaults.standard.set(narrationDiagnostic, forKey: "lastNarrationDiagnostic") }
   }
-  private var searchTask: Task<Void, Never>?
   private var generation = UUID()
   private var resumeSongID: String?
   #if os(iOS)
     private var meaningBackgroundTask = UIBackgroundTaskIdentifier.invalid
     private var radioBackgroundTask = UIBackgroundTaskIdentifier.invalid
   #endif
-  @Published var query = ""
-  @Published var songs: [Song] = []
-  @Published var lastSearchQuery = ""
+  let searchResults: MusicSearchModel = {
+    #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-full-search") {
+        return MusicSearchModel(
+          history: [], saveHistory: { _ in },
+          fetch: { _, query, filter, token in
+            try await Task.sleep(for: .milliseconds(120))
+            if filter == .podcasts
+              && ProcessInfo.processInfo.arguments.contains("--test-search-failure")
+            {
+              throw LibraryError.http(503)
+            }
+            let numbers = token == nil ? Array(1...7) : [7, 8]
+            let items = numbers.map { n in
+              DiscoveryItem(
+                kind: filter.kind,
+                mediaId: filter.kind == .album
+                  ? "MPREsearch-\(n)"
+                  : filter.kind == .artist
+                    ? "UCsearch-\(n)"
+                    : filter.kind == .playlist
+                      ? "VLsearch-\(filter.identifier)-\(n)" : "search-\(filter.identifier)-\(n)",
+                title: "\(query) · \(filter.rawValue) \(n)", subtitle: "Artista di prova",
+                artwork: nil)
+            }
+            return MusicSearchPage(items: items, continuation: token == nil ? "search-next" : nil)
+          })
+      }
+    #endif
+    return MusicSearchModel()
+  }()
   @Published var carPlayVoiceQuery: CarPlayVoiceQuery?
-  @Published var searching = false
-  @Published var searchError: String?
   @Published private(set) var queue: [Song] = []
   private var queueIDs: [UUID] = []
   @Published private(set) var sequence = PlaybackSequence()
@@ -266,6 +290,9 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       favorites = stored
     }
     #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-full-search") {
+        autoplayEnabled = false
+      }
       if ProcessInfo.processInfo.arguments.contains("--test-playback-order") {
         queue = (1...3).map {
           Song(id: "order-\($0)", title: "Brano \($0)", artist: "Prova ordine", artwork: nil)
@@ -296,30 +323,6 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       UserDefaults.standard.set(voice, forKey: "voice")
       settingsError = nil
     } catch { settingsError = "Impossibile salvare la chiave nel Portachiavi." }
-  }
-
-  func search(_ suggested: String? = nil) {
-    if let suggested { query = suggested }
-    let requested = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !requested.isEmpty else { return }
-    lastSearchQuery = requested
-    searchTask?.cancel()
-    searching = true
-    searchError = nil
-    searchTask = Task {
-      do {
-        let results = try await music.search(requested)
-        try Task.checkCancellation()
-        var seen = Set<String>()
-        songs = results.map { Song($0) }.filter { seen.insert($0.id).inserted }
-        searching = false
-      } catch is CancellationError {} catch {
-        if !Task.isCancelled {
-          searching = false
-          searchError = error.localizedDescription
-        }
-      }
-    }
   }
 
   var queueIndex: Int? { sequence.current }
@@ -714,7 +717,9 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     showPlayer = true
     player.load(videoId: song.id)
     #if DEBUG
-      if ProcessInfo.processInfo.arguments.contains("--test-playback-order") {
+      if ProcessInfo.processInfo.arguments.contains("--test-playback-order")
+        || ProcessInfo.processInfo.arguments.contains("--test-full-search")
+      {
         player.pause()
       } else {
         loadLyrics()

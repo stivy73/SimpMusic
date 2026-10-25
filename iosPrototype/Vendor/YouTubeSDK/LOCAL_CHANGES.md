@@ -39,3 +39,10 @@ unknown library media instead of silently omitting it, with an explicit exceptio
 for YouTube's Create playlist tile. Home decoding keeps its existing default.
 Library endpoints and account writes remain in the app transport; no SDK secrets,
 raw authenticated responses or new external dependencies are introduced.
+
+Phone search additions (0.8.3): `decodeSearchPage` reuses discovery item decoding
+but preserves the result shelf's continuation beside filter/spelling headers.
+Default Home continuation semantics are unchanged. Responsive podcast shows
+(`MUSIC_PAGE_TYPE_PODCAST_SHOW` / `MPSP…`) retain their browse destination through
+the existing playlist-like model. No SDK network/authentication changes.
+All seven search params match Android, checked by Scripts/CheckSearchFilters.py.

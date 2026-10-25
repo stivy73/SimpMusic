@@ -99,7 +99,9 @@
       playbackError = nil
       isLoading = true
       #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--test-playback-order") {
+        if ProcessInfo.processInfo.arguments.contains("--test-playback-order")
+          || ProcessInfo.processInfo.arguments.contains("--test-full-search")
+        {
           isLoading = false
           return
         }

@@ -24,9 +24,16 @@ public struct YouTubeMusicCategorySection: Sendable {
 }
 
 extension YouTubeMusicClient {
+  /// Filtered search owns its result shelf's continuation, even beside spelling/filter rows.
+  public func decodeSearchPage(from data: Data) throws -> YouTubeMusicHomePage {
+    try decodeDiscoveryPage(from: data, searchResults: true)
+  }
+
   /// Reads only the page's own continuation, never a nested shelf's token.
   /// Preserves section order, account strapline, "More" endpoints and category buttons.
-  public func decodeDiscoveryPage(from data: Data, strictItems: Bool = false) throws
+  public func decodeDiscoveryPage(
+    from data: Data, strictItems: Bool = false, searchResults: Bool = false
+  ) throws
     -> YouTubeMusicHomePage
   {
     guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -121,7 +128,7 @@ extension YouTubeMusicClient {
             sections.append(section)
           }
           if row["musicPlaylistShelfRenderer"] != nil
-            || (rows.count == 1 && row["musicShelfRenderer"] != nil),
+            || ((searchResults || rows.count == 1) && row["musicShelfRenderer"] != nil),
             let token = discoveryContinuation(shelf)
           {
             trackTokens.append(token)

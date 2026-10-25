@@ -1,3 +1,33 @@
+# NoteNarrate iOS 0.8.3 (27)
+
+Phone search parity (point 9): All plus songs, artists, albums, YouTube Music
+playlists, community playlists, videos and podcast shows. Categories use the same
+seven server filters as Android. All loads them concurrently and displays early
+results without waiting for slower sources; per-category errors/retry preserve
+successful sections. Each category supports full results and continuation pages.
+
+Uses the confirmed account/visitor and search endpoint for every page, including
+delegated accounts. Query/filter/account changes invalidate prior results and
+pending continuations. Duplicate results and repeated tokens are handled. Native
+navigation opens album, artist and playlist details; playable results share the
+current queue/radio/like/playlist actions. Video stays opt-in in the existing player.
+Local query history is limited to 20 and can be removed individually or cleared.
+The phone search does not overwrite Siri/CarPlay queries or expand its vehicle filters.
+
+The local SDK preserves filtered search shelf continuations beside server headers
+without changing Home continuation rules. Podcast shows retain their browse IDs.
+Anonymous live probe validates all seven categories and second pages for six of
+them (artist query had 15 complete results). All seven Android filter params,
+interpretation prompt and Home filter params remain identical. 142 core tests pass.
+Three simulator UI scenarios passed: filter/pagination through an eight-item
+playback queue, album/artist/playlist navigation, partial failure and history deletion.
+A native category menu and automatic chip scrolling keep all filters reachable on
+narrow displays. Release iOS archive and shared Mac compilation succeeded. Internal
+TestFlight delivery status will follow. No live account mutation or physical-car
+audio claim is made by these search tests.
+
+---
+
 # NoteNarrate iOS 0.8.2 (26)
 
 Radio and autoplay (iOS parity point 8): start a song radio from track/player

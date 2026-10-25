@@ -195,18 +195,50 @@ public enum MusicSearchFilter: String, CaseIterable, Sendable {
   case songs = "Canzoni"
   case artists = "Artisti"
   case albums = "Album"
+  case playlists = "Playlist di YouTube Music"
+  case communityPlaylists = "Playlist della community"
+  case videos = "Video"
+  case podcasts = "Podcast"
+  // Keep the existing vehicle search focused on its three supported media types.
+  public static let carPlay: [Self] = [.songs, .artists, .albums]
   public var params: String {
     switch self {
     case .songs: "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D"
     case .artists: "EgWKAQIgAWoKEAkQChAFEAMQBA%3D%3D"
     case .albums: "EgWKAQIYAWoKEAkQChAFEAMQBA%3D%3D"
+    case .playlists: "EgeKAQQoADgBagwQDhAKEAMQBRAJEAQ%3D"
+    case .communityPlaylists: "EgeKAQQoAEABagoQAxAEEAoQCRAF"
+    case .videos: "EgWKAQIQAWoKEAkQChAFEAMQBA%3D%3D"
+    case .podcasts: "EgWKAQJQAWoIEBAQERADEBU%3D"
     }
   }
   public var kind: DiscoveryItem.Kind {
     switch self {
-    case .songs: .song
+    case .songs, .videos: .song
     case .artists: .artist
     case .albums: .album
+    case .playlists, .communityPlaylists, .podcasts: .playlist
+    }
+  }
+  public var symbol: String {
+    switch self {
+    case .songs: "music.note"
+    case .artists: "person.fill"
+    case .albums: "square.stack.fill"
+    case .playlists, .communityPlaylists: "music.note.list"
+    case .videos: "play.rectangle"
+    case .podcasts: "mic.fill"
+    }
+  }
+  public var identifier: String {
+    switch self {
+    case .songs: "songs"
+    case .artists: "artists"
+    case .albums: "albums"
+    case .playlists: "playlists"
+    case .communityPlaylists: "community"
+    case .videos: "videos"
+    case .podcasts: "podcasts"
     }
   }
 }
@@ -215,11 +247,13 @@ extension HomeDiscovery {
   public func search(query: String, filter: MusicSearchFilter) async throws -> [DiscoveryItem] {
     let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !query.isEmpty else { return [] }
-    let data = try await browse.search(query: query, filter: filter)
-    let page = try await HomePage(parser.decodeDiscoveryPage(from: data))
-    var seen = Set<String>()
-    return page.shelves.flatMap(\.items).filter {
-      $0.kind == filter.kind && seen.insert($0.id).inserted
-    }
+    return try await searchPage(query: query, filter: filter).items
+  }
+
+  public func searchPage(query: String, filter: MusicSearchFilter, continuation: String? = nil)
+    async throws -> MusicSearchPage
+  {
+    let data = try await browse.search(query: query, filter: filter, continuation: continuation)
+    return try await MusicSearchPage.decode(data, filter: filter)
   }
 }

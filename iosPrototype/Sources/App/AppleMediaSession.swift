@@ -18,6 +18,7 @@
       media = AppleMediaSession(model: music)
       radioSubscription = library.$session.sink { [weak music] session in
         music?.configureRadio(session: session)
+        music?.searchResults.configure(session: session)
       }
     }
   }

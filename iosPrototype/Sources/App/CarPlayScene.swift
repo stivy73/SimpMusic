@@ -268,7 +268,7 @@
         "\(searchQuery)|\(searchFilter.rawValue)|\(searchMessage)|\(searchItems.map(\.id).joined(separator: ","))"
       guard state != searchRenderedState else { return }
       searchRenderedState = state
-      let filters = MusicSearchFilter.allCases.map { filter in
+      let filters = MusicSearchFilter.carPlay.map { filter in
         let row = CPListItem(
           text: filter.rawValue,
           detailText: filter == searchFilter ? "Selezionato" : nil,

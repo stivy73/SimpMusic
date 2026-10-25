@@ -155,7 +155,7 @@ final class YouTubeBrowseTests: XCTestCase {
       _ = try await browse.search(query: "Fleetwood Mac", filter: filter)
     }
     let requests = BrowseURLProtocol.store.requests(id)
-    XCTAssertEqual(requests.count, 3)
+    XCTAssertEqual(requests.count, MusicSearchFilter.allCases.count)
     var params = Set<String>()
     for request in requests {
       XCTAssertEqual(request.url?.path, "/youtubei/v1/search")
@@ -164,7 +164,37 @@ final class YouTubeBrowseTests: XCTestCase {
       XCTAssertNil(json["browseId"])
       params.insert(try XCTUnwrap(json["params"] as? String))
     }
-    XCTAssertEqual(params.count, 3)
+    XCTAssertEqual(params.count, MusicSearchFilter.allCases.count)
+  }
+
+  func testSearchContinuationKeepsAccountVisitorAndUsesSearchNotBrowse() async throws {
+    let (transport, id) = transport(body: "{\"responseContext\":{\"visitorData\":\"visitor\"}}")
+    defer { BrowseURLProtocol.store.remove(id) }
+    let session = YouTubeSession(
+      cookies: "SAPISID=fixture", accountIndex: "2", delegatedID: "brand", identity: "test",
+      clientVersion: "version")
+    let browse = YouTubeBrowse(session: session, transport: transport)
+    _ = try await browse.search(query: "Rock", filter: .communityPlaylists)
+    _ = try await browse.search(
+      query: "Rock", filter: .communityPlaylists, continuation: "next+token/=")
+    let requests = BrowseURLProtocol.store.requests(id)
+    let initial = try payload(requests[0])
+    XCTAssertEqual(initial["params"] as? String, MusicSearchFilter.communityPlaylists.params)
+    let request = requests[1]
+    XCTAssertEqual(request.url?.path, "/youtubei/v1/search")
+    let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+    XCTAssertTrue(request.url!.absoluteString.contains("next%2Btoken"))
+    XCTAssertEqual(query.first { $0.name == "ctoken" }?.value, "next+token/=")
+    XCTAssertEqual(query.first { $0.name == "continuation" }?.value, "next+token/=")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-AuthUser"), "2")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-PageId"), "brand")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Visitor-Id"), "visitor")
+    XCTAssertNotNil(request.value(forHTTPHeaderField: "Authorization"))
+    let next = try payload(request)
+    XCTAssertEqual(next["continuation"] as? String, "next+token/=")
+    XCTAssertNil(next["query"])
+    XCTAssertNil(next["params"])
+    XCTAssertNil(next["browseId"])
   }
 
   func testPlayerReusesTheConfirmedAccountAndExistingSDKParser() async throws {

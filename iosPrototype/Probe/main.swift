@@ -38,9 +38,29 @@ do {
     }
     exit(0)
   }
-  if args.first == "--typed-search" {
+  if args.first == "--full-search" {
     let discovery = HomeDiscovery(session: nil)
     for filter in MusicSearchFilter.allCases {
+      let query =
+        filter == .podcasts
+        ? "Daily" : filter == .playlists || filter == .communityPlaylists ? "Rock" : "Fleetwood Mac"
+      let start = Date()
+      let page = try await discovery.searchPage(query: query, filter: filter)
+      print(
+        "Search \(filter.identifier): \(page.items.count) items; continuation \(page.continuation != nil); seconds \(String(format: "%.2f", Date().timeIntervalSince(start)))"
+      )
+      guard !page.items.isEmpty else { throw URLError(.cannotParseResponse) }
+      if let token = page.continuation {
+        let next = try await discovery.searchPage(query: query, filter: filter, continuation: token)
+        print("Search next \(filter.identifier): \(next.items.count) items")
+        guard !next.items.isEmpty else { throw URLError(.cannotParseResponse) }
+      }
+    }
+    exit(0)
+  }
+  if args.first == "--typed-search" {
+    let discovery = HomeDiscovery(session: nil)
+    for filter in MusicSearchFilter.carPlay {
       let items = try await discovery.search(
         query: args.count > 1 ? args[1] : "Fleetwood Mac", filter: filter)
       print(

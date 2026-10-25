@@ -2,6 +2,94 @@ import XCTest
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  private func startFullSearch(_ app: XCUIApplication, fail: Bool = false) {
+    app.launchArguments =
+      ["--test-full-search", "--test-remote-library"] + (fail ? ["--test-search-failure"] : [])
+    app.launch()
+    selectTab("Cerca", symbol: "magnifyingglass", in: app)
+    let field = app.searchFields.firstMatch
+    XCTAssertTrue(field.waitForExistence(timeout: 10), app.debugDescription)
+    field.tap()
+    field.typeText("Prova\n")
+    XCTAssertTrue(app.buttons["search-result-songs-search-songs-1"].waitForExistence(timeout: 10))
+  }
+
+  @MainActor
+  func testFullSearchFiltersPaginationAndPlaybackQueue() {
+    let app = XCUIApplication()
+    startFullSearch(app)
+    app.buttons["search-filter-songs"].tap()
+    let more = app.buttons["search-more-songs"]
+    for _ in 0..<3 where !more.isHittable { app.swipeUp() }
+    XCTAssertTrue(more.waitForExistence(timeout: 5))
+    more.tap()
+    let last = app.buttons["search-result-songs-search-songs-8"]
+    XCTAssertTrue(last.waitForExistence(timeout: 10))
+    app.swipeDown()
+    app.swipeDown()
+    let first = app.buttons["search-result-songs-search-songs-1"]
+    XCTAssertTrue(first.exists)
+    first.tap()
+    XCTAssertTrue(app.buttons["show-queue"].waitForExistence(timeout: 10))
+    app.buttons["show-queue"].tap()
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "8 brani")
+    XCTAssertEqual(app.buttons["queue-search-songs-1"].value as? String, "Brano corrente")
+  }
+
+  @MainActor
+  func testFullSearchAlbumArtistAndPlaylistNavigation() {
+    let app = XCUIApplication()
+    startFullSearch(app)
+    let filters = app.scrollViews["search-filters"]
+    let albumFilter = app.buttons["search-filter-albums"]
+    if !albumFilter.isHittable { filters.swipeLeft() }
+    albumFilter.tap()
+    let album = app.buttons["search-result-albums-MPREsearch-1"]
+    XCTAssertTrue(album.waitForExistence(timeout: 10))
+    album.tap()
+    XCTAssertTrue(app.navigationBars["Prova · Album 1"].waitForExistence(timeout: 10))
+    app.navigationBars.buttons.firstMatch.tap()
+    let artistFilter = app.buttons["search-filter-artists"]
+    if !artistFilter.isHittable { filters.swipeRight() }
+    artistFilter.tap()
+    let artist = app.buttons["search-result-artists-UCsearch-1"]
+    XCTAssertTrue(artist.waitForExistence(timeout: 10))
+    artist.tap()
+    XCTAssertTrue(app.navigationBars["Prova · Artisti 1"].waitForExistence(timeout: 10))
+    app.navigationBars.buttons.firstMatch.tap()
+    let playlistFilter = app.buttons["search-filter-playlists"]
+    for _ in 0..<3 where !playlistFilter.isHittable { filters.swipeLeft() }
+    playlistFilter.tap()
+    let playlist = app.buttons["search-result-playlists-VLsearch-playlists-1"]
+    XCTAssertTrue(playlist.waitForExistence(timeout: 10))
+    playlist.tap()
+    XCTAssertTrue(app.buttons["playlist-track-a"].waitForExistence(timeout: 10))
+  }
+
+  @MainActor
+  func testFullSearchPartialFailureAndDeletableHistory() {
+    let app = XCUIApplication()
+    startFullSearch(app, fail: true)
+    app.buttons["search-category-menu"].tap()
+    app.buttons["search-menu-podcasts"].tap()
+    XCTAssertTrue(app.buttons["search-retry-podcasts"].waitForExistence(timeout: 10))
+    app.buttons["search-category-menu"].tap()
+    app.buttons["search-menu-songs"].tap()
+    XCTAssertTrue(app.buttons["search-result-songs-search-songs-1"].waitForExistence(timeout: 10))
+    let field = app.searchFields.firstMatch
+    field.tap()
+    let clear = field.buttons.firstMatch
+    if clear.exists {
+      clear.tap()
+    } else {
+      field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 5))
+    }
+    XCTAssertTrue(app.buttons["search-history-Prova"].waitForExistence(timeout: 10))
+    app.buttons["search-clear-history"].tap()
+    XCTAssertFalse(app.buttons["search-history-Prova"].exists)
+  }
+
+  @MainActor
   func testRadioReplacesQueueOnlyAfterServerResponse() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-playback-order", "--test-remote-library", "--test-radio"]
@@ -278,13 +366,16 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertTrue(field.waitForExistence(timeout: 10))
     field.tap()
     field.typeText("Old and Wise The Alan Parsons Project\n")
+    app.buttons["search-filter-songs"].tap()
   }
 
   @MainActor
   private func findReferenceSong(in app: XCUIApplication) -> XCUIElement {
-    let song = app.buttons["song-ZmzqqdVFw8g"]
-    let first = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "song-"))
-      .firstMatch
+    let song = app.buttons["search-result-songs-ZmzqqdVFw8g"]
+    let first = app.buttons.matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "search-result-songs-")
+    )
+    .firstMatch
     XCTAssertTrue(first.waitForExistence(timeout: 30))
     // YouTube may reorder or replace the recording in live search results.
     return song.exists ? song : first
@@ -417,8 +508,10 @@ final class PrototypeUITests: XCTestCase {
     let app = XCUIApplication()
     app.launch()
     searchReferenceSong(in: app)
-    let song = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "song-"))
-      .firstMatch
+    let song = app.buttons.matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "search-result-songs-")
+    )
+    .firstMatch
     XCTAssertTrue(song.waitForExistence(timeout: 30))
     song.tap()
     let toggle = app.buttons["playback-toggle"]

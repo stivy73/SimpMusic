@@ -78,26 +78,7 @@ struct RootView: View {
         Label("Home", systemImage: "house.fill")
       }.tag(0)
       NavigationStack {
-        Group {
-          if model.searching {
-            ProgressView("Ricerca su YouTube Music…").frame(
-              maxWidth: .infinity, maxHeight: .infinity)
-          } else if let error = model.searchError {
-            ContentUnavailableView {
-              Label("Ricerca non riuscita", systemImage: "wifi.exclamationmark")
-            } description: {
-              Text(error)
-            } actions: {
-              Button("Riprova") { model.search() }
-            }
-          } else if model.songs.isEmpty {
-            ContentUnavailableView.search(text: model.query)
-          } else {
-            SongList(songs: model.songs)
-          }
-        }.navigationTitle("Cerca")
-          .searchable(text: $model.query, prompt: "Brano o artista")
-          .onSubmit(of: .search) { model.search() }
+        MusicSearchScreen(search: model.searchResults)
       }.modifier(LegacyMiniPlayerInset()).tabItem {
         Label("Cerca", systemImage: "magnifyingglass")
       }.tag(1)

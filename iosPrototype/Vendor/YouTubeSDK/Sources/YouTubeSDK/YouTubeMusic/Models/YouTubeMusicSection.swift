@@ -86,7 +86,9 @@ public struct YouTubeMusicSection: Identifiable, Sendable {
         .first { $0.count == 4 && Int($0) != nil }
       return YouTubeMusicAlbum(from: normalized).map(YouTubeMusicItem.album)
     }
-    if type == "MUSIC_PAGE_TYPE_PLAYLIST" || browseId.hasPrefix("VL") {
+    if type == "MUSIC_PAGE_TYPE_PLAYLIST" || type == "MUSIC_PAGE_TYPE_PODCAST_SHOW"
+      || browseId.hasPrefix("VL") || browseId.hasPrefix("MPSP")
+    {
       return YouTubeMusicPlaylist(from: normalized).map(YouTubeMusicItem.playlist)
     }
     if type == "MUSIC_PAGE_TYPE_ARTIST" || browseId.hasPrefix("UC") {
