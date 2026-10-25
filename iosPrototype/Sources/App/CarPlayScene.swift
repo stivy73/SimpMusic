@@ -2,9 +2,31 @@
   import CarPlay
   import Combine
   import UIKit
+  @preconcurrency import Intents
 
   @MainActor
   final class CarPlayAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
+      if intent is INPlayMediaIntent || intent is INSearchForMediaIntent {
+        return CarPlayMediaIntentHandler()
+      }
+      return nil
+    }
+
+    func application(
+      _ application: UIApplication, handle intent: INIntent,
+      completionHandler: @escaping (INIntentResponse) -> Void
+    ) {
+      Task { @MainActor in
+        let handler = CarPlayMediaIntentHandler()
+        if let play = intent as? INPlayMediaIntent {
+          completionHandler(await handler.handle(intent: play))
+        } else if let search = intent as? INSearchForMediaIntent {
+          completionHandler(await handler.handle(intent: search))
+        }
+      }
+    }
+
     func application(
       _ application: UIApplication,
       configurationForConnecting connectingSceneSession: UISceneSession,
@@ -74,7 +96,8 @@
     private var searchRevision = UUID()
     private var searchItems: [DiscoveryItem] = []
     private var searchRenderedState = ""
-    private var searchMessage = "Cerca un brano, artista o album dal telefono"
+    private var searchMessage = "Chiedi a Siri una canzone, un artista o un album in NoteNarrate"
+    private var voiceQueryID: UUID?
 
     func templateApplicationScene(
       _ templateApplicationScene: CPTemplateApplicationScene,
@@ -87,6 +110,8 @@
       albums.tabImage = UIImage(systemName: "square.stack.fill")
       favorites.tabTitle = "Preferiti"
       favorites.tabImage = UIImage(systemName: "heart.fill")
+      search.assistantCellConfiguration = CPAssistantCellConfiguration(
+        position: .top, visibility: .always, assistantAction: .playMedia)
       search.tabTitle = "Cerca"
       search.tabImage = UIImage(systemName: "magnifyingglass")
       interfaceController.setRootTemplate(
@@ -139,6 +164,7 @@
         searchRevision = UUID()
         searchItems = []
         searchQuery = ""
+        voiceQueryID = nil
         grids.removeAllObjects()
         controller?.popToRootTemplate(animated: false, completion: { _, _ in })
       }
@@ -221,8 +247,11 @@
           }, at: 0)
       }
       setTiles(preferred, in: favorites)
-      let query = app.music.lastSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !query.isEmpty && query != searchQuery { runSearch(query, filter: searchFilter) }
+      if let voice = app.music.carPlayVoiceQuery, voice.id != voiceQueryID {
+        voiceQueryID = voice.id
+        runSearch(voice.query, filter: voice.filter)
+        (controller?.rootTemplate as? CPTabBarTemplate)?.select(search)
+      }
       renderSearch()
       configureNowPlaying()
     }
@@ -590,7 +619,8 @@
     private func configureNowPlaying() {
       let active = app.music.busyMeaning || app.music.reading
       let enabled = app.music.current != nil && !app.music.player.isLoading
-      let state = "\(enabled):\(active):\(app.music.current?.id ?? "")"
+      let state =
+        "\(enabled):\(active):\(app.music.current?.id ?? ""):\(app.music.shuffleEnabled):\(app.music.repeatMode.rawValue)"
       guard meaningButtonState != state else { return }
       meaningButtonState = state
       let light = CPNowPlayingImageButton(
@@ -614,7 +644,19 @@
       }
       album.isEnabled = app.music.current != nil && !active
       artist.isEnabled = album.isEnabled
-      CPNowPlayingTemplate.shared.updateNowPlayingButtons([light, album, artist])
+      let shuffle = CPNowPlayingShuffleButton { [weak self] _ in
+        guard let music = self?.app.music else { return }
+        music.setShuffle(!music.shuffleEnabled)
+      }
+      let repeatButton = CPNowPlayingRepeatButton { [weak self] _ in
+        guard let music = self?.app.music else { return }
+        music.repeatMode = music.repeatMode.next
+      }
+      shuffle.isEnabled = enabled && !active
+      repeatButton.isEnabled = shuffle.isEnabled
+      CPNowPlayingTemplate.shared.updateNowPlayingButtons([
+        light, album, artist, shuffle, repeatButton,
+      ])
     }
 
     private func explain() {
@@ -690,6 +732,125 @@
         music.narrationDiagnostic = "CarPlay: presentazione rifiutata"
       }
       return true
+    }
+  }
+
+  /// Siri resolves music on the vehicle and launches playback in the app's background session.
+  @MainActor
+  final class CarPlayMediaIntentHandler: NSObject, @preconcurrency INPlayMediaIntentHandling,
+    @preconcurrency INSearchForMediaIntentHandling
+  {
+    private let app = AppleAppSession.shared
+
+    private func request(_ search: INMediaSearch?, fallback: String? = nil) -> CarPlayVoiceQuery? {
+      let filter: MusicSearchFilter =
+        search?.mediaType == .album
+        ? .albums
+        : search?.mediaType == .artist ? .artists : .songs
+      var parts: [String] = []
+      for value in [search?.mediaName, search?.albumName, search?.artistName, fallback] {
+        if let value, !value.isEmpty, !parts.contains(value) { parts.append(value) }
+      }
+      let query = parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !query.isEmpty else { return nil }
+      return CarPlayVoiceQuery(query: query, filter: filter)
+    }
+
+    private func mediaItem(_ item: DiscoveryItem) -> INMediaItem {
+      INMediaItem(
+        identifier: VoiceMediaIdentifier(kind: item.kind, mediaID: item.mediaId).encoded,
+        title: item.title,
+        type: item.kind == .album ? .album : item.kind == .artist ? .artist : .song,
+        artwork: item.artwork.flatMap { INImage(url: $0) }, artist: item.subtitle)
+    }
+
+    func resolveMediaItems(for intent: INPlayMediaIntent) async
+      -> [INPlayMediaMediaItemResolutionResult]
+    {
+      if let items = intent.mediaItems, !items.isEmpty,
+        items.allSatisfy({ VoiceMediaIdentifier(encoded: $0.identifier ?? "") != nil })
+      {
+        return INPlayMediaMediaItemResolutionResult.successes(with: items)
+      }
+      guard let voice = request(intent.mediaSearch, fallback: intent.mediaItems?.first?.title)
+      else {
+        return [.needsValue()]
+      }
+      app.music.carPlayVoiceQuery = voice
+      do {
+        let results = try await HomeDiscovery(session: app.library.session).search(
+          query: voice.query, filter: voice.filter)
+        let items = results.prefix(5).map(mediaItem)
+        if items.count == 1 { return [.success(with: items[0])] }
+        return items.isEmpty ? [.unsupported()] : [.disambiguation(with: items)]
+      } catch { return [.unsupported(forReason: .serviceUnavailable)] }
+    }
+
+    func handle(intent: INSearchForMediaIntent) async -> INSearchForMediaIntentResponse {
+      guard let voice = request(intent.mediaSearch, fallback: intent.mediaItems?.first?.title)
+      else {
+        return INSearchForMediaIntentResponse(code: .failure, userActivity: nil)
+      }
+      app.music.carPlayVoiceQuery = voice
+      do {
+        let results = try await HomeDiscovery(session: app.library.session).search(
+          query: voice.query, filter: voice.filter)
+        let response = INSearchForMediaIntentResponse(code: .success, userActivity: nil)
+        response.mediaItems = results.prefix(20).map(mediaItem)
+        return response
+      } catch { return INSearchForMediaIntentResponse(code: .failure, userActivity: nil) }
+    }
+
+    func handle(intent: INPlayMediaIntent) async -> INPlayMediaIntentResponse {
+      if intent.resumePlayback == true, app.music.current != nil {
+        app.music.player.play()
+        return INPlayMediaIntentResponse(code: .success, userActivity: nil)
+      }
+      let voice = request(intent.mediaSearch, fallback: intent.mediaItems?.first?.title)
+      if let voice { app.music.carPlayVoiceQuery = voice }
+      do {
+        let discovery = HomeDiscovery(session: app.library.session)
+        let selected = intent.mediaItems?.first
+        let identifier = selected?.identifier.flatMap { VoiceMediaIdentifier(encoded: $0) }
+        var songs: [Song] = []
+        if let identifier, identifier.kind == .song {
+          songs = [
+            Song(
+              id: identifier.mediaID, title: selected?.title ?? "Brano",
+              artist: selected?.artist ?? "", artwork: nil)
+          ]
+        } else {
+          let item: DiscoveryItem?
+          if let identifier {
+            item = DiscoveryItem(
+              kind: identifier.kind, mediaId: identifier.mediaID,
+              title: selected?.title ?? "", subtitle: selected?.artist ?? "", artwork: nil)
+          } else if let voice {
+            item = try await discovery.search(query: voice.query, filter: voice.filter).first
+          } else {
+            item = nil
+          }
+          if let item, item.kind == .song {
+            songs = [Song(item)]
+          } else if let target = item?.target {
+            let page = try await discovery.page(target: target)
+            songs = page.shelves.flatMap(\.items).filter { $0.kind == .song }.map(Song.init)
+          }
+        }
+        guard let first = songs.first else {
+          return INPlayMediaIntentResponse(code: .failure, userActivity: nil)
+        }
+        if let shuffled = intent.playShuffled { app.music.setShuffle(shuffled) }
+        switch intent.playbackRepeatMode {
+        case .one: app.music.repeatMode = .one
+        case .all: app.music.repeatMode = .all
+        case .none: app.music.repeatMode = .off
+        default: break
+        }
+        app.music.play(first, queue: songs)
+        app.music.showPlayer = false
+        return INPlayMediaIntentResponse(code: .success, userActivity: nil)
+      } catch { return INPlayMediaIntentResponse(code: .failure, userActivity: nil) }
     }
   }
 #endif

@@ -1,3 +1,40 @@
+# NoteNarrate iOS 0.8.0 (24)
+
+Library now includes remote saved songs, account likes, library playlists and
+subscribed artists alongside saved albums. Collections follow every continuation,
+deduplicate media IDs and reject repeated tokens or unrecognized media instead
+of treating a partial result as a complete library. Account changes clear all
+remote state and reject late responses, including reconnecting to the same account.
+
+The player thumbs-up button and song context menus now rate songs on the confirmed
+YouTube Music session, using the same authenticated like/like and like/removelike
+endpoints as Android. UI changes follow server success; failed writes preserve
+existing state and show an actionable error. Local favorites remain an independent
+collection, accessible from the player menu; no local favorites are uploaded.
+Saved library songs and liked songs also remain separate YouTube collections.
+
+Validation: 114 core tests and four simulator UI tests passed. Apple signing,
+CarPlay Audio and Siri profiles/signatures verified; see VERIFICATION.md. Network tests
+validate delegated account/auth headers, correct mutation endpoints and rejected
+HTTP-200 responses. UI tests use isolated debug fixtures, not a live Google account.
+A real-account synchronization test on the user's Duo is still required.
+No changes to music CDN playback or narration routing in this build.
+Owned playlists support private creation, renaming, deletion with confirmation,
+adding/removing songs and reordering exact playlist occurrences. Read-only lists
+cannot be edited. Duplicate songs retain their setVideoId across pagination.
+Shuffle and off/all/one repeat share one index-based sequence with the player,
+queue, CarPlay and system remote commands. Manual Next differs from natural end
+when repeating one song.
+
+CarPlay search now originates through Siri media intents and an assistant cell,
+with a background Intents extension and typed song/artist/album results. It no
+longer depends on the phone's last query. The app keeps its Audio entitlement;
+CPSearchTemplate is Navigation-only and no ungranted entitlement is spoofed.
+Siri recognition, routing and live Google playlist writes require physical-device
+validation. Follow/unfollow and further Android parity work are separate.
+
+---
+
 # NoteNarrate iOS 0.7.2 (23)
 
 CarPlay keeps the current song playing while lyrics, interpretation and cloud

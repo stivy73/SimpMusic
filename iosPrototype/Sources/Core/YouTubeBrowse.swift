@@ -38,6 +38,75 @@ public final class YouTubeBrowse: Sendable {
     try await send(endpoint: "search", fields: ["query": query, "params": filter.params])
   }
 
+  /// The same authenticated rate endpoints used by the Android fork. Never send anonymously.
+  public func setLiked(videoID: String, liked: Bool) async throws {
+    guard session != nil else { throw LibraryError.authentication }
+    guard !videoID.isEmpty else { throw LibraryError.malformed }
+    let data = try await send(
+      endpoint: liked ? "like/like" : "like/removelike", fields: ["target": ["videoId": videoID]])
+    let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+    if let status = root["status"] as? String, status != "STATUS_SUCCEEDED" {
+      throw LibraryError.rejected
+    }
+  }
+
+  public func playlist(id: String) async throws -> RemotePlaylist {
+    guard session != nil else { throw LibraryError.authentication }
+    let browseID = id.hasPrefix("VL") ? id : "VL" + id
+    return try await RemotePlaylist.completed { token in
+      try await self.request(browseId: browseID, token: token)
+    }
+  }
+
+  public func canEditPlaylist(id: String) async throws -> Bool {
+    guard session != nil else { throw LibraryError.authentication }
+    let data = try await request(browseId: id.hasPrefix("VL") ? id : "VL" + id)
+    return try await YouTubeMusicClient().decodeEditablePlaylistPage(from: data).editable
+  }
+
+  private func confirmedWrite(endpoint: String, fields: [String: Any]) async throws -> [String: Any]
+  {
+    guard session != nil else { throw LibraryError.authentication }
+    let data = try await send(endpoint: endpoint, fields: fields)
+    guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+      root["error"] == nil
+    else { throw LibraryError.rejected }
+    if let status = root["status"] as? String, status != "STATUS_SUCCEEDED" {
+      throw LibraryError.rejected
+    }
+    return root
+  }
+
+  public func createPlaylist(title: String, videoIDs: [String] = []) async throws -> String {
+    let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !title.isEmpty, !title.contains("<"), !title.contains(">") else {
+      throw LibraryError.malformed
+    }
+    let root = try await confirmedWrite(
+      endpoint: "playlist/create",
+      fields: [
+        "title": title, "privacyStatus": "PRIVATE", "videoIds": videoIDs,
+      ])
+    guard let id = root["playlistId"] as? String, !id.isEmpty else { throw LibraryError.rejected }
+    return id
+  }
+
+  public func editPlaylist(id: String, action: PlaylistAction) async throws {
+    let id = id.hasPrefix("VL") ? String(id.dropFirst(2)) : id
+    guard !id.isEmpty, id != "LM" else { throw LibraryError.malformed }
+    _ = try await confirmedWrite(
+      endpoint: "browse/edit_playlist",
+      fields: [
+        "playlistId": id, "actions": [action.fields],
+      ])
+  }
+
+  public func deletePlaylist(id: String) async throws {
+    let id = id.hasPrefix("VL") ? String(id.dropFirst(2)) : id
+    guard !id.isEmpty, id != "LM" else { throw LibraryError.malformed }
+    _ = try await confirmedWrite(endpoint: "playlist/delete", fields: ["playlistId": id])
+  }
+
   /// Reuse the confirmed account identity for media, not just the library.
   public func player(videoID: String) async throws -> YouTubeVideo {
     let data = try await send(
@@ -91,6 +160,7 @@ public final class YouTubeBrowse: Sendable {
     }
     guard status == 200 else { throw LibraryError.http(status) }
     let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+    guard root["error"] == nil else { throw LibraryError.rejected }
     let responseContext = root["responseContext"] as? [String: Any]
     if let id = responseContext?["visitorData"] as? String { visitor.set(id) }
     if session != nil {

@@ -4,6 +4,42 @@ import YouTubeSDK
 
 extension LibraryModel {
   convenience init() {
+    #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-remote-library") {
+        self.init(
+          session: YouTubeSession(
+            cookies: "SAPISID=fixture", identity: "library-test", clientVersion: "test"),
+          save: { _ in },
+          fetch: { _ in
+            [
+              LibraryAlbum(
+                id: "MPREfixture", title: "Album di prova", artist: "Artista di prova", artwork: nil
+              )
+            ]
+          },
+          fetchCollection: { _, kind in
+            let id: String
+            let title: String
+            switch kind {
+            case .songs: (id, title) = ("saved-fixture", "Brano salvato di prova")
+            case .likes: (id, title) = ("liked-fixture", "Brano piaciuto di prova")
+            case .playlists: (id, title) = ("VLfixture", "Playlist di prova")
+            case .artists: (id, title) = ("UCfixture", "Artista seguito di prova")
+            }
+            return [
+              DiscoveryItem(
+                kind: kind.itemKind, mediaId: id, title: title, subtitle: "Account di prova",
+                artwork: nil)
+            ]
+          },
+          rateSong: { _, _, _ in
+            if ProcessInfo.processInfo.arguments.contains("--test-like-failure") {
+              throw LibraryError.http(403)
+            }
+          })
+        return
+      }
+    #endif
     let stored = SecureStore.read("youtube-session").data(using: .utf8)
       .flatMap { try? JSONDecoder().decode(YouTubeSession.self, from: $0) }
     self.init(
@@ -16,91 +52,193 @@ extension LibraryModel {
   }
 }
 
+private enum LibrarySection: String, CaseIterable, Identifiable {
+  case albums = "Album"
+  case songs = "Brani salvati"
+  case likes = "Mi piace"
+  case playlists = "Playlist"
+  case artists = "Artisti seguiti"
+  case local = "Preferiti locali"
+  var id: String { rawValue }
+  var remote: RemoteLibraryKind? {
+    switch self {
+    case .songs: .songs
+    case .likes: .likes
+    case .playlists: .playlists
+    case .artists: .artists
+    default: nil
+    }
+  }
+}
+
 struct LibraryView: View {
   @EnvironmentObject var model: MusicModel
   @ObservedObject var library: LibraryModel
-  @State private var local = false
+  @State private var section = LibrarySection.albums
+  @State private var createPlaylist = false
   var body: some View {
-    GeometryReader { geometry in
-      VStack {
-        Picker("Raccolta", selection: $local) {
-          Text("Album YouTube Music").tag(false)
-          Text("Preferiti locali").tag(true)
-        }.pickerStyle(.segmented).padding(.horizontal)
-        if local {
-          if model.favorites.isEmpty {
-            ContentUnavailableView("Nessun preferito locale", systemImage: "heart")
-          } else {
-            SongList(songs: model.favorites)
+    VStack(spacing: 0) {
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          ForEach(LibrarySection.allCases) { value in
+            Button {
+              section = value
+            } label: {
+              Text(value.rawValue).font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .foregroundStyle(section == value ? Color.black : Color.primary)
+                .background(section == value ? Color.cyan : Color.gray.opacity(0.2), in: Capsule())
+            }.buttonStyle(.plain).accessibilityIdentifier("library-section-" + value.name)
+              .accessibilityAddTraits(section == value ? .isSelected : [])
           }
-        } else if library.session == nil {
-          ContentUnavailableView {
-            Label("La tua libreria YouTube Music", systemImage: "person.crop.circle")
-          } description: {
-            Text("Accedi per visualizzare gli album salvati nel tuo account.")
-          } actions: {
-            Button("Accedi a YouTube Music") { library.showLogin = true }.buttonStyle(
-              .borderedProminent)
-          }
-        } else if library.loading {
-          ProgressView("Carico tutti gli album…").frame(maxHeight: .infinity)
-        } else if let error = library.error {
-          ContentUnavailableView {
-            Label("Libreria non disponibile", systemImage: "exclamationmark.triangle")
-          } description: {
-            Text(error)
-          } actions: {
-            Button("Riprova") { library.refresh() }
-            Button("Accedi nuovamente") { library.showLogin = true }
-          }
+        }.padding()
+      }
+      if section == .local {
+        if model.favorites.isEmpty {
+          ContentUnavailableView("Nessun preferito locale", systemImage: "heart")
         } else {
-          ScrollView {
-            if library.albums.isEmpty {
-              ContentUnavailableView(
-                "Nessun album salvato", systemImage: "opticaldisc",
-                description: Text("Gli album salvati in YouTube Music compariranno qui."))
-            } else {
-              Text("\(library.albums.count) album")
-                .font(.caption).foregroundStyle(.secondary)
-                .accessibilityIdentifier("library-album-count")
-              LazyVGrid(columns: albumColumns(width: geometry.size.width), spacing: 22) {
-                ForEach(library.albums) { album in
-                  NavigationLink {
-                    AlbumView(album: album, identity: library.session?.identity)
-                      .id(library.session?.identity)
-                  } label: {
-                    VStack(alignment: .leading, spacing: 8) {
-                      Artwork(url: album.artwork).aspectRatio(1, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                      Text(album.title).fontWeight(.semibold).lineLimit(2)
-                      Text(album.artist).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    }.foregroundStyle(.primary)
-                  }.accessibilityIdentifier("album-\(album.id)")
-                }
-              }.padding()
-            }
-          }.refreshable { await library.reload() }
+          SongList(songs: model.favorites)
         }
+      } else if library.session == nil {
+        ContentUnavailableView {
+          Label("La tua libreria YouTube Music", systemImage: "person.crop.circle")
+        } description: {
+          Text("Accedi per sincronizzare album, brani, Mi piace, playlist e artisti seguiti.")
+        } actions: {
+          Button("Accedi a YouTube Music") { library.showLogin = true }.buttonStyle(
+            .borderedProminent)
+        }
+      } else if let remote = section.remote {
+        RemoteLibraryView(library: library, kind: remote).id(remote)
+      } else {
+        albumContent
       }
     }.navigationTitle("Libreria")
+      .sheet(isPresented: $createPlaylist) { CreatePlaylistSheet() }
       .toolbar {
-        if library.session != nil {
+        if library.session != nil && section == .playlists {
           Button {
-            library.refresh()
+            createPlaylist = true
+          } label: {
+            Label("Nuova playlist", systemImage: "plus")
+          }
+        }
+        if library.session != nil && section != .local {
+          Button {
+            if let remote = section.remote {
+              Task { await library.load(remote, force: true) }
+            } else {
+              library.refresh()
+            }
           } label: {
             Label("Aggiorna", systemImage: "arrow.clockwise")
           }
-          .disabled(library.loading)
+          .disabled(section.remote.map { library.state($0).loading } ?? library.loading)
         }
       }
-      .task { if library.session != nil && library.albums.isEmpty { library.refresh() } }
-  }
-  private func albumColumns(width: CGFloat) -> [GridItem] {
-    let possible = max(1, min(6, Int(max(0, width - 32) / 161)))
-    let count = possible > 2 && possible % 2 != 0 ? possible - 1 : possible
-    return Array(repeating: GridItem(.flexible(), spacing: 16), count: count)
+      .task(id: library.session) {
+        if library.session != nil && library.albums.isEmpty && !library.loading {
+          library.refresh()
+        }
+      }
   }
 
+  @ViewBuilder private var albumContent: some View {
+    if library.loading {
+      ProgressView("Carico tutti gli album…").frame(maxHeight: .infinity)
+    } else if let error = library.error {
+      ContentUnavailableView {
+        Label("Libreria non disponibile", systemImage: "exclamationmark.triangle")
+      } description: {
+        Text(error)
+      } actions: {
+        Button("Riprova") { library.refresh() }
+        Button("Accedi nuovamente") { library.showLogin = true }
+      }
+    } else {
+      ScrollView {
+        if library.albums.isEmpty {
+          ContentUnavailableView("Nessun album salvato", systemImage: "opticaldisc")
+        } else {
+          Text("\(library.albums.count) album").font(.caption).foregroundStyle(.secondary)
+            .accessibilityIdentifier("library-album-count")
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 16)], spacing: 22) {
+            ForEach(library.albums) { album in
+              NavigationLink {
+                AlbumView(album: album, identity: library.session?.identity)
+                  .id(library.session?.identity)
+              } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                  Artwork(url: album.artwork).aspectRatio(1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                  Text(album.title).fontWeight(.semibold).lineLimit(2)
+                  Text(album.artist).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }.foregroundStyle(.primary)
+              }.accessibilityIdentifier("album-\(album.id)")
+            }
+          }.padding()
+        }
+      }.refreshable { await library.reload() }
+    }
+  }
+}
+
+extension LibrarySection {
+  fileprivate var name: String { remote?.rawValue ?? (self == .albums ? "albums" : "local") }
+}
+
+private struct RemoteLibraryView: View {
+  @ObservedObject var library: LibraryModel
+  let kind: RemoteLibraryKind
+  private var state: RemoteLibraryState { library.state(kind) }
+  var body: some View {
+    VStack(spacing: 12) {
+      if let error = state.error {
+        VStack(spacing: 8) {
+          Text(error).font(.callout).foregroundStyle(.orange)
+          Button("Riprova") { Task { await library.load(kind, force: true) } }
+          Button("Accedi nuovamente") { library.showLogin = true }
+        }.padding()
+      }
+      if state.loading {
+        ProgressView("Sincronizzo \(kind.title.lowercased())…")
+      }
+      if state.loaded {
+        Text("\(state.items.count) · YouTube Music").font(.caption).foregroundStyle(.secondary)
+          .accessibilityIdentifier("library-remote-count")
+      }
+      if state.items.isEmpty && state.loaded && !state.loading && state.error == nil {
+        ContentUnavailableView("Nessun elemento nella raccolta", systemImage: "music.note.list")
+      } else if kind == .songs || kind == .likes {
+        SongList(songs: state.items.map(Song.init))
+      } else {
+        ScrollView {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 16)], spacing: 22) {
+            ForEach(state.items) { item in
+              if let target = item.target {
+                NavigationLink {
+                  if kind == .playlists {
+                    RemotePlaylistView(playlist: item)
+                  } else {
+                    HomeBrowseView(title: item.title, target: target)
+                  }
+                } label: {
+                  VStack(alignment: .leading, spacing: 8) {
+                    Artwork(url: item.artwork).aspectRatio(1, contentMode: .fit)
+                      .clipShape(RoundedRectangle(cornerRadius: kind == .artists ? 90 : 14))
+                    Text(item.title).fontWeight(.semibold).lineLimit(2)
+                    Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                  }.foregroundStyle(.primary)
+                }.accessibilityIdentifier("library-item-" + item.mediaId)
+              }
+            }
+          }.padding()
+        }
+      }
+    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+      .refreshable { await library.load(kind, force: true) }
+      .task(id: library.session) { await library.load(kind) }
+  }
 }
 
 struct AlbumView: View {

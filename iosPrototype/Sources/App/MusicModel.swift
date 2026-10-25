@@ -82,6 +82,12 @@ struct Song: Identifiable, Codable, Hashable {
     artwork = item.artwork
     durationSeconds = item.durationSeconds
   }
+  var discoveryItem: DiscoveryItem {
+    DiscoveryItem(
+      kind: .song, mediaId: id, title: title, subtitle: artist, artwork: artwork,
+      durationSeconds: durationSeconds, albumBrowseID: albumBrowseID,
+      artistBrowseID: artistBrowseID, albumTitle: albumTitle)
+  }
   func withAlbumArtwork(
     _ albumArtwork: URL?, artist albumArtist: String? = nil, albumID: String? = nil
   ) -> Song {
@@ -134,9 +140,13 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   @Published var query = ""
   @Published var songs: [Song] = []
   @Published var lastSearchQuery = ""
+  @Published var carPlayVoiceQuery: CarPlayVoiceQuery?
   @Published var searching = false
   @Published var searchError: String?
   @Published var queue: [Song] = []
+  @Published private(set) var sequence = PlaybackSequence()
+  @Published private(set) var shuffleEnabled = false
+  @Published var repeatMode = PlaybackRepeatMode.off
   @Published var lyrics = ""
   @Published var loadingLyrics = false
   @Published var lyricsError: String?
@@ -207,13 +217,21 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     #if os(iOS)
       synthesizer.usesApplicationAudioSession = true
     #endif
-    player.onEnded = { [weak self] in self?.nextSong() }
+    player.onEnded = { [weak self] in self?.nextSong(automatic: true) }
     if let data = UserDefaults.standard.data(forKey: "favorites"),
       let stored = try? JSONDecoder().decode([Song].self, from: data)
     {
       favorites = stored
     }
     #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-playback-order") {
+        queue = (1...3).map {
+          Song(id: "order-\($0)", title: "Brano \($0)", artist: "Prova ordine", artwork: nil)
+        }
+        sequence.reset(count: queue.count, selected: 0, shuffle: false)
+        current = queue.first
+        showPlayer = true
+      }
       if ProcessInfo.processInfo.arguments.contains("--test-native-audio") {
         Task {
           play(
@@ -260,18 +278,35 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     }
   }
 
-  var queueIndex: Int? { queue.firstIndex { $0.id == current?.id } }
-  var hasPrevious: Bool { (queueIndex ?? 0) > 0 }
-  var hasNext: Bool { queueIndex.map { $0 + 1 < queue.count } ?? false }
+  var queueIndex: Int? { sequence.current }
+  var hasPrevious: Bool { sequence.previous(repeatMode: repeatMode) != nil }
+  var hasNext: Bool { sequence.next(repeatMode: repeatMode) != nil }
+  var orderedQueueIndices: [Int] { sequence.order }
+  func setShuffle(_ value: Bool) {
+    shuffleEnabled = value
+    sequence.setShuffled(value)
+  }
+  func playQueuePosition(_ index: Int) {
+    guard queue.indices.contains(index) else { return }
+    sequence.select(index)
+    play(queue[index])
+  }
   func previousSong() {
     if player.elapsed > 3 {
       player.seek(to: .zero)
-    } else if let index = queueIndex, index > 0 {
-      play(queue[index - 1])
+    } else if let index = sequence.previous(repeatMode: repeatMode) {
+      playQueuePosition(index)
     }
   }
-  func nextSong() {
-    if let index = queueIndex, index + 1 < queue.count { play(queue[index + 1]) }
+  func nextSong(automatic: Bool = false) {
+    if let index = sequence.next(repeatMode: repeatMode, automatic: automatic) {
+      if automatic && index == sequence.current {
+        player.seek(to: .zero)
+        player.play()
+      } else {
+        playQueuePosition(index)
+      }
+    }
   }
 
   func loadLyrics(force: Bool = false) {
@@ -315,11 +350,19 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     if busyMeaning { meaningProgress = lyricsProgress }
   }
 
-  func play(_ song: Song, queue newQueue: [Song]? = nil) {
+  func play(_ song: Song, queue newQueue: [Song]? = nil, selectedIndex: Int? = nil) {
     if let newQueue {
       queue = newQueue
+      sequence.reset(
+        count: queue.count, selected: selectedIndex ?? queue.firstIndex { $0.id == song.id } ?? 0,
+        shuffle: shuffleEnabled)
     } else if !queue.contains(where: { $0.id == song.id }) {
       queue = [song]
+      sequence.reset(count: 1, selected: 0, shuffle: shuffleEnabled)
+    } else if let index = queue.firstIndex(where: { $0.id == song.id }),
+      sequence.current.flatMap({ queue.indices.contains($0) ? queue[$0].id : nil }) != song.id
+    {
+      sequence.select(index)
     }
     lyricsTask?.cancel()
     lyricsTask = nil

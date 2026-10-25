@@ -1,6 +1,103 @@
 import XCTest
 
 final class PrototypeUITests: XCTestCase {
+  @MainActor
+  func testRemoteLibrarySectionsAndAccountLikeStaySeparateFromLocalFavorites() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library"]
+    app.launch()
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
+    XCTAssertTrue(app.staticTexts["Album di prova"].waitForExistence(timeout: 10))
+    app.buttons["library-section-songs"].tap()
+    let saved = app.buttons["song-saved-fixture"]
+    XCTAssertTrue(saved.waitForExistence(timeout: 10))
+    saved.press(forDuration: 1.1)
+    app.buttons["Mi piace su YouTube Music"].tap()
+    app.buttons["library-section-likes"].tap()
+    XCTAssertTrue(app.buttons["song-saved-fixture"].waitForExistence(timeout: 10))
+    let liked = app.buttons["song-liked-fixture"]
+    XCTAssertTrue(liked.exists)
+    liked.press(forDuration: 1.1)
+    app.buttons["Rimuovi Mi piace da YouTube Music"].tap()
+    XCTAssertFalse(app.buttons["song-liked-fixture"].waitForExistence(timeout: 2))
+    let chips = app.scrollViews.firstMatch
+    chips.swipeLeft()
+    app.buttons["library-section-playlists"].tap()
+    XCTAssertTrue(app.staticTexts["Playlist di prova"].waitForExistence(timeout: 10))
+    app.buttons["library-section-artists"].tap()
+    XCTAssertTrue(app.staticTexts["Artista seguito di prova"].waitForExistence(timeout: 10))
+    app.buttons["library-section-local"].tap()
+    XCTAssertFalse(app.buttons["song-saved-fixture"].exists)
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Preferiti locali separati dai Mi piace remoti"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+  }
+
+  @MainActor
+  func testRejectedRemoteLikeShowsErrorAndKeepsLikedSong() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library", "--test-like-failure"]
+    app.launch()
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
+    app.buttons["library-section-likes"].tap()
+    let liked = app.buttons["song-liked-fixture"]
+    XCTAssertTrue(liked.waitForExistence(timeout: 10))
+    liked.press(forDuration: 1.1)
+    app.buttons["Rimuovi Mi piace da YouTube Music"].tap()
+    XCTAssertTrue(app.alerts["Sincronizzazione YouTube Music"].waitForExistence(timeout: 10))
+    app.alerts.buttons["OK"].tap()
+    XCTAssertTrue(liked.exists)
+  }
+  @MainActor
+  func testPlaylistRenameAndRemoveWithoutChangingLocalFavorites() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library"]
+    app.launch()
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
+    app.scrollViews.firstMatch.swipeLeft()
+    app.buttons["library-section-playlists"].tap()
+    app.buttons["library-item-VLfixture"].tap()
+    let track = app.buttons["playlist-track-b"]
+    XCTAssertTrue(track.waitForExistence(timeout: 10))
+    track.press(forDuration: 1.1)
+    app.buttons["Rimuovi dalla playlist"].tap()
+    XCTAssertFalse(track.waitForExistence(timeout: 2))
+    app.buttons["Opzioni playlist"].tap()
+    app.buttons["Rinomina"].tap()
+    let alert = app.alerts["Rinomina playlist"]
+    let field = alert.textFields.firstMatch
+    field.tap()
+    field.press(forDuration: 1.1)
+    if app.menuItems["Select All"].exists { app.menuItems["Select All"].tap() }
+    // Selecting and replacing via keyboard is stable on both simulator keyboard settings.
+    field.typeText(
+      String(repeating: XCUIKeyboardKey.delete.rawValue, count: 30) + "Playlist rinominata")
+    alert.buttons["Salva"].tap()
+    XCTAssertTrue(app.navigationBars["Playlist rinominata"].waitForExistence(timeout: 10))
+  }
+
+  @MainActor
+  func testShuffleRepeatAndQueueControls() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-remote-library"]
+    app.launch()
+    let shuffle = app.buttons["playback-shuffle"]
+    XCTAssertTrue(shuffle.waitForExistence(timeout: 10))
+    XCTAssertEqual(shuffle.value as? String, "Disattivata")
+    shuffle.tap()
+    XCTAssertEqual(shuffle.value as? String, "Attiva")
+    let repeatButton = app.buttons["playback-repeat"]
+    repeatButton.tap()
+    XCTAssertEqual(repeatButton.value as? String, "Ripeti coda")
+    repeatButton.tap()
+    XCTAssertEqual(repeatButton.value as? String, "Ripeti brano")
+    repeatButton.tap()
+    XCTAssertEqual(repeatButton.value as? String, "Ripetizione disattivata")
+    app.buttons["show-queue"].tap()
+    for id in 1...3 { XCTAssertTrue(app.buttons["queue-order-\(id)"].exists) }
+  }
+
   override func setUpWithError() throws {
     continueAfterFailure = false
     XCUIDevice.shared.orientation = .portrait

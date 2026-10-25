@@ -68,6 +68,22 @@ public struct DiscoveryItem: Identifiable, Hashable, Sendable {
   public var albumTitle: String? = nil
   public var target: BrowseTarget? { kind == .song ? nil : BrowseTarget(browseId: mediaId) }
 
+  public init(
+    kind: Kind, mediaId: String, title: String, subtitle: String, artwork: URL?,
+    durationSeconds: Double? = nil, albumBrowseID: String? = nil,
+    artistBrowseID: String? = nil, albumTitle: String? = nil
+  ) {
+    self.kind = kind
+    self.mediaId = mediaId
+    self.title = title
+    self.subtitle = subtitle
+    self.artwork = artwork
+    self.durationSeconds = durationSeconds
+    self.albumBrowseID = albumBrowseID
+    self.artistBrowseID = artistBrowseID
+    self.albumTitle = albumTitle
+  }
+
   init(_ item: YouTubeMusicItem) {
     switch item {
     case .song(let value):
@@ -165,6 +181,12 @@ public struct HomeDiscovery: Sendable {
     let data = try await browse.request(
       browseId: target.browseId, params: target.params, token: continuation)
     return try await HomePage(parser.decodeDiscoveryPage(from: data))
+  }
+  public func libraryPage(kind: RemoteLibraryKind, continuation: String? = nil) async throws
+    -> HomePage
+  {
+    let data = try await browse.request(browseId: kind.browseID, token: continuation)
+    return try await HomePage(parser.decodeDiscoveryPage(from: data, strictItems: true))
   }
 }
 

@@ -167,3 +167,15 @@ API player: https://developer.apple.com/documentation/avfaudio/avaudioplayernode
 Il CDN403 è riprodotto separatamente e non corretto. La diagnostica deve essere
 letta dalla build corrente nel veicolo: una prova Google sul Mac non dimostra né
 l'audio fisico CarPlay né che la sessione Premium del telefono sia riutilizzata.
+
+
+## Build 24: ricerca vocale autonoma, shuffle e ripetizione
+La scheda Cerca include la cella Siri per la categoria audio e un'estensione
+INPlayMediaIntent. L'app gestisce gli intenti in background, cerca canzoni,
+artisti e album e aggiorna i risultati sul display del veicolo. La query non
+proviene più dall'ultima ricerca sul telefono. È possibile cambiare filtro dalla
+lista CarPlay. La tastiera CPSearchTemplate è riservata da Apple all'entitlement
+Navigation: NoteNarrate mantiene Audio, senza forzature della categoria.
+Shuffle e ripetizione sono collegati allo stesso ordine della coda del telefono
+e a MPRemoteCommandCenter. Il collaudo Siri e dei comandi su auto reale resta
+necessario; i difetti audio della build23 sono fuori da questo intervento.

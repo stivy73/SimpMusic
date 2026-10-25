@@ -113,6 +113,16 @@ struct RootView: View {
     .sheet(isPresented: $library.showLogin) {
       YouTubeLoginScreen(library: library)
     }
+    .task(id: library.session) { await library.load(.likes) }
+    .alert(
+      "Sincronizzazione YouTube Music",
+      isPresented: Binding(
+        get: { library.syncError != nil }, set: { if !$0 { library.syncError = nil } })
+    ) {
+      Button("OK", role: .cancel) { library.syncError = nil }
+    } message: {
+      Text(library.syncError ?? "")
+    }
 
   }
 }
@@ -194,7 +204,9 @@ private struct MiniPlaybackButton: View {
 
 struct SongList: View {
   @EnvironmentObject var model: MusicModel
+  @EnvironmentObject var library: LibraryModel
   let songs: [Song]
+  @State private var playlistSong: Song?
   var body: some View {
     List(songs) { song in
       Button {
@@ -211,7 +223,52 @@ struct SongList: View {
           Image(systemName: "play.circle.fill").font(.title2)
         }.padding(.vertical, 5)
       }.accessibilityIdentifier("song-\(song.id)")
+        .contextMenu {
+          YouTubeLikeButton(song: song)
+          Button("Aggiungi a playlist") { playlistSong = song }
+          Button {
+            model.toggleFavorite(song)
+          } label: {
+            Label(
+              model.favorites.contains(where: { $0.id == song.id })
+                ? "Rimuovi dai preferiti locali" : "Salva nei preferiti locali",
+              systemImage: "heart")
+          }
+        }
     }.listStyle(.plain)
+      .sheet(item: $playlistSong) { song in AddToPlaylistSheet(song: song) }
+  }
+}
+
+/// Account likes and local favorites are independent. No optimistic success on network failure.
+struct YouTubeLikeButton: View {
+  @EnvironmentObject var library: LibraryModel
+  let song: Song
+  var iconOnly = false
+  private var pending: Bool { library.pendingLikes.contains(song.id) }
+  private var label: String {
+    if library.session == nil { return "Accedi per mettere Mi piace" }
+    if !library.state(.likes).loaded { return "Verifica Mi piace su YouTube Music" }
+    return library.isLiked(song.id)
+      ? "Rimuovi Mi piace da YouTube Music" : "Mi piace su YouTube Music"
+  }
+  var body: some View {
+    Button {
+      Task { await library.toggleLike(song.discoveryItem) }
+    } label: {
+      if pending {
+        ProgressView().accessibilityLabel("Sincronizzazione Mi piace")
+      } else if iconOnly {
+        Image(systemName: library.isLiked(song.id) ? "hand.thumbsup.fill" : "hand.thumbsup")
+          .frame(width: 44, height: 44)
+      } else {
+        Label(label, systemImage: library.isLiked(song.id) ? "hand.thumbsup.fill" : "hand.thumbsup")
+      }
+    }.disabled(pending || library.state(.likes).loading)
+      .accessibilityLabel(label).accessibilityIdentifier("youtube-like-" + song.id)
+      .accessibilityValue(
+        library.state(.likes).loaded
+          ? (library.isLiked(song.id) ? "Attivo" : "Non attivo") : "Da verificare")
   }
 }
 
@@ -225,6 +282,7 @@ struct PlayerScreen: View {
   @State private var expandedLyrics = false
   @State private var showQueue = false
   @State private var editLyrics = false
+  @State private var playlistSong: Song?
 
   var body: some View {
     NavigationStack {
@@ -281,11 +339,13 @@ struct PlayerScreen: View {
       ) {
         MeaningView().environmentObject(model).platformSheetSize()
       }
+      .sheet(item: $playlistSong) { song in AddToPlaylistSheet(song: song) }
       .sheet(isPresented: $showQueue) {
         NavigationStack {
-          List(model.queue) { song in
+          List(model.orderedQueueIndices, id: \.self) { index in
+            let song = model.queue[index]
             Button {
-              model.play(song)
+              model.playQueuePosition(index)
               showQueue = false
             } label: {
               HStack {
@@ -296,7 +356,7 @@ struct PlayerScreen: View {
                   Text(song.artist).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if model.current?.id == song.id { Image(systemName: "waveform") }
+                if model.queueIndex == index { Image(systemName: "waveform") }
               }
             }.accessibilityIdentifier("queue-\(song.id)")
           }.navigationTitle("Coda").toolbar { Button("Chiudi") { showQueue = false } }
@@ -432,16 +492,7 @@ struct PlayerScreen: View {
       }.frame(maxWidth: .infinity, alignment: .leading)
     }
     let actions = HStack(spacing: 12) {
-      Button {
-        model.toggleFavorite(song)
-      } label: {
-        Image(
-          systemName: model.favorites.contains(where: { $0.id == song.id })
-            ? "checkmark.circle.fill" : "plus.circle"
-        ).frame(width: 44, height: 44)
-      }.accessibilityLabel(
-        model.favorites.contains(where: { $0.id == song.id })
-          ? "Rimuovi dai preferiti locali" : "Salva nei preferiti locali")
+      YouTubeLikeButton(song: song, iconOnly: true)
       Button {
         #if DEBUG
           #if os(iOS)
@@ -479,6 +530,14 @@ struct PlayerScreen: View {
         }
       #endif
       Menu {
+        Button("Aggiungi a playlist") { playlistSong = song }
+        Button {
+          model.toggleFavorite(song)
+        } label: {
+          Label(
+            model.favorites.contains(where: { $0.id == song.id })
+              ? "Rimuovi dai preferiti locali" : "Salva nei preferiti locali", systemImage: "heart")
+        }
         ShareLink(item: URL(string: "https://music.youtube.com/watch?v=\(song.id)")!) {
           Label("Condividi brano", systemImage: "square.and.arrow.up")
         }
@@ -626,6 +685,16 @@ struct PlayerControls: View {
       }
       HStack {
         Button {
+          model.setShuffle(!model.shuffleEnabled)
+        } label: {
+          Image(systemName: "shuffle").foregroundStyle(model.shuffleEnabled ? Color.cyan : .white)
+            .frame(minWidth: 44, minHeight: 44)
+        }.accessibilityLabel("Riproduzione casuale").accessibilityValue(
+          model.shuffleEnabled ? "Attiva" : "Disattivata"
+        )
+        .accessibilityIdentifier("playback-shuffle")
+        Spacer()
+        Button {
           model.previousSong()
         } label: {
           Image(systemName: "backward.end.fill").frame(minWidth: 44, minHeight: 64)
@@ -649,6 +718,15 @@ struct PlayerControls: View {
         }
         .disabled(!model.hasNext).accessibilityLabel("Brano successivo").accessibilityIdentifier(
           "next-song")
+        Spacer()
+        Button {
+          model.repeatMode = model.repeatMode.next
+        } label: {
+          Image(systemName: model.repeatMode == .one ? "repeat.1" : "repeat")
+            .foregroundStyle(model.repeatMode == .off ? Color.white : .cyan)
+            .frame(minWidth: 44, minHeight: 44)
+        }.accessibilityLabel("Ripetizione").accessibilityValue(model.repeatMode.title)
+          .accessibilityIdentifier("playback-repeat")
       }.font(.title).buttonStyle(.plain).disabled(
         reading || player.isLoading)
       HStack(spacing: 14) {
@@ -779,7 +857,7 @@ struct SettingsView: View {
           }.navigationTitle("Licenze")
         }
         Text(
-          "Client Apple sperimentale. Ricerca e riproduzione dipendono dalle API interne di YouTube. Album remoti in sola lettura. Su iOS l’audio usa il player nativo anche in background; il video è opzionale. CarPlay richiede l’abilitazione audio da Apple."
+          "Client Apple sperimentale. Ricerca e riproduzione dipendono dalle API interne di YouTube. Raccolte remote e Mi piace sincronizzati con YouTube Music. Su iOS l’audio usa il player nativo anche in background; il video è opzionale. CarPlay richiede l’abilitazione audio da Apple."
         ).font(.caption)
       }
     }

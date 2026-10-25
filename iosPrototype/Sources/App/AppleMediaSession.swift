@@ -73,6 +73,19 @@
         Task { @MainActor in model?.previousSong() }
         return .success
       }
+      commands.changeShuffleModeCommand.addTarget { @Sendable [weak model] event in
+        guard let event = event as? MPChangeShuffleModeCommandEvent else { return .commandFailed }
+        let enabled = event.shuffleType != .off
+        Task { @MainActor in model?.setShuffle(enabled) }
+        return .success
+      }
+      commands.changeRepeatModeCommand.addTarget { @Sendable [weak model] event in
+        guard let event = event as? MPChangeRepeatModeCommandEvent else { return .commandFailed }
+        let mode: PlaybackRepeatMode =
+          event.repeatType == .one ? .one : event.repeatType == .all ? .all : .off
+        Task { @MainActor in model?.repeatMode = mode }
+        return .success
+      }
       commands.changePlaybackPositionCommand.addTarget { @Sendable [weak model] event in
         guard let value = (event as? MPChangePlaybackPositionCommandEvent)?.positionTime,
           value.isFinite, value >= 0
@@ -156,7 +169,13 @@
 
     private func update() {
       let commands = MPRemoteCommandCenter.shared()
+      commands.changeShuffleModeCommand.currentShuffleType = model.shuffleEnabled ? .items : .off
+      commands.changeRepeatModeCommand.currentRepeatType =
+        model.repeatMode == .one ? .one : model.repeatMode == .all ? .all : .off
+
       let available = model.current != nil
+      commands.changeShuffleModeCommand.isEnabled = available
+      commands.changeRepeatModeCommand.isEnabled = available
       commands.playCommand.isEnabled = available
       commands.pauseCommand.isEnabled = available
       commands.togglePlayPauseCommand.isEnabled = available

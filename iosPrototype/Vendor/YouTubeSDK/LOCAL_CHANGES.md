@@ -32,3 +32,10 @@ Architecture reference: SimpMusic Android HomeViewModel, HomeScreen,
 HomeRepositoryImpl, HomeParser and kotlinYtmusicScraper MoodAndGenres.
 Android mood parameters are checked by Scripts/CheckHomeFilters.py.
 Focused decoder, state and transport tests live in iosPrototype/Tests.
+
+Library additions (0.8.0): discovery decoding accepts grid continuations and
+reloadContinuationItemsCommand envelopes. Optional strictItems decoding rejects
+unknown library media instead of silently omitting it, with an explicit exception
+for YouTube's Create playlist tile. Home decoding keeps its existing default.
+Library endpoints and account writes remain in the app transport; no SDK secrets,
+raw authenticated responses or new external dependencies are introduced.

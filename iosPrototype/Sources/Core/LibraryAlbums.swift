@@ -35,12 +35,13 @@ public struct YouTubeSession: Codable, Sendable, Equatable {
 }
 
 public enum LibraryError: LocalizedError {
-  case authentication, malformed, repeatedContinuation
+  case authentication, malformed, repeatedContinuation, rejected
   case http(Int)
   case unsupported(String)
   public var errorDescription: String? {
     switch self {
     case .authentication: "La sessione YouTube Music è scaduta. Accedi nuovamente."
+    case .rejected: "YouTube Music non ha confermato la richiesta. Aggiorna e riprova."
     case .malformed:
       "Formato della libreria non riconosciuto. Nessuna lista incompleta è stata salvata."
     case .unsupported(let detail):

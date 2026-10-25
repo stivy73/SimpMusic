@@ -78,6 +78,75 @@ final class YouTubeBrowseTests: XCTestCase {
     return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
   }
 
+  func testLikeWritesUseAuthenticatedAccountAndCorrectEndpoints() async throws {
+    let (transport, id) = transport(body: "{\"status\":\"STATUS_SUCCEEDED\"}")
+    defer { BrowseURLProtocol.store.remove(id) }
+    let session = YouTubeSession(
+      cookies: "SAPISID=test", accountIndex: "2", delegatedID: "brand",
+      identity: "test", clientVersion: "test-version")
+    let browse = YouTubeBrowse(session: session, transport: transport)
+    try await browse.setLiked(videoID: "song", liked: true)
+    try await browse.setLiked(videoID: "song", liked: false)
+    let requests = BrowseURLProtocol.store.requests(id)
+    XCTAssertEqual(
+      requests.map { $0.url!.path }, ["/youtubei/v1/like/like", "/youtubei/v1/like/removelike"])
+    for request in requests {
+      XCTAssertNotNil(request.value(forHTTPHeaderField: "Authorization"))
+      XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-AuthUser"), "2")
+      XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-PageId"), "brand")
+      let json = try payload(request)
+      XCTAssertEqual((json["target"] as? [String: String])?["videoId"], "song")
+    }
+  }
+
+  func testAnonymousLikeNeverReachesNetwork() async {
+    let (transport, id) = transport()
+    defer { BrowseURLProtocol.store.remove(id) }
+    do {
+      try await YouTubeBrowse(session: nil, transport: transport).setLiked(
+        videoID: "s", liked: true)
+      XCTFail("Anonymous mutation allowed")
+    } catch {}
+    XCTAssertTrue(BrowseURLProtocol.store.requests(id).isEmpty)
+  }
+
+  func testFailedLikeResponsesAreRejectedEvenWithHTTP200() async {
+    for body in ["{\"error\":{\"code\":403}}", "{\"status\":\"STATUS_FAILED\"}"] {
+      let (transport, id) = transport(body: body)
+      defer { BrowseURLProtocol.store.remove(id) }
+      let account = YouTubeSession(cookies: "SAPISID=test", identity: "test", clientVersion: "test")
+      do {
+        try await YouTubeBrowse(session: account, transport: transport).setLiked(
+          videoID: "s", liked: true)
+        XCTFail("Rejected write was reported as success")
+      } catch {}
+    }
+  }
+
+  func testPlaylistCreationIsPrivateAndEditsPreserveOccurrenceIDs() async throws {
+    let (transport, id) = transport(
+      body: "{\"status\":\"STATUS_SUCCEEDED\",\"playlistId\":\"PLnew\"}")
+    defer { BrowseURLProtocol.store.remove(id) }
+    let session = YouTubeSession(cookies: "SAPISID=test", identity: "A", clientVersion: "test")
+    let browse = YouTubeBrowse(session: session, transport: transport)
+    let created = try await browse.createPlaylist(title: "My playlist", videoIDs: ["song"])
+    XCTAssertEqual(created, "PLnew")
+    try await browse.editPlaylist(
+      id: "VLPLnew", action: .remove(videoID: "song", setID: "occurrence"))
+    try await browse.editPlaylist(id: "VLPLnew", action: .move(setID: "occurrence", before: "next"))
+    try await browse.deletePlaylist(id: "VLPLnew")
+    let requests = BrowseURLProtocol.store.requests(id)
+    let create = try payload(requests[0])
+    XCTAssertEqual(create["privacyStatus"] as? String, "PRIVATE")
+    XCTAssertEqual(create["videoIds"] as? [String], ["song"])
+    let remove = try payload(requests[1])
+    XCTAssertEqual(remove["playlistId"] as? String, "PLnew")
+    let action = try XCTUnwrap((remove["actions"] as? [[String: String]])?.first)
+    XCTAssertEqual(action["setVideoId"], "occurrence")
+    XCTAssertEqual(action["removedVideoId"], "song")
+    XCTAssertEqual(requests[3].url?.path, "/youtubei/v1/playlist/delete")
+  }
+
   func testTypedSearchSendsQueryAndServerFilterOnSearchEndpoint() async throws {
     let (transport, id) = transport()
     defer { BrowseURLProtocol.store.remove(id) }

@@ -67,6 +67,28 @@ def verify(ipa):
                 entitlements.get("get-task-allow") is False,
                 f"Distribution entitlement invalid in {name}",
             )
+        voice = "INPlayMediaIntent" in info.get("INIntentsSupported", [])
+        if voice:
+            require(signed.get("com.apple.developer.siri") is True, "Siri missing from app signature")
+            require(profile["Entitlements"].get("com.apple.developer.siri") is True, "Siri missing from app profile")
+            extensions = list((app / "PlugIns").glob("*.appex"))
+            require(len(extensions) == 1, "Expected one Siri media extension")
+            extension = extensions[0]
+            extension_info = plistlib.loads((extension / "Info.plist").read_bytes())
+            require(extension_info["CFBundleIdentifier"] == bundle + ".MediaIntents", "Unexpected extension ID")
+            attributes = extension_info["NSExtension"]["NSExtensionAttributes"]
+            require("INPlayMediaIntent" in attributes["IntentsSupported"], "Media intent missing from extension")
+            require(extension_info["CFBundleVersion"] == info["CFBundleVersion"], "Extension build mismatch")
+            extension_profile = plistlib.loads(subprocess.check_output(
+                ["security", "cms", "-D", "-i", str(extension / "embedded.mobileprovision")]))
+            require(extension_profile["Entitlements"].get("com.apple.developer.siri") is True,
+                    "Siri missing from extension profile")
+            require(extension_profile["TeamIdentifier"] == [team], "Unexpected extension Team")
+            extension_sign = subprocess.run(["codesign", "-d", "--entitlements", ":-", str(extension)],
+                                            capture_output=True, check=True).stdout
+            extension_entitlements = plistlib.loads(extension_sign[extension_sign.find(b"<?xml"):])
+            require(extension_entitlements.get("com.apple.developer.siri") is True,
+                    "Siri missing from extension signature")
         scenes = info["UIApplicationSceneManifest"]["UISceneConfigurations"]
         carplay = scenes.get("CPTemplateApplicationSceneSessionRoleApplication", [])
         require(
@@ -86,6 +108,7 @@ def verify(ipa):
             "signature_carplay": True,
             "profile_carplay": True,
             "codesign_verified": True,
+            "siri_media_extension_verified": voice,
             "sha256": hashlib.sha256(ipa.read_bytes()).hexdigest(),
         }
 

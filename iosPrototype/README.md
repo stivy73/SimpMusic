@@ -1,7 +1,22 @@
-# NoteNarrate iOS — prototipo 0.6
+# NoteNarrate iOS — 0.8.0 (24)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
+
+
+La **0.8.0 (24)** estende la Libreria alle raccolte remote Brani salvati, Mi piace,
+Playlist e Artisti seguiti, oltre agli Album. Ogni raccolta legge tutte le pagine,
+senza duplicati; gli errori non trasformano una risposta parziale in una raccolta
+completa. Il pulsante pollice nel player e il menu contestuale dei brani aggiungono
+o rimuovono il Mi piace dall'account YouTube Music già collegato. Lo stato cambia
+solo dopo la conferma del server. I Preferiti locali restano separati, senza
+migrazioni o scritture automatiche su Google. Le proprie playlist possono essere create (private), rinominate, eliminate e
+modificate aggiungendo, rimuovendo e riordinando i brani. Le playlist altrui restano
+in sola lettura. Shuffle e ripetizione (spenta/coda/brano) sono condivisi fra
+player, coda, comandi di sistema e CarPlay. La ricerca CarPlay usa Siri direttamente
+in auto, con filtri Canzoni, Artisti e Album; non richiede una query sul telefono.
+La tastiera CPSearchTemplate richiede il diverso entitlement Navigation di Apple.
+La gestione segui/non seguire resta separata.
 
 La **0.4.3 (12)** introduce il nome NoteNarrate, la nuova icona e il mini-player persistente.
 Disponibile in TestFlight per il gruppo **Team interno** (stato Apple: Test in corso).
