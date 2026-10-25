@@ -15,7 +15,29 @@ final class ProbeTimings: NSObject, URLSessionTaskDelegate, @unchecked Sendable 
 
 do {
   let args = Array(CommandLine.arguments.dropFirst())
-  if args.first == "--radio" {
+  if args.first == "--lyrics-catalog" {
+    let items = try await HomeDiscovery(session: nil).search(
+      query: "Tracy Chapman Baby Can I Hold You", filter: .songs)
+    guard let song = items.first else { throw LyricsLookupError.unavailable }
+    let query = LyricsQuery(
+      videoID: song.mediaId, title: song.title, artist: song.subtitle,
+      durationSeconds: song.durationSeconds)
+    for provider in [LyricsProviderChoice.simpMusic, .better] {
+      do {
+        let result = try await ExtraLyrics().fetch(query, provider: provider)
+        print(
+          "Provider \(provider.rawValue): text \(result != nil), synchronized lines \(LyricsTimeline(lrc: result?.syncedText ?? "").lines.count)"
+        )
+      } catch { print("Provider \(provider.rawValue): unavailable (\(type(of: error)))") }
+    }
+    let entries = try await AutoEqCatalog().entries()
+    print("AutoEq: \(entries.count) profiles")
+    if let entry = entries.first(where: { $0.name == "Sennheiser HD 650" }) {
+      let profile = try await AutoEqCatalog().profile(entry)
+      print("AutoEq profile: \(profile.gains.count) bands, valid \(profile.valid)")
+    }
+    exit(0)
+  } else if args.first == "--radio" {
     let service = MusicRadio(session: nil)
     let endpoint = RadioEndpoint.song(args.count > 1 ? args[1] : "ZmzqqdVFw8g")
     let page = try await service.page(endpoint: endpoint)

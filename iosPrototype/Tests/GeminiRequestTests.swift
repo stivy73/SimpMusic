@@ -212,4 +212,38 @@ final class GeminiRequestTests: XCTestCase {
     } catch PrototypeError.http(403) {} catch { XCTFail("Unexpected error") }
   }
 
+  func testTranslationKeepsOriginalLineCountAndUsesExistingKey() async throws {
+    let service = service { request in
+      XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "dummy-test-key")
+      let body = try self.body(request)
+      let config = body["generationConfig"] as? [String: Any]
+      XCTAssertEqual(config?["responseMimeType"] as? String, "application/json")
+      return (
+        200,
+        try JSONSerialization.data(withJSONObject: [
+          "candidates": [["content": ["parts": [["text": "[\"Ciao\",\"\",\"Mondo\"]"]]]]]
+        ])
+      )
+    }
+    let rows = try await service.translateLyrics(
+      key: "dummy-test-key", model: "gemini-3.8-flash", lines: ["Hello", "", "World"],
+      language: "Italiano")
+    XCTAssertEqual(rows, ["Ciao", "", "Mondo"])
+  }
+  func testTranslationRejectsMissingOrExtraLines() async {
+    let service = service { _ in
+      (
+        200,
+        try JSONSerialization.data(withJSONObject: [
+          "candidates": [["content": ["parts": [["text": "[\"Invented extra row\"]"]]]]]
+        ])
+      )
+    }
+    do {
+      _ = try await service.translateLyrics(
+        key: "dummy-test-key", model: "gemini-3.8-flash", lines: ["A", "B"], language: "Italiano")
+      XCTFail("Mismatched translation accepted")
+    } catch {}
+  }
+
 }

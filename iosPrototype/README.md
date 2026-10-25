@@ -1,8 +1,46 @@
-# NoteNarrate iOS — 0.8.3 (27)
+# NoteNarrate iOS — 0.9.0 (28)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
+
+La **0.9.0 (28)** integra i punti 10–19 del porting. Candidata verificata in locale: 163 test core e sei scenari UI delle nuove funzioni,
+più una regressione della ricerca. Archivio Release e firma Apple, CarPlay Audio/Siri
+verificati nell’IPA; caricamento TestFlight interno in preparazione. L’assegnazione ai tester
+resta manuale. [Stato dettagliato ed evidenze](PORTING_PROGRESS.md).
+
+- **Download e offline:** Scarica dal menu del brano; raccolta in Libreria, disponibile
+  anche nei Preferiti CarPlay. Due trasferimenti in background, solo Wi-Fi opzionale,
+  limite di spazio e controllo del file completo prima di renderlo riproducibile.
+- **Testi sincronizzati:** righe LRC, parole Enhanced LRC/TTML quando presenti, scorrimento,
+  correzione del ritardo e tocco su un verso per cercare quella posizione.
+- **Timer:** 15/30/45/60/90 minuti o fine brano; spegne anche un’eventuale narrazione.
+- **Ripristino:** coda, singole occorrenze, ordine, shuffle, ripetizione e posizione
+  salvati localmente. Alla riapertura la sessione resta in pausa e non contatta il CDN.
+- **Qualità:** preferenze separate per AAC su Wi-Fi, rete mobile e download; il player
+  sceglie tra i bitrate realmente disponibili, con HLS come alternativa di streaming.
+- **Audio:** dieci bande, preset, preamplificazione con riserva di volume, delay e
+  riverbero sul PCM del player iOS. Catalogo cuffie AutoEq e importazione FixedBandEQ.
+- **Transizioni:** crossfade 0–12 secondi, preparazione del prossimo brano e modalità DJ
+  con curva di volume e filtri passa-alto/passa-basso. Inizialmente disattivati.
+- **Strumenti testo:** YouTube Music, LRCLIB, SimpMusic Lyrics, Better Lyrics, testo salvato
+  e Spotify con token personali facoltativi nel Portachiavi; testo/LRC manuale conservato.
+  Romanizzazione sul dispositivo, traduzione Gemini per righe con cache, immagini dei versi.
+- **Statistiche:** tempo effettivamente suonato, classifiche di brani/artisti/album,
+  intervalli e cancellazione locale. Pause, buffering, salti e TTS non aumentano l’ascolto.
+- **Wrapped:** riepiloghi mensili e annuali costruiti dagli ascolti registrati da questa
+  versione, esportabili come testo o immagine. Nessuna cronologia remota inventata/importata.
+
+**Limiti concreti:** i download attuali richiedono un file AAC progressivo completo:
+HLS resta solo streaming e il rifiuto CDN oltre 1 MiB non viene aggirato. Un file
+interrotto non compare come scaricato; un tentativo in pausa riparte con un nuovo
+indirizzo. Il crossfade copre i brani già in coda e richiede il prossimo flusso pronto;
+la modalità DJ non fa beat matching. Alcuni flussi HLS non offrono il processamento
+PCM. Spotify richiede una sessione web valida e non è stato verificato con credenziali
+reali. Traduzione e provider dipendono dai rispettivi servizi; non vengono inventati
+versi o tempi quando la fonte non li fornisce. Mac: verificata la compilazione condivisa,
+non la parità runtime di player offline, effetti e transizioni. Restano separati i
+problemi di continuità CDN e voce nell’auto fisica, rinviati al collaudo Duo/CarPlay.
 
 **Consegna 0.8.3 (27), 25 ottobre 2026 ore 21:16:** caricamento Apple riuscito
 per TestFlight interno, pacchetto in elaborazione. Assegnazione ai tester manuale.

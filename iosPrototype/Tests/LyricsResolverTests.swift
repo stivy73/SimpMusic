@@ -66,7 +66,7 @@ final class LyricsResolverTests: XCTestCase {
       return (500, [:], Data())
     }
     let words = words
-    let resolver = LyricsResolver(session: session, primary: { _ in words })
+    let resolver = LyricsResolver(cacheDirectory: nil, session: session, primary: { _ in words })
     let result = try await resolver.resolve(query)
     XCTAssertEqual(result?.source, .youtube)
     XCTAssertEqual(result?.text, words)
@@ -88,7 +88,7 @@ final class LyricsResolverTests: XCTestCase {
       return (200, [:], payload)
     }
     let fallback = LyricsCounter()
-    let resolver = LyricsResolver(session: session, primary: { _ in nil })
+    let resolver = LyricsResolver(cacheDirectory: nil, session: session, primary: { _ in nil })
     let result = try await resolver.resolve(query) { _ = await fallback.increment() }
     let calls = await fallback.count
     XCTAssertEqual(calls, 1)
@@ -103,6 +103,7 @@ final class LyricsResolverTests: XCTestCase {
   func testPrimaryHTTPFailureStillUsesFallback() async throws {
     let payload = try data()
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in (200, [:], payload) },
       primary: { _ in
         throw URLError(.badServerResponse)
@@ -114,6 +115,7 @@ final class LyricsResolverTests: XCTestCase {
   func testSlowPrimaryFallsBackWithoutConsumingBackgroundTime() async throws {
     let payload = try data()
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in (200, [:], payload) },
       primary: { _ in
         try await Task.sleep(for: .seconds(30))
@@ -129,6 +131,7 @@ final class LyricsResolverTests: XCTestCase {
     var calls = 0
     let payload = try data()
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in
         calls += 1
         return calls == 1 ? (503, [:], Data()) : (200, [:], payload)
@@ -141,6 +144,7 @@ final class LyricsResolverTests: XCTestCase {
   func testEmptyResultsRemainEmptyAndAreNotCached() async throws {
     var requests = 0
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in
         requests += 1
         return (200, [:], Data("[]".utf8))
@@ -156,7 +160,8 @@ final class LyricsResolverTests: XCTestCase {
 
   func testCacheAvoidsNetworkAndForceRefreshReplacesText() async throws {
     let counter = LyricsCounter()
-    let resolver = LyricsResolver(primary: { _ in "Testo di prova \(await counter.increment())" })
+    let resolver = LyricsResolver(
+      cacheDirectory: nil, primary: { _ in "Testo di prova \(await counter.increment())" })
     let first = try await resolver.resolve(query)
     let cached = try await resolver.resolve(query)
     XCTAssertEqual(first, cached)
@@ -170,6 +175,7 @@ final class LyricsResolverTests: XCTestCase {
     var requestedTitles: [String] = []
     let payload = try data(title: "Sogni", artist: "Artista")
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { request in
         let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
         requestedTitles.append(items.first(where: { $0.name == "track_name" })!.value!)
@@ -221,6 +227,7 @@ final class LyricsResolverTests: XCTestCase {
   func testHTTPAndMalformedJSONDoNotBecomeLyrics() async {
     for (status, data) in [(503, Data()), (200, Data("{broken".utf8))] {
       let resolver = LyricsResolver(
+        cacheDirectory: nil,
         session: session { _ in (status, [:], data) }, primary: { _ in nil })
       do {
         _ = try await resolver.resolve(query)
@@ -232,6 +239,7 @@ final class LyricsResolverTests: XCTestCase {
   func testRateLimitHonorsRetryAfterWithoutAnotherRequest() async {
     var requests = 0
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in
         requests += 1
         return (429, ["Retry-After": "120"], Data("Not JSON".utf8))
@@ -247,6 +255,7 @@ final class LyricsResolverTests: XCTestCase {
 
   func testCancellationDoesNotStartFallback() async {
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in
         XCTFail("Cancelled")
         return (500, [:], Data())
@@ -266,6 +275,7 @@ final class LyricsResolverTests: XCTestCase {
 
   func testMissingMetadataDoesNotSendBroadSearch() async throws {
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in
         XCTFail("No artist")
         return (500, [:], Data())
@@ -288,6 +298,7 @@ final class LyricsResolverTests: XCTestCase {
       ],
     ])
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in (200, [:], payload) }, primary: { _ in nil })
     let result = try await resolver.resolve(query)
     XCTAssertEqual(result?.sourceURL?.path, "/api/get/123")
@@ -301,9 +312,55 @@ final class LyricsResolverTests: XCTestCase {
       ]
     ])
     let resolver = LyricsResolver(
+      cacheDirectory: nil,
       session: session { _ in (200, [:], payload) }, primary: { _ in nil })
     let result = try await resolver.resolve(
       LyricsQuery(videoID: "x", title: "Ricordi", artist: "Artista di prova"))
     XCTAssertEqual(result?.text, words)
   }
+  func testSimpMusicProviderUsesVideoIDAndRejectsDifferentRecording() async throws {
+    let transport = session { request in
+      XCTAssertEqual(request.url?.host, "api-lyrics.simpmusic.org")
+      XCTAssertTrue(request.url!.path.hasSuffix("/video"))
+      return (
+        200, [:],
+        try JSONSerialization.data(withJSONObject: [
+          ["videoId": "different", "plainLyric": self.words, "vote": 100],
+          [
+            "videoId": "video", "plainLyric": self.words, "syncedLyrics": "[00:01]" + self.words,
+            "vote": 5,
+          ],
+        ])
+      )
+    }
+    let result = try await ExtraLyrics(session: transport).fetch(query, provider: .simpMusic)
+    XCTAssertEqual(result?.source, .simpMusic)
+    XCTAssertEqual(result?.syncedText, "[00:01]" + words)
+  }
+  func testBetterLyricsConvertsRealWordTimingsAndProviderFailureDoesNotFabricate() async throws {
+    let transport = session { request in
+      XCTAssertEqual(request.url?.host, "lyrics-api.boidu.dev")
+      return (
+        200, [:],
+        try JSONSerialization.data(withJSONObject: [
+          "ttml":
+            "<tt><body><p begin=\"1s\"><span begin=\"1s\">Testo originale della canzone da interpretare.</span></p></body></tt>"
+        ])
+      )
+    }
+    let result = try await ExtraLyrics(session: transport).fetch(query, provider: .better)
+    XCTAssertEqual(result?.source, .better)
+    XCTAssertTrue(LyricsTimeline(lrc: result?.syncedText ?? "").hasWords)
+  }
+  func testSelectedProviderCannotReturnEarlierProviderCache() async throws {
+    let transport = session { _ in (200, [:], Data("[]".utf8)) }
+    let resolver = LyricsResolver(
+      cacheDirectory: nil, session: transport,
+      primary: { _ in "Testo originale sufficientemente lungo della canzone di prova." })
+    let primary = try await resolver.resolve(query)
+    XCTAssertEqual(primary?.source, .youtube)
+    let selected = try await resolver.resolve(query, provider: .lrclib)
+    XCTAssertNil(selected)
+  }
+
 }

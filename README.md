@@ -18,6 +18,15 @@ Queste modifiche si aggiungono alle funzioni ereditate da SimpMusic; non implica
 
 La generazione del significato usa il provider IA selezionato e richiede la relativa chiave: una chiave OpenAI va associata a OpenAI, una chiave Google AI Studio a Gemini. La voce Gemini richiede una chiave API personale di Google AI Studio; se selezionata, il testo della spiegazione viene inviato a Google per produrre l'audio. Disponibilità e costi dipendono dai rispettivi account. La chiave TTS può essere diversa da quella usata per generare il significato della canzone.
 
+## NoteNarrate per iOS
+
+Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
+rispetto ad Android. La candidata **0.9.0 (28)** porta download/offline, testi sincronizzati,
+timer e ripristino coda, qualità audio, EQ/AutoEq ed effetti, crossfade/DJ, strumenti
+per i testi, statistiche e Wrapped locali. Stato, prove e limiti sono nel
+[registro del porting](iosPrototype/PORTING_PROGRESS.md). Distribuzione tramite
+TestFlight interno; non è una pubblicazione su App Store.
+
 ## Download e aggiornamenti
 
 Le eventuali APK di **questo fork** devono essere pubblicate nelle [Releases di stivy73/SimpMusic](https://github.com/stivy73/SimpMusic/releases). Le release, i badge, F-Droid e il sito presenti nel README originale appartengono al **progetto upstream** e non identificano build di questo fork. Verifica sempre repository, versione e provenienza dell'APK prima di installarla.

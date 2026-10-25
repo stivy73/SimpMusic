@@ -1,3 +1,32 @@
+# NoteNarrate iOS 0.9.0 (28)
+
+Implements iOS parity points 10–19: persistent AAC music downloads with background
+transfers, quota and full-file verification; offline collection and CarPlay access;
+line/word LRC and TTML lyrics, timing offset and seek; sleep timer; paused queue/order/
+position restoration; separate Wi-Fi/cellular/download AAC quality preferences;
+ten-band PCM EQ, presets, AutoEq catalog/import, headroom, delay and reverb; opt-in
+0–12 second two-deck crossfade and DJ gain/filter sweeps; alternative lyrics providers,
+local romanization, line-aligned cached Gemini translation and verse image sharing;
+actual local listening history/rankings and monthly/yearly shareable recaps.
+
+Preserves the Android interpretation prompt and Home/search server filters. No API
+keys, cookies or signed streaming URLs enter session/download manifests or Git.
+Background downloads verify byte count, audio packets/duration and final quota before
+committing a playable file. An interrupted/rejected file is never certified offline.
+HLS downloads and CDN 403 remediation are outside this implementation. DJ does not
+perform beat matching; unknown/unready next streams retain ordinary track advance.
+Spotify requires personal valid web tokens and has not been tested with a live account.
+The shared Mac build is a compilation check, not Mac offline/DSP runtime proof.
+
+163 core tests and six feature UI scenarios passed, plus the search pagination/queue
+regression. Live public lyrics/AutoEq probe succeeded. Release iOS archive and shared
+Mac compilation succeeded; exported IPA verifies Apple signature, CarPlay Audio and
+Siri app/extension profiles. Internal TestFlight upload pending. Tester assignment remains manual; no public
+App Store submission. Physical-car narration and long YouTube CDN playback remain
+reserved for the separate Duo test, regardless of local-file simulator results.
+
+---
+
 # NoteNarrate iOS 0.8.3 (27)
 
 Phone search parity (point 9): All plus songs, artists, albums, YouTube Music

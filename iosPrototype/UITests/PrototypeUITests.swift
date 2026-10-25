@@ -2,6 +2,163 @@ import XCTest
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testLocalOfflineAudioContinuesBeyondMinuteAndMinimizingKeepsPlaying() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-long-local"]
+    app.launch()
+    let source = app.staticTexts["native-source-status"]
+    XCTAssertTrue(source.waitForExistence(timeout: 15), app.debugDescription)
+    XCTAssertEqual(source.label, "File locale verificato")
+    let elapsed = app.staticTexts["playback-elapsed"]
+    expectation(
+      for: NSPredicate { _, _ in Int(elapsed.value as? String ?? "0") ?? 0 >= 3 },
+      evaluatedWith: elapsed)
+    waitForExpectations(timeout: 15)
+    app.buttons["close-player"].tap()
+    XCTAssertTrue(app.buttons["mini-playback-toggle"].waitForExistence(timeout: 5))
+    app.buttons["open-player"].tap()
+    expectation(
+      for: NSPredicate { _, _ in Int(elapsed.value as? String ?? "0") ?? 0 >= 65 },
+      evaluatedWith: elapsed)
+    waitForExpectations(timeout: 85)
+    XCTAssertFalse(app.staticTexts["playback-error"].exists)
+    XCTAssertTrue(app.staticTexts["native-audio-status"].label.contains("PCM "))
+    let diagnostic = app.staticTexts["native-audio-status"].label
+    let count = diagnostic.components(separatedBy: "PCM ").last.flatMap(Int.init) ?? 0
+    XCTAssertGreaterThan(count, 100000)
+    app.buttons["playback-toggle"].tap()
+  }
+
+  @MainActor
+  func testCrossfadePromotesPreparedTrackAndManualPauseStopsBothDecks() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-crossfade"]
+    app.launch()
+    let id = app.staticTexts["test-current-id"]
+    XCTAssertTrue(id.waitForExistence(timeout: 15), app.debugDescription)
+    app.buttons["playback-toggle"].tap()
+    expectation(for: NSPredicate(format: "label == %@", "local-2-10"), evaluatedWith: id)
+    waitForExpectations(timeout: 18)
+    XCTAssertFalse(app.staticTexts["playback-error"].exists)
+    XCTAssertEqual(app.staticTexts["test-crossfade-starts"].label, "1")
+    app.buttons["playback-toggle"].tap()
+    XCTAssertEqual(app.buttons["playback-toggle"].value as? String, "In pausa")
+    let next = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "local-3-10"), object: id)
+    next.isInverted = true
+    XCTAssertEqual(XCTWaiter.wait(for: [next], timeout: 5), .completed)
+  }
+
+  @MainActor
+  func testSleepTimerStopsAndSynchronizedLyricSeeks() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback"]
+    app.launch()
+    let timer = app.buttons["test-sleep-short"]
+    XCTAssertTrue(timer.waitForExistence(timeout: 15))
+    app.buttons["toggle-lyrics"].tap()
+    app.buttons["Espandi testo"].tap()
+    let line = app.buttons["lyric-line-2"].firstMatch
+    XCTAssertTrue(line.waitForExistence(timeout: 5))
+    line.tap()
+    app.buttons["Chiudi"].firstMatch.tap()
+    let elapsed = app.staticTexts["playback-elapsed"]
+    expectation(
+      for: NSPredicate { _, _ in Int(elapsed.value as? String ?? "0") ?? 0 >= 6 },
+      evaluatedWith: elapsed)
+    waitForExpectations(timeout: 5)
+    timer.tap()
+    let toggle = app.buttons["playback-toggle"]
+    expectation(for: NSPredicate(format: "value == %@", "In pausa"), evaluatedWith: toggle)
+    waitForExpectations(timeout: 5)
+  }
+
+  @MainActor
+  func testRestoredSessionKeepsPositionAndQueuePaused() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-session"]
+    app.launch()
+    let elapsed = app.staticTexts["playback-elapsed"]
+    XCTAssertTrue(elapsed.waitForExistence(timeout: 15))
+    expectation(
+      for: NSPredicate { _, _ in Int(elapsed.value as? String ?? "0") ?? 0 >= 3 },
+      evaluatedWith: elapsed)
+    waitForExpectations(timeout: 10)
+    app.buttons["playback-toggle"].tap()
+    let before = Int(elapsed.value as? String ?? "0") ?? 0
+    XCUIDevice.shared.press(.home)
+    app.terminate()
+    app.launchArguments.append("--test-restore-session")
+    app.launch()
+    XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 15))
+    XCTAssertEqual(app.buttons["playback-toggle"].value as? String, "In pausa")
+    XCTAssertLessThanOrEqual(
+      abs((Int(app.staticTexts["playback-elapsed"].value as? String ?? "0") ?? 0) - before), 1)
+    app.buttons["show-queue"].tap()
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
+  }
+
+  @MainActor
+  func testAudioSettingsAndRecapImageFromRecordedListening() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-session"]
+    app.launch()
+    let elapsed = app.staticTexts["playback-elapsed"]
+    XCTAssertTrue(elapsed.waitForExistence(timeout: 15))
+    expectation(
+      for: NSPredicate { _, _ in Int(elapsed.value as? String ?? "0") ?? 0 >= 3 },
+      evaluatedWith: elapsed)
+    waitForExpectations(timeout: 10)
+    app.buttons["playback-toggle"].tap()
+    app.buttons["close-player"].tap()
+    selectTab("Impostazioni", symbol: "gearshape.fill", in: app)
+    let audio = app.buttons["open-audio-settings"]
+    XCTAssertTrue(audio.waitForExistence(timeout: 5))
+    audio.tap()
+    XCTAssertTrue(app.switches["effects-enabled"].waitForExistence(timeout: 5))
+    app.navigationBars.buttons.firstMatch.tap()
+    app.buttons["open-listening"].tap()
+    XCTAssertTrue(app.staticTexts["listening-summary"].waitForExistence(timeout: 5))
+    let create = app.buttons["create-recap-image"]
+    for _ in 0..<4 where !create.isHittable { app.swipeUp() }
+    XCTAssertTrue(create.exists, app.debugDescription)
+    create.tap()
+    XCTAssertTrue(app.buttons["Condividi immagine"].waitForExistence(timeout: 5))
+  }
+
+  @MainActor
+  func testOfflineCollectionAndVerseImage() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback"]
+    app.launch()
+    XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 15))
+    app.buttons["playback-toggle"].tap()
+    app.buttons["toggle-lyrics"].tap()
+    app.buttons["Espandi testo"].tap()
+    let tools = app.buttons["lyrics-tools"].firstMatch
+    XCTAssertTrue(tools.waitForExistence(timeout: 5))
+    tools.tap()
+    XCTAssertTrue(app.switches["lyrics-romanize"].waitForExistence(timeout: 5))
+    app.switches["lyrics-romanize"].tap()
+    let verse = app.buttons["verse-0"]
+    for _ in 0..<3 where !verse.isHittable { app.swipeUp() }
+    verse.tap()
+    XCTAssertEqual(verse.value as? String, "Selezionato")
+    let create = app.buttons["create-verse-image"]
+    XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription)
+    create.tap()
+    XCTAssertTrue(app.buttons["share-verse-image"].waitForExistence(timeout: 5))
+    app.navigationBars["Strumenti testo"].buttons.firstMatch.tap()
+    app.buttons["Chiudi"].firstMatch.tap()
+    app.buttons["close-player"].tap()
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
+    app.buttons["library-section-menu"].tap()
+    app.buttons["library-menu-offline"].tap()
+    XCTAssertTrue(app.staticTexts["offline-count"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["offline-count"].label.contains("brani completi"))
+  }
+
+  @MainActor
   private func startFullSearch(_ app: XCUIApplication, fail: Bool = false) {
     app.launchArguments =
       ["--test-full-search", "--test-remote-library"] + (fail ? ["--test-search-failure"] : [])

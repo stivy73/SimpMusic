@@ -30,6 +30,11 @@ final class AudioPlaybackTests: XCTestCase {
       """#
     let video = try JSONDecoder().decode(YouTubeVideo.self, from: Data(payload.utf8))
     XCTAssertEqual(YouTubeAudio.candidates(video).map(\.lastPathComponent), ["high", "low", "hls"])
+    XCTAssertEqual(
+      YouTubeAudio.candidates(video, quality: .saver).map(\.lastPathComponent),
+      ["low", "high", "hls"])
+    XCTAssertEqual(
+      YouTubeAudio.candidates(video, quality: .normal).first?.lastPathComponent, "high")
   }
 
   func testRejectsMissingEncryptedInsecureAndForeignStreams() throws {

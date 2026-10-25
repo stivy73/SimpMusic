@@ -17,6 +17,7 @@ import YouTubeSDK
     @Published var playing = false
     @Published var volume = 100.0
     var onEnded: (() -> Void)?
+    var localFileProvider: @MainActor (String) -> URL? = { _ in nil }
     var wantsPlayback = false
     private(set) var controlRevision = UUID()
     weak var webView: WKWebView?
@@ -35,6 +36,17 @@ import YouTubeSDK
       wantsPlayback = true
       loadID = UUID()
     }
+    func prepareTransition(videoID: String) {}
+    func cancelTransition() {}
+    func transition(to videoID: String, seconds: Double, dj: Bool) -> Bool { false }
+    var crossfadeStarts = 0
+    var beforePlay: (() -> Bool)?
+    func restore(videoID: String, position: Double, duration: Double) {
+      clear()
+      videoId = videoID
+      elapsed = position
+      durationSeconds = duration
+    }
     func clear() {
       pause()
       webView?.stopLoading()
@@ -46,6 +58,7 @@ import YouTubeSDK
       playbackError = nil
     }
     func play() {
+      guard beforePlay?() ?? true else { return }
       controlRevision = UUID()
       wantsPlayback = true
       webView?.evaluateJavaScript("player.playVideo()", completionHandler: nil)
@@ -69,63 +82,7 @@ import YouTubeSDK
   }
 #endif
 
-struct Song: Identifiable, Codable, Hashable {
-  let id: String
-  let title: String
-  let artist: String
-  let artwork: URL?
-  let durationSeconds: Double?
-  var albumBrowseID: String? = nil
-  var albumTitle: String? = nil
-  var artistBrowseID: String? = nil
-  init(id: String, title: String, artist: String, artwork: URL?, durationSeconds: Double? = nil) {
-    self.id = id
-    self.title = title
-    self.artist = artist
-    self.artwork = artwork
-    self.durationSeconds = durationSeconds
-  }
-  init(_ item: DiscoveryItem) {
-    albumBrowseID = item.albumBrowseID
-    artistBrowseID = item.artistBrowseID
-    albumTitle = item.albumTitle
-    id = item.mediaId
-    title = item.title
-    artist = item.subtitle
-    artwork = item.artwork
-    durationSeconds = item.durationSeconds
-  }
-  var discoveryItem: DiscoveryItem {
-    DiscoveryItem(
-      kind: .song, mediaId: id, title: title, subtitle: artist, artwork: artwork,
-      durationSeconds: durationSeconds, albumBrowseID: albumBrowseID,
-      artistBrowseID: artistBrowseID, albumTitle: albumTitle)
-  }
-  func withAlbumArtwork(
-    _ albumArtwork: URL?, artist albumArtist: String? = nil, albumID: String? = nil
-  ) -> Song {
-    var result = Song(
-      id: id, title: title,
-      artist: artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        ? albumArtist ?? artist : artist,
-      artwork: albumArtwork ?? artwork,
-      durationSeconds: durationSeconds)
-    result.artistBrowseID = artistBrowseID
-    result.albumTitle = albumTitle
-    result.albumBrowseID = albumID ?? albumBrowseID
-    return result
-  }
-  init(_ song: YouTubeMusicSong, albumArtwork: URL? = nil) {
-    id = song.videoId
-    title = song.title
-    artist = song.artistsDisplay
-    artwork = albumArtwork ?? song.thumbnailURL
-    durationSeconds = song.duration
-    albumTitle = song.album
-    albumBrowseID = song.albumBrowseID
-    artistBrowseID = song.artistBrowseID
-  }
-}
+typealias Song = PlaybackTrack
 
 struct QueueRow: Identifiable {
   let id: UUID
@@ -136,6 +93,139 @@ struct QueueRow: Identifiable {
 @MainActor
 final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
   let player = PlaybackPlayer()
+  let downloads = MusicDownloads()
+  let listening = ListeningHistory(
+    url: LocalFiles.directory(
+      ProcessInfo.processInfo.arguments.contains("--test-local-playback")
+        ? "QAListening" : "Listening"
+    ).appendingPathComponent("history.json"))
+  @Published var lyricsProvider =
+    LyricsProviderChoice(rawValue: UserDefaults.standard.string(forKey: "lyricsProvider") ?? "")
+    ?? .automatic
+  {
+    didSet { UserDefaults.standard.set(lyricsProvider.rawValue, forKey: "lyricsProvider") }
+  }
+  @Published var spotifyLyricsToken = SecureStore.read("spotify-lyrics-token")
+  @Published var spotifyClientToken = SecureStore.read("spotify-client-token")
+
+  private var downloadSubscription: AnyCancellable?
+  private var featureSubscriptions = Set<AnyCancellable>()
+  private let sessionStore = PlaybackSessionStore(
+    url: LocalFiles.directory(
+      ProcessInfo.processInfo.arguments.contains("--test-session") ? "QASession" : "Playback"
+    ).appendingPathComponent("session.json"))
+  private var sessionEnabled: Bool {
+    ProcessInfo.processInfo.arguments.contains("--test-session")
+      || !ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("--test-") }
+  }
+  private var sleepTask: Task<Void, Never>?
+  @Published var sleepTimer: SleepTimer?
+  @Published var timeline = LyricsTimeline(lrc: "")
+  @Published var timelineSource: ResolvedLyrics.Source?
+  @Published var lyricsDelay = 0.0
+  private var timedTask: Task<Void, Never>?
+  private var lastSessionSave = Date.distantPast
+  func saveSession() {
+    guard sessionEnabled else { return }
+    listening.save()
+    do {
+      try sessionStore.save(
+        PlaybackSnapshot(
+          tracks: queue, occurrenceIDs: queueIDs, sequence: sequence,
+          repeatMode: repeatMode, position: player.elapsed, duration: player.durationSeconds,
+          timer: sleepTimer))
+    } catch { settingsError = "Impossibile salvare la sessione di ascolto." }
+  }
+  private func updateCrossfade() {
+    let seconds = AudioPreferences.shared.crossfade
+    guard seconds > 0, player.playing, !reading, !busyMeaning, sleepTimer != .endOfTrack,
+      player.durationSeconds > seconds * 2,
+      let index = sequence.next(repeatMode: repeatMode, automatic: true), index != sequence.current,
+      queue.indices.contains(index)
+    else { return }
+    let remaining = player.durationSeconds - player.elapsed
+    if remaining > 0 && remaining <= seconds + 15 {
+      player.prepareTransition(videoID: queue[index].id)
+    }
+    if remaining > 0 && remaining <= seconds,
+      player.transition(to: queue[index].id, seconds: remaining, dj: AudioPreferences.shared.djMode)
+    {
+      sequence.select(index)
+      play(queue[index], reusePlayback: true)
+    }
+  }
+
+  func setSleepTimer(_ timer: SleepTimer?) {
+    sleepTask?.cancel()
+    sleepTimer = timer
+    if case .deadline(let date) = timer {
+      sleepTask = Task { [weak self] in
+        try? await Task.sleep(for: .seconds(max(0, date.timeIntervalSinceNow)))
+        guard !Task.isCancelled else { return }
+        _ = self?.checkSleepTimer()
+      }
+    }
+    saveSession()
+  }
+  @discardableResult func checkSleepTimer(trackEnded: Bool = false) -> Bool {
+    guard let sleepTimer, sleepTimer.expired(trackEnded: trackEnded) else { return false }
+    self.sleepTimer = nil
+    sleepTask?.cancel()
+    invalidateRadioRequest()
+    stopMeaning(resume: false)
+    player.pause()
+    saveSession()
+    return true
+  }
+  func loadTimedLyrics() {
+    guard let song = current, timeline.lines.isEmpty, manualLyrics.isEmpty else { return }
+    timedTask?.cancel()
+    timedTask = Task {
+      do {
+        let result = try await lyricsResolver.synchronized(
+          LyricsQuery(
+            videoID: song.id, title: song.title,
+            artist: song.artist, durationSeconds: song.durationSeconds))
+        guard !Task.isCancelled, current?.id == song.id else { return }
+        if let lrc = result?.syncedText {
+          timeline = LyricsTimeline(lrc: lrc)
+          timelineSource = result?.source
+        }
+      } catch {
+        // Static lyrics remain available if synchronized lookup fails.
+      }
+    }
+  }
+  var savedManualLyrics: String {
+    guard let id = current?.id else { return "" }
+    return LocalFiles.read(
+      String.self,
+      from: LocalFiles.directory("ManualLyrics").appendingPathComponent(
+        LocalFiles.key(id) + ".json")) ?? ""
+  }
+  func useProviderLyrics() {
+    if let id = current?.id {
+      UserDefaults.standard.set(false, forKey: "useManualLyrics." + LocalFiles.key(id))
+    }
+    manualLyrics = ""
+    timeline = LyricsTimeline(lrc: "")
+    timelineSource = nil
+    loadLyrics(force: true)
+  }
+  func importLyrics(_ text: String) {
+    manualLyrics = text
+    if let id = current?.id {
+      UserDefaults.standard.set(!text.isEmpty, forKey: "useManualLyrics." + LocalFiles.key(id))
+      try? LocalFiles.write(
+        text,
+        to: LocalFiles.directory("ManualLyrics").appendingPathComponent(
+          LocalFiles.key(id) + ".json"))
+    }
+    timeline = LyricsTimeline(lrc: text)
+    timelineSource = nil
+    lyricsDelay = 0
+  }
+
   private let lyricsResolver = LyricsResolver()
   private let synthesizer = AVSpeechSynthesizer()
   private var streamingAudio: PCMStreamPlayer?
@@ -280,16 +370,58 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   override init() {
     super.init()
     synthesizer.delegate = self
+    player.localFileProvider = { [weak downloads] id in downloads?.library.url(for: id) }
+    downloadSubscription = downloads.objectWillChange.sink { [weak self] _ in
+      self?.objectWillChange.send()
+    }
     #if os(iOS)
       synthesizer.usesApplicationAudioSession = true
     #endif
     player.onEnded = { [weak self] in self?.nextSong(automatic: true) }
+    player.beforePlay = { [weak self] in !(self?.checkSleepTimer() ?? false) }
+    if sessionEnabled, let saved = sessionStore.load() {
+      queue = saved.tracks
+      queueIDs = saved.occurrenceIDs
+      sequence = saved.sequence
+      shuffleEnabled = sequence.shuffled
+      repeatMode = saved.repeatMode
+      current = sequence.current.flatMap { queue.indices.contains($0) ? queue[$0] : nil }
+      if let current {
+        player.restore(videoID: current.id, position: saved.position, duration: saved.duration)
+      }
+      if let timer = saved.timer, !timer.expired() { setSleepTimer(timer) }
+    }
+    player.$elapsed.sink { [weak self] seconds in
+      guard let self else { return }
+      if Date().timeIntervalSince(self.lastSessionSave) >= 10 {
+        self.lastSessionSave = Date()
+        self.saveSession()
+      }
+      _ = self.checkSleepTimer()
+      if self.sessionEnabled {
+        self.listening.sample(
+          track: self.current, token: self.player.loadID, position: seconds,
+          duration: self.player.durationSeconds, playing: self.player.playing && !self.reading)
+      }
+      self.updateCrossfade()
+    }.store(in: &featureSubscriptions)
+    player.$playing.dropFirst().sink { [weak self] playing in
+      if !playing { self?.saveSession() }
+    }.store(in: &featureSubscriptions)
+    objectWillChange.debounce(for: .milliseconds(400), scheduler: RunLoop.main).sink {
+      [weak self] _ in
+      self?.saveSession()
+    }.store(in: &featureSubscriptions)
     if let data = UserDefaults.standard.data(forKey: "favorites"),
       let stored = try? JSONDecoder().decode([Song].self, from: data)
     {
       favorites = stored
     }
     #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
+        autoplayEnabled = false
+        Task { await installLocalPlaybackFixture() }
+      }
       if ProcessInfo.processInfo.arguments.contains("--test-full-search") {
         autoplayEnabled = false
       }
@@ -314,9 +446,59 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     #endif
   }
 
+  #if DEBUG
+    private func installLocalPlaybackFixture() async {
+      do {
+        let seconds =
+          ProcessInfo.processInfo.arguments.contains("--test-long-local")
+          ? 80.0 : (ProcessInfo.processInfo.arguments.contains("--test-crossfade") ? 10.0 : 30.0)
+        let tracks = (1...3).map {
+          Song(
+            id: "local-\($0)-\(Int(seconds))", title: "Brano locale \($0)", artist: "Prova offline",
+            artwork: nil, durationSeconds: seconds, albumTitle: "Album locale")
+        }
+        for track in tracks where downloads.library.url(for: track.id) == nil {
+          let file = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString + ".m4a")
+          try LocalPlaybackFixture.audio(file, seconds: seconds)
+          downloads.library.begin(track)
+          try await downloads.library.finish(
+            track.id, temporary: file, status: 200, contentRange: nil)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--test-restore-session"), current != nil {
+          showPlayer = true
+        } else {
+          AudioPreferences.shared.crossfade =
+            ProcessInfo.processInfo.arguments.contains("--test-crossfade") ? 3 : 0
+          var settings = AudioEffects()
+          settings.enabled = true
+          settings.gains[5] = 3
+          AudioPreferences.shared.effects = settings
+          play(tracks[0], queue: tracks)
+          if ProcessInfo.processInfo.arguments.contains("--test-crossfade") { player.pause() }
+        }
+        timeline = LyricsTimeline(
+          lrc:
+            "[00:00.000]<00:00.000>Prima <00:01.000>riga\n[00:03.000]Seconda riga\n[00:06.000]Terza riga"
+        )
+        lyrics = "Prima riga\nSeconda riga\nTerza riga"
+      } catch { settingsError = "Fixture locale: " + error.localizedDescription }
+    }
+  #endif
+
+  func download(_ song: Song) { downloads.start(song, account: radioAccount) }
+  func removeDownload(_ id: String) {
+    if current?.id == id, downloads.library.url(for: id) != nil {
+      player.restore(videoID: id, position: player.elapsed, duration: player.durationSeconds)
+    }
+    downloads.remove(id)
+  }
+
   func saveSettings() {
     do {
       try SecureStore.save(apiKey, as: "gemini")
+      try SecureStore.save(spotifyLyricsToken, as: "spotify-lyrics-token")
+      try SecureStore.save(spotifyClientToken, as: "spotify-client-token")
       UserDefaults.standard.set(textModel, forKey: "textModel")
       UserDefaults.standard.set(useGeminiVoice, forKey: "geminiVoice")
       UserDefaults.standard.set(style.rawValue, forKey: "voiceStyle")
@@ -339,6 +521,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   }
 
   func enqueue(_ song: Song, playNext: Bool = false) {
+    player.cancelTransition()
     guard current != nil, !queue.isEmpty else {
       play(song, queue: [song])
       return
@@ -353,12 +536,17 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   }
 
   func moveQueuedSongs(from offsets: IndexSet, to destination: Int) {
+    player.cancelTransition()
     sequence.move(from: offsets, to: destination)
   }
 
-  func playQueuedSongNext(_ index: Int) { sequence.playNext(index) }
+  func playQueuedSongNext(_ index: Int) {
+    player.cancelTransition()
+    sequence.playNext(index)
+  }
 
   func removeQueuedSongs(at offsets: IndexSet) {
+    player.cancelTransition()
     let indices = Set(
       offsets.compactMap { offset in
         sequence.order.indices.contains(offset) ? sequence.order[offset] : nil
@@ -394,6 +582,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     }
   }
   func setShuffle(_ value: Bool) {
+    player.cancelTransition()
     shuffleEnabled = value
     sequence.setShuffled(value)
   }
@@ -421,6 +610,8 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     }
   }
   func nextSong(automatic: Bool = false) {
+    if automatic { listening.endSession() }
+    if automatic && checkSleepTimer(trackEnded: true) { return }
     if automatic && (busyMeaning || reading) { return }
     if let index = sequence.next(repeatMode: repeatMode, automatic: automatic) {
       if automatic && index == sequence.current {
@@ -436,6 +627,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   }
 
   func configureRadio(session: YouTubeSession?) {
+    player.cancelTransition()
     guard radioAccount != session else { return }
     radioAccount = session
     resetRadio()
@@ -637,6 +829,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
 
   func loadLyrics(force: Bool = false) {
     guard let song = current else { return }
+    if !force && !manualLyrics.isEmpty { return }
     if !force && (loadingLyrics || !lyrics.isEmpty) { return }
     lyricsTask?.cancel()
     let token = UUID()
@@ -648,7 +841,10 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       videoID: song.id, title: song.title, artist: song.artist,
       durationSeconds: player.durationSeconds > 0 ? player.durationSeconds : song.durationSeconds)
     let task = Task {
-      try await lyricsResolver.resolve(query, force: force) { [weak self] in
+      try await lyricsResolver.resolve(
+        query, force: force, provider: lyricsProvider, providerToken: spotifyLyricsToken,
+        clientToken: spotifyClientToken
+      ) { [weak self] in
         await self?.lyricsFallbackStarted(token: token)
       }
     }
@@ -658,6 +854,10 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         let result = try await task.value
         guard !task.isCancelled, lyricsGeneration == token, current?.id == song.id else { return }
         lyrics = result?.text ?? ""
+        if let lrc = result?.syncedText {
+          timeline = LyricsTimeline(lrc: lrc)
+          timelineSource = result?.source
+        }
         lyricsSource = result?.source
         lyricsSourceURL = result?.sourceURL
         lyricsError = lyrics.isEmpty ? "Testo non disponibile per questo brano." : nil
@@ -678,7 +878,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
 
   func play(
     _ song: Song, queue newQueue: [Song]? = nil, selectedIndex: Int? = nil,
-    preserveRadio: Bool = false
+    preserveRadio: Bool = false, reusePlayback: Bool = false
   ) {
     if !preserveRadio {
       if newQueue != nil || !queue.contains(where: { $0.id == song.id }) {
@@ -702,6 +902,10 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     {
       sequence.select(index)
     }
+    timedTask?.cancel()
+    timelineSource = nil
+    timeline = LyricsTimeline(lrc: "")
+    lyricsDelay = 0
     lyricsTask?.cancel()
     lyricsTask = nil
     lyricsGeneration = UUID()
@@ -711,17 +915,28 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     loadingLyrics = false
     lyricsError = nil
     stopMeaning(resume: false)
+    listening.endSession()
     current = song
-    manualLyrics = ""
+    manualLyrics =
+      LocalFiles.read(
+        String.self,
+        from: LocalFiles.directory("ManualLyrics").appendingPathComponent(
+          LocalFiles.key(song.id) + ".json")) ?? ""
+    if UserDefaults.standard.object(forKey: "useManualLyrics." + LocalFiles.key(song.id)) as? Bool
+      == false
+    {
+      manualLyrics = ""
+    }
+    if !manualLyrics.isEmpty { timeline = LyricsTimeline(lrc: manualLyrics) }
     meaning = ""
     showPlayer = true
-    player.load(videoId: song.id)
+    if !reusePlayback { player.load(videoId: song.id) }
     #if DEBUG
       if ProcessInfo.processInfo.arguments.contains("--test-playback-order")
         || ProcessInfo.processInfo.arguments.contains("--test-full-search")
       {
         player.pause()
-      } else {
+      } else if !ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
         loadLyrics()
       }
     #else

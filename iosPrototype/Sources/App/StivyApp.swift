@@ -39,6 +39,7 @@ struct Artwork: View {
 struct RootView: View {
   @EnvironmentObject var model: MusicModel
   @EnvironmentObject var library: LibraryModel
+  @Environment(\.scenePhase) private var scenePhase
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var tab = 0
   var body: some View {
@@ -67,7 +68,23 @@ struct RootView: View {
         }
       }
     }.clipped()
+      .onChange(of: scenePhase) { _, phase in
+        if phase != .active { model.saveSession() } else { _ = model.checkSleepTimer() }
+      }
       .modifier(RadioFeedback())
+      #if DEBUG
+        .overlay(alignment: .topLeading) {
+          if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
+            VStack(alignment: .leading) {
+              Text(model.current?.id ?? "preparing").accessibilityIdentifier("test-current-id")
+              Text(String(model.player.crossfadeStarts)).accessibilityIdentifier(
+                "test-crossfade-starts")
+              Text(model.settingsError ?? "fixture ready").accessibilityIdentifier(
+                "test-fixture-state")
+            }.font(.caption2).allowsHitTesting(false)
+          }
+        }
+      #endif
   }
 
   private var navigation: some View {
@@ -244,6 +261,7 @@ struct QueueActions: View {
   @EnvironmentObject var model: MusicModel
   let song: Song
   var body: some View {
+    DownloadAction(song: song)
     Button {
       model.enqueue(song, playNext: true)
     } label: {
@@ -459,6 +477,7 @@ struct PlayerScreen: View {
             .navigationTitle("Testo della canzone")
             .toolbar {
               Button("Fine") {
+                model.importLyrics(model.manualLyrics)
                 editLyrics = false
                 showLyrics = true
                 showVideo = false
@@ -497,7 +516,7 @@ struct PlayerScreen: View {
                 #endif
                 if !showVideo {
                   if showLyrics && !expanded {
-                    LyricsContent().environmentObject(model)
+                    LyricsContent().environmentObject(model).accessibilityHidden(expandedLyrics)
                   } else {
                     Artwork(url: song.artwork, fit: true)
                       .accessibilityElement(children: .ignore)
@@ -679,38 +698,7 @@ struct PlayerScreen: View {
 
 struct LyricsContent: View {
   @EnvironmentObject var model: MusicModel
-  private var text: String { model.manualLyrics.isEmpty ? model.lyrics : model.manualLyrics }
-  var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
-        if model.loadingLyrics && text.isEmpty { ProgressView(model.lyricsProgress) }
-        if !text.isEmpty {
-          Text(text).font(.title2.bold()).lineSpacing(12).textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("song-lyrics")
-          Text("Testo non sincronizzato").font(.caption).foregroundStyle(.secondary)
-          if model.manualLyrics.isEmpty, let source = model.lyricsSource {
-            if let url = model.lyricsSourceURL {
-              Link("Testo: \(source.rawValue)", destination: url).font(.caption)
-            } else {
-              Text("Testo: \(source.rawValue)").font(.caption).foregroundStyle(.secondary)
-            }
-          }
-          HStack {
-            Button {
-              PlatformClipboard.copy(text)
-            } label: {
-              Label("Copia testo", systemImage: "doc.on.doc")
-            }
-            Spacer()
-            ShareLink(item: text) { Label("Condividi testo", systemImage: "square.and.arrow.up") }
-          }.labelStyle(.iconOnly)
-        } else if let error = model.lyricsError {
-          Text(error).foregroundStyle(.secondary)
-          Button("Riprova") { model.loadLyrics(force: true) }
-        }
-      }.padding(18)
-    }.task { model.loadLyrics() }
-  }
+  var body: some View { SyncedLyricsScreen(player: model.player) }
 }
 
 struct PlayerControls: View {
@@ -737,8 +725,15 @@ struct PlayerControls: View {
         Button("Riprova riproduzione") { player.load(videoId: player.videoId) }
       }
       #if DEBUG && os(iOS)
-        if ProcessInfo.processInfo.arguments.contains("--test-native-audio") {
+        if ProcessInfo.processInfo.arguments.contains("--test-native-audio")
+          || ProcessInfo.processInfo.arguments.contains("--test-local-playback")
+        {
           Text(player.diagnostic).accessibilityIdentifier("native-audio-status")
+          Text(player.sourceDiagnostic).accessibilityIdentifier("native-source-status")
+          if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
+            Button("Timer test") { model.setSleepTimer(.deadline(Date().addingTimeInterval(2))) }
+              .accessibilityIdentifier("test-sleep-short")
+          }
         }
       #endif
       VStack(spacing: 4) {
@@ -892,6 +887,12 @@ struct SettingsView: View {
         if let error = library.error { Text(error).font(.caption).foregroundStyle(.orange) }
       }
       Section("Riproduzione") {
+        SleepTimerMenu()
+        NavigationLink("Qualità audio ed effetti") { AudioSettingsScreen() }
+          .accessibilityIdentifier("open-audio-settings")
+        NavigationLink("Statistiche e riepiloghi") { ListeningScreen() }.accessibilityIdentifier(
+          "open-listening")
+
         Toggle("Riproduzione automatica", isOn: $model.autoplayEnabled)
         Text(
           "Terminata la coda, continua con brani suggeriti da YouTube Music. Puoi avviare una radio dal menu di un brano o di un artista."

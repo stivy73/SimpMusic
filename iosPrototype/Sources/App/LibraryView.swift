@@ -59,6 +59,7 @@ private enum LibrarySection: String, CaseIterable, Identifiable {
   case playlists = "Playlist"
   case artists = "Artisti seguiti"
   case local = "Preferiti locali"
+  case offline = "Download e offline"
   var id: String { rawValue }
   var remote: RemoteLibraryKind? {
     switch self {
@@ -93,7 +94,9 @@ struct LibraryView: View {
           }
         }.padding()
       }
-      if section == .local {
+      if section == .offline {
+        OfflineScreen(downloads: model.downloads)
+      } else if section == .local {
         if model.favorites.isEmpty {
           ContentUnavailableView("Nessun preferito locale", systemImage: "heart")
         } else {
@@ -116,6 +119,15 @@ struct LibraryView: View {
     }.navigationTitle("Libreria")
       .sheet(isPresented: $createPlaylist) { CreatePlaylistSheet() }
       .toolbar {
+        Menu {
+          ForEach(LibrarySection.allCases) { value in
+            Button(value.rawValue) { section = value }.accessibilityIdentifier(
+              "library-menu-" + value.name)
+          }
+        } label: {
+          Label("Raccolte", systemImage: "square.stack")
+        }
+        .accessibilityIdentifier("library-section-menu")
         if library.session != nil && section == .playlists {
           Button {
             createPlaylist = true
@@ -123,7 +135,7 @@ struct LibraryView: View {
             Label("Nuova playlist", systemImage: "plus")
           }
         }
-        if library.session != nil && section != .local {
+        if library.session != nil && section != .local && section != .offline {
           Button {
             if let remote = section.remote {
               Task { await library.load(remote, force: true) }
@@ -184,7 +196,9 @@ struct LibraryView: View {
 }
 
 extension LibrarySection {
-  fileprivate var name: String { remote?.rawValue ?? (self == .albums ? "albums" : "local") }
+  fileprivate var name: String {
+    remote?.rawValue ?? (self == .albums ? "albums" : self == .offline ? "offline" : "local")
+  }
 }
 
 private struct RemoteLibraryView: View {

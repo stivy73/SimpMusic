@@ -1,6 +1,20 @@
 import Foundation
 import YouTubeSDK
 
+public enum AudioQuality: String, CaseIterable, Codable, Sendable, Identifiable {
+  case saver = "Risparmio dati"
+  case normal = "Standard"
+  case high = "Alta"
+  public var id: String { rawValue }
+  public var bitrate: Int {
+    switch self {
+    case .saver: 48000
+    case .normal: 128000
+    case .high: 320000
+    }
+  }
+}
+
 public enum AudioPlaybackError: LocalizedError {
   case unavailable
   public var errorDescription: String? {
@@ -33,10 +47,14 @@ public struct YouTubeAudio: Sendable {
   }
   public init() {}
 
-  public static func candidates(_ video: YouTubeVideo) -> [URL] {
+  public static func candidates(_ video: YouTubeVideo, quality: AudioQuality = .high) -> [URL] {
     let aac = (video.streamingData?.adaptiveFormats ?? []).filter {
       $0.mimeType.hasPrefix("audio/mp4") && $0.mimeType.contains("mp4a")
-    }.sorted { $0.bitrate > $1.bitrate }.compactMap { $0.url.flatMap(URL.init(string:)) }
+    }.sorted {
+      let a = abs($0.bitrate - quality.bitrate)
+      let b = abs($1.bitrate - quality.bitrate)
+      return a == b ? $0.bitrate > $1.bitrate : a < b
+    }.compactMap { $0.url.flatMap(URL.init(string:)) }
     var seen = Set<URL>()
     return (aac + [video.hlsURL].compactMap { $0 }).filter { url in
       guard url.scheme == "https", let host = url.host,
@@ -46,7 +64,9 @@ public struct YouTubeAudio: Sendable {
     }
   }
 
-  public func resolve(videoID: String, session account: YouTubeSession? = nil) async throws
+  public func resolve(
+    videoID: String, session account: YouTubeSession? = nil, quality: AudioQuality = .high
+  ) async throws
     -> Source
   {
     var accountDiagnostic = "Nessuna sessione YouTube Music disponibile"
@@ -54,7 +74,8 @@ public struct YouTubeAudio: Sendable {
       do {
         let video = try await YouTubeBrowse(session: account).player(videoID: videoID)
         return try await source(
-          video: video, userAgent: ClientConfig.webRemix.userAgent, validateTail: true)
+          video: video, userAgent: ClientConfig.webRemix.userAgent, validateTail: true,
+          quality: quality)
       } catch is CancellationError { throw CancellationError() } catch {
         try Task.checkCancellation()
         if case DecodingError.keyNotFound(let key, _) = error {
@@ -72,21 +93,23 @@ public struct YouTubeAudio: Sendable {
     }
     let video = try await YouTubeClient().video(id: videoID)
     let fallback = try await source(
-      video: video, userAgent: ClientConfig.ios.userAgent, validateTail: false)
+      video: video, userAgent: ClientConfig.ios.userAgent, validateTail: false, quality: quality)
     return Source(
       url: fallback.url, duration: fallback.duration, userAgent: fallback.userAgent,
       byteCount: fallback.byteCount, isHLS: fallback.isHLS, authenticated: false,
       accountDiagnostic: accountDiagnostic)
   }
 
-  private func source(video: YouTubeVideo, userAgent: String, validateTail: Bool) async throws
+  private func source(
+    video: YouTubeVideo, userAgent: String, validateTail: Bool, quality: AudioQuality
+  ) async throws
     -> Source
   {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpShouldSetCookies = false
     let transport = URLSession(configuration: configuration)
     defer { transport.invalidateAndCancel() }
-    for url in Self.candidates(video) {
+    for url in Self.candidates(video, quality: quality) {
       var request = URLRequest(url: url, timeoutInterval: 15)
       request.setValue("bytes=0-1023", forHTTPHeaderField: "Range")
       request.setValue(userAgent, forHTTPHeaderField: "User-Agent")

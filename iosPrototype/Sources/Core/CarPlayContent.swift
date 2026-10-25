@@ -76,7 +76,7 @@ public struct VoiceMediaIdentifier: Equatable, Sendable {
   public var encoded: String { kind.rawValue + ":" + mediaID }
 }
 
-public enum PlaybackRepeatMode: String, CaseIterable, Sendable {
+public enum PlaybackRepeatMode: String, CaseIterable, Sendable, Codable {
   case off, all, one
   public var title: String {
     switch self {
@@ -95,7 +95,7 @@ public enum PlaybackRepeatMode: String, CaseIterable, Sendable {
 }
 
 /// Indices preserve duplicate playlist occurrences; shuffle never drops or repeats an index.
-public struct PlaybackSequence: Equatable, Sendable {
+public struct PlaybackSequence: Equatable, Sendable, Codable {
   public private(set) var order: [Int] = []
   private var naturalOrder: [Int] = []
   public private(set) var current: Int?
@@ -108,6 +108,13 @@ public struct PlaybackSequence: Equatable, Sendable {
     shuffled = false
     if shuffle { setShuffled(true) }
   }
+  public func isValid(count: Int) -> Bool {
+    let expected = Set(0..<max(0, count))
+    return count >= 0 && order.count == count && naturalOrder.count == count
+      && Set(order) == expected && Set(naturalOrder) == expected
+      && (count == 0 ? current == nil : current.map { expected.contains($0) } == true)
+  }
+
   public mutating func select(_ index: Int) { if order.contains(index) { current = index } }
   public mutating func setShuffled(_ value: Bool) {
     guard value != shuffled else { return }

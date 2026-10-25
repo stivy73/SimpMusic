@@ -15,22 +15,35 @@ public struct LyricsQuery: Hashable, Sendable {
   }
 }
 
-public struct ResolvedLyrics: Equatable, Sendable {
-  public enum Source: String, Sendable {
+public struct ResolvedLyrics: Equatable, Codable, Sendable {
+  public enum Source: String, Codable, Sendable {
     case youtube = "YouTube Music"
     case lrclib = "LRCLIB"
+    case simpMusic = "SimpMusic Lyrics"
+    case better = "Better Lyrics"
+    case spotify = "Spotify"
+    case offline = "Testo salvato"
   }
   public let text: String
   public let source: Source
   public let sourceURL: URL?
+  public let syncedText: String?
+  public init(text: String, source: Source, sourceURL: URL?, syncedText: String? = nil) {
+    self.text = text
+    self.source = source
+    self.sourceURL = sourceURL
+    self.syncedText = syncedText
+  }
 }
 
 public enum LyricsLookupError: LocalizedError {
-  case unavailable, rateLimited
+  case unavailable, rateLimited, spotifyCredentials
   public var errorDescription: String? {
     switch self {
     case .unavailable:
       "Non riesco a cercare il testo online. Controlla la connessione e riprova."
+    case .spotifyCredentials:
+      "Inserisci una sessione web Spotify valida negli strumenti del testo. I token Spotify sono separati dalla chiave Gemini."
     case .rateLimited:
       "La ricerca del testo è temporaneamente limitata. Attendi e riprova."
     }
@@ -42,15 +55,19 @@ public actor LyricsResolver {
   public typealias PrimaryLookup = @Sendable (String) async throws -> String?
   private let primary: PrimaryLookup
   private let session: URLSession
+  private let cacheDirectory: URL?
   private let primaryTimeout: Duration
   private var cache: [LyricsQuery: ResolvedLyrics] = [:]
+  private var timedCache: [LyricsQuery: ResolvedLyrics] = [:]
   private var cacheOrder: [LyricsQuery] = []
   private var nextSearchAt = Date.distantPast
 
   public init(
-    session: URLSession = .shared, primary: PrimaryLookup? = nil,
+    cacheDirectory: URL? = LocalFiles.directory("Lyrics"), session: URLSession = .shared,
+    primary: PrimaryLookup? = nil,
     primaryTimeout: Duration = .seconds(4)
   ) {
+    self.cacheDirectory = cacheDirectory
     self.session = session
     self.primaryTimeout = primaryTimeout
     let music = YouTubeMusicClient()
@@ -58,10 +75,31 @@ public actor LyricsResolver {
   }
 
   public func resolve(
-    _ query: LyricsQuery, force: Bool = false,
+    _ query: LyricsQuery, force: Bool = false, provider: LyricsProviderChoice = .automatic,
+    providerToken: String = "", clientToken: String = "",
     onFallback: @Sendable () async -> Void = {}
   ) async throws -> ResolvedLyrics? {
     try Task.checkCancellation()
+    if provider == .offline {
+      return lyricsFile(query).flatMap { LocalFiles.read(ResolvedLyrics.self, from: $0) }
+    }
+    if provider == .simpMusic || provider == .better || provider == .spotify {
+      if let result = try await ExtraLyrics(session: session).fetch(
+        query, provider: provider, token: providerToken, clientToken: clientToken)
+      {
+        return remember(result, for: query)
+      }
+      return nil
+    }
+    if provider == .lrclib {
+      if let result = Self.select(
+        try await search(
+          title: Self.searchTitle(query.title), artist: Self.searchArtist(query.artist)), for: query
+      ) {
+        return remember(result, for: query)
+      }
+      return nil
+    }
     if !force, let cached = cache[query] { return cached }
     if force { cache.removeValue(forKey: query) }
     do {
@@ -86,6 +124,7 @@ public actor LyricsResolver {
       if error is CancellationError { throw error }
       // A failed primary provider must still allow the online fallback.
     }
+    if provider == .youtube { return nil }
     try Task.checkCancellation()
     guard !query.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
       !query.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -105,7 +144,37 @@ public actor LyricsResolver {
     return nil  // Negative results are never cached, so Retry can find newly added lyrics.
   }
 
+  public func synchronized(_ query: LyricsQuery) async throws -> ResolvedLyrics? {
+    if let cached = timedCache[query] { return cached }
+    let file = cacheDirectory?.appendingPathComponent(LocalFiles.key(query.videoID) + "-timed.json")
+    if let file, let cached = LocalFiles.read(ResolvedLyrics.self, from: file),
+      !LyricsTimeline(lrc: cached.syncedText ?? "").lines.isEmpty
+    {
+      return cached
+    }
+    if let cached = cache[query], let synced = cached.syncedText,
+      !LyricsTimeline(lrc: synced).lines.isEmpty
+    {
+      return cached
+    }
+    let records = try await search(
+      title: Self.searchTitle(query.title), artist: Self.searchArtist(query.artist))
+    if let result = Self.select(
+      records.filter { !LyricsTimeline(lrc: $0.syncedLyrics ?? "").lines.isEmpty }, for: query)
+    {
+      if timedCache.count >= 100 { timedCache.removeAll() }
+      timedCache[query] = result
+      if let file { try? LocalFiles.write(result, to: file) }
+      return result
+    }
+    return nil
+  }
+
+  private func lyricsFile(_ query: LyricsQuery) -> URL? {
+    cacheDirectory?.appendingPathComponent(LocalFiles.key(query.videoID) + ".json")
+  }
   private func remember(_ lyrics: ResolvedLyrics, for query: LyricsQuery) -> ResolvedLyrics {
+    if let file = lyricsFile(query) { try? LocalFiles.write(lyrics, to: file) }
     cache[query] = lyrics
     cacheOrder.removeAll { $0 == query }
     cacheOrder.append(query)
@@ -200,7 +269,8 @@ public actor LyricsResolver {
       if let text = usableText(record.plainLyrics) ?? usableText(stripLRC(record.syncedLyrics)) {
         return ResolvedLyrics(
           text: text, source: .lrclib,
-          sourceURL: URL(string: "https://lrclib.net/api/get/\(record.id)"))
+          sourceURL: URL(string: "https://lrclib.net/api/get/\(record.id)"),
+          syncedText: record.syncedLyrics)
       }
     }
     return nil
@@ -226,7 +296,7 @@ public actor LyricsResolver {
     .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  private static func normalized(_ value: String) -> String {
+  static func normalized(_ value: String) -> String {
     value.folding(
       options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
     )

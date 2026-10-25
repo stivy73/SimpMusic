@@ -6,6 +6,17 @@
 
   @MainActor
   final class CarPlayAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+      _ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+      completionHandler: @escaping () -> Void
+    ) {
+      if identifier == MusicDownloads.identifier {
+        AppleAppSession.shared.music.downloads.backgroundCompletion = completionHandler
+      } else {
+        completionHandler()
+      }
+    }
+
     func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
       if intent is INPlayMediaIntent || intent is INSearchForMediaIntent {
         return CarPlayMediaIntentHandler()
@@ -252,6 +263,17 @@
             self?.browse(BrowseTarget(browseId: "VLLM"), title: "Brani piaciuti")
           }, at: 0)
       }
+      preferred.insert(
+        Tile(
+          id: "offline", title: "Download e offline",
+          detail: "\(app.music.downloads.library.ready.count) brani",
+          artwork: app.music.downloads.library.ready.first?.track.artwork,
+          symbol: "arrow.down.circle.fill"
+        ) { [weak self] in
+          guard let self else { return }
+          self.displaySongs(
+            self.app.music.downloads.library.ready.map(\.track), title: "Download e offline")
+        }, at: 0)
       setTiles(preferred, in: favorites)
       if let voice = app.music.carPlayVoiceQuery, voice.id != voiceQueryID {
         voiceQueryID = voice.id
