@@ -136,7 +136,9 @@ struct AlbumView: View {
       }
       .task(id: "\(album.id):\(identity ?? ""):\(retry)") { await load() }
       .onChange(of: library.session?.identity) { _, new in if new != identity { dismiss() } }
-      .sheet(item: $optionsSong) { SongOptionsSheet(song: $0) }
+      .sheet(item: $optionsSong) { song in
+        SongOptionsSheet(song: song, onClose: { optionsSong = nil })
+      }
   }
 
   private var identityHeader: some View {

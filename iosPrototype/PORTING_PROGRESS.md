@@ -1,3 +1,18 @@
+# iOS Duo native bars and player back — 0.12.2 (33)
+
+- Unclipped native tab/navigation containers restore Duo side controls.
+- Native Back returns to the previous screen; Library remains a separate action.
+- Lyrics, interpretation, queue and overflow adapt to the system vertical bar.
+- Leading-edge swipe minimizes the retained player with cancellation and animated
+  feedback; central sliders and vertical lyric browsing keep their own gestures.
+- Song-menu Close targets its presenting item; closing a nested track menu leaves
+  the album open. Seek also handles adjustments outside a touch-edit session.
+- Account, media session and queue are unchanged. Direct development installation;
+  latest internal TestFlight upload remains 0.12.1 (32).
+- Validation and device-pose limits: IPHONE_DUO.md.
+
+---
+
 # iOS animated lyrics and audio recovery — 0.12.1 (32)
 
 - Animated word progress follows actual media time; scrolling follows active lines,

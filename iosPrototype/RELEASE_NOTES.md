@@ -1,3 +1,28 @@
+# NoteNarrate iOS 0.12.2 (33)
+
+Restores native Duo navigation and player toolbars by removing clipping from the
+retained navigation containers. Uses Apple's vertical toolbar edge, item axis and
+compression policies instead of identifying a device by model or orientation.
+Back has cancellation-action placement and returns to the previous tab. Library,
+lyrics, interpretation and queue use the system side bar in vertical layouts;
+additional song actions/video are available from the native overflow menu.
+Horizontal layouts retain the existing inline player actions.
+
+Adds an interactive leading-edge swipe to minimize the retained player, respecting
+layout direction and Reduce Motion. Short gestures cancel. Sliders and lyric
+scrolling remain independent; playback, position and queue are retained.
+Song-options Close clears its presenting item in both player and album, and
+uses a symbol in the system cancellation position. Accessibility seek adjustments
+outside touch-edit sessions now reach the player immediately.
+Development delivery to the connected Duo; no new TestFlight upload in this change.
+Physical-device UI test passed for song-menu Close, Back and edge-swipe dismissal,
+with the existing account/session and preserved playback state. Simulator checks
+passed for side-bar geometry, lyrics/queue access, nested album-menu Close after
+rotation, seek/short-swipe cancellation and audio continuity through minimization.
+See IPHONE_DUO.md for actual validation and remaining physical-device limits.
+
+---
+
 # NoteNarrate iOS 0.12.1 (32)
 
 Adds animated word fill and line following driven by actual playback time, without

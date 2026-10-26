@@ -41,6 +41,8 @@ struct RootView: View {
   @EnvironmentObject var library: LibraryModel
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.layoutDirection) private var layoutDirection
+  @GestureState private var playerBackDrag: CGFloat = 0
   @State private var tab = 0
   @State private var testShareSheet = false
   var body: some View {
@@ -52,23 +54,40 @@ struct RootView: View {
           PlayerScreen(player: model.player, onLibrary: { tab = 2 })
             .environmentObject(model).background(.black)
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipShape(RoundedRectangle(cornerRadius: model.showPlayer || reduceMotion ? 0 : 24))
+            // Native vertical bars draw in the display's safe-area region on Duo.
+            // Clipping the navigation container here also clips those controls.
             .scaleEffect(model.showPlayer || reduceMotion ? 1 : 0.94, anchor: .bottom)
+            .offset(x: layoutDirection == .rightToLeft ? -playerBackDrag : playerBackDrag)
             .offset(
               y: model.showPlayer || reduceMotion
                 ? 0
                 : geometry.size.height
             )
-            .opacity(reduceMotion && !model.showPlayer ? 0 : 1)
+            .opacity(model.showPlayer ? 1 : 0)
             .animation(
               reduceMotion
                 ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.92),
               value: model.showPlayer
             )
+            .animation(
+              reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.9),
+              value: playerBackDrag
+            )
             .allowsHitTesting(model.showPlayer).accessibilityHidden(!model.showPlayer)
+            .overlay(alignment: .leading) {
+              #if os(iOS)
+                if model.showPlayer {
+                  Color.clear.frame(width: 20).contentShape(Rectangle())
+                    .gesture(playerBackSwipe(width: geometry.size.width))
+                    .accessibilityHidden(true)
+                }
+              #endif
+            }
+            .coordinateSpace(name: "player-back-swipe")
+            .accessibilityAction(.escape) { model.minimizePlayer() }
         }
       }
-    }.clipped()
+    }
       .onChange(of: scenePhase) { _, phase in
         if phase != .active { model.saveSession() } else { _ = model.checkSleepTimer() }
         #if os(iOS)
@@ -140,6 +159,41 @@ struct RootView: View {
       #endif
   }
 
+  private func playerBackSwipe(width: CGFloat) -> some Gesture {
+    DragGesture(minimumDistance: 14, coordinateSpace: .named("player-back-swipe"))
+      .updating($playerBackDrag) { value, drag, transaction in
+        guard model.showPlayer, let distance = playerBackDistance(value, width: width) else {
+          return
+        }
+        transaction.animation = nil
+        drag = min(distance, width * 0.8)
+      }
+      .onEnded { value in
+        guard model.showPlayer, let distance = playerBackDistance(value, width: width) else {
+          return
+        }
+        let direction: CGFloat = layoutDirection == .rightToLeft ? -1 : 1
+        let projected = value.predictedEndTranslation.width * direction
+        if distance >= min(100, width * 0.25)
+          || (distance >= 32 && projected >= width * 0.5)
+        {
+          model.minimizePlayer()
+        }
+      }
+  }
+
+  private func playerBackDistance(_ value: DragGesture.Value, width: CGFloat) -> CGFloat? {
+    let rtl = layoutDirection == .rightToLeft
+    let start = rtl ? width - value.startLocation.x : value.startLocation.x
+    let distance = value.translation.width * (rtl ? -1 : 1)
+    // The content's controls start at least 20 pt in, so their horizontal drags
+    // remain independent. Vertical lyric scrolling never triggers a dismissal.
+    guard start >= 0, start < 20, distance > 0,
+      distance > abs(value.translation.height) * 1.5
+    else { return nil }
+    return distance
+  }
+
   private var navigation: some View {
     TabView(selection: $tab) {
       NavigationStack {
@@ -162,6 +216,7 @@ struct RootView: View {
         .tabItem { Label("Impostazioni", systemImage: "gearshape.fill") }.tag(3)
     }
     .modifier(SystemMiniPlayerAccessory())
+    .modifier(DuoNavigationBars())
     .sheet(isPresented: $library.showLogin) {
       YouTubeLoginScreen(library: library)
     }
@@ -176,6 +231,21 @@ struct RootView: View {
       Text(library.syncError ?? "")
     }
 
+  }
+}
+
+private struct DuoNavigationBars: ViewModifier {
+  @ViewBuilder func body(content: Content) -> some View {
+    #if os(iOS)
+      if #available(iOS 27.1, *) {
+        content.toolbarVerticalBehavior(.automatic)
+          .toolbarVerticalCompressionBehavior(.prefersTabBar)
+      } else {
+        content
+      }
+    #else
+      content
+    #endif
   }
 }
 
@@ -462,47 +532,19 @@ struct PlayerScreen: View {
     NavigationStack {
       Group {
         #if os(iOS)
-          GeometryReader { geometry in
-            if #available(iOS 27.1, *), geometry.size.width >= 700,
-              !typeSize.isAccessibilitySize
-            {
-              ArrangementView {
-                nowPlaying(expanded: true)
-              } secondary: {
-                LyricsContent().environmentObject(model).padding()
-                  .accessibilityIdentifier("expanded-player-lyrics")
-              }
-              .arrangementViewStyle(.split)
-              .task(id: model.current?.id) { model.loadLyrics() }
-            } else {
-              nowPlaying()
+          if #available(iOS 27.1, *) {
+            PlayerBarLayout { vertical in
+              playerContent(verticalBar: vertical)
+                .toolbar { duoToolbar(vertical: vertical) }
+                .toolbarVerticalBehavior(.automatic)
+                .toolbarVerticalCompressionBehavior(.prefersToolbarItems)
             }
+          } else {
+            playerContent(verticalBar: false).toolbar { navigationToolbar }
           }
         #else
-          nowPlaying()
+          playerContent(verticalBar: false).toolbar { navigationToolbar }
         #endif
-      }
-      .playerToolbarBackground()
-      .inlineNavigationTitle()
-      .toolbar {
-        if model.showPlayer {
-          ToolbarItem(placement: .platformLeading) {
-            Button {
-              model.minimizePlayer()
-              onLibrary()
-            } label: {
-              Label("Libreria", systemImage: "square.stack")
-            }
-            .accessibilityIdentifier("return-to-library")
-          }
-          ToolbarItem(placement: .platformTrailing) {
-            Button {
-              model.minimizePlayer()
-            } label: {
-              Label("Torna alla schermata precedente", systemImage: "chevron.down")
-            }.accessibilityIdentifier("close-player")
-          }
-        }
       }
       .onChange(of: model.current?.id) { _, _ in if showLyrics { model.loadLyrics() } }
       .sheet(
@@ -526,7 +568,7 @@ struct PlayerScreen: View {
           pendingOption = nil
         }
       ) { song in
-        SongOptionsSheet(song: song) { pendingOption = $0 }
+        SongOptionsSheet(song: song, onClose: { optionsSong = nil }) { pendingOption = $0 }
       }
       .sheet(isPresented: $showQueue) { QueueScreen() }
       .sheet(isPresented: $expandedLyrics) {
@@ -555,7 +597,101 @@ struct PlayerScreen: View {
       }
     }
   }
-  private func nowPlaying(expanded: Bool = false) -> some View {
+
+  private func playerContent(verticalBar: Bool) -> some View {
+    Group {
+      #if os(iOS)
+        GeometryReader { geometry in
+          if #available(iOS 27.1, *), geometry.size.width >= 700,
+            !typeSize.isAccessibilitySize
+          {
+            ArrangementView {
+              nowPlaying(expanded: true, verticalBar: verticalBar)
+            } secondary: {
+              LyricsContent().environmentObject(model).padding()
+                .accessibilityIdentifier("expanded-player-lyrics")
+            }
+            .arrangementViewStyle(.split)
+            .task(id: model.current?.id) { model.loadLyrics() }
+          } else {
+            nowPlaying(verticalBar: verticalBar)
+          }
+        }
+      #else
+        nowPlaying()
+      #endif
+    }.playerToolbarBackground().inlineNavigationTitle()
+  }
+
+  private var backButton: some View {
+    Button { model.minimizePlayer() } label: {
+      Label("Indietro", systemImage: "chevron.backward")
+    }.accessibilityLabel("Torna alla schermata precedente")
+      .accessibilityIdentifier("close-player")
+  }
+
+  private var libraryButton: some View {
+    Button {
+      model.minimizePlayer()
+      onLibrary()
+    } label: {
+      Label("Libreria", systemImage: "square.stack")
+    }.accessibilityIdentifier("return-to-library")
+  }
+
+  @ToolbarContentBuilder
+  private var navigationToolbar: some ToolbarContent {
+    if model.showPlayer {
+      ToolbarItem(placement: .cancellationAction) { backButton }
+      ToolbarItem(placement: .platformTrailing) { libraryButton }
+    }
+  }
+
+  #if os(iOS)
+    @available(iOS 27.1, *)
+    @ToolbarContentBuilder
+    private func duoToolbar(vertical: Bool) -> some ToolbarContent {
+      if model.showPlayer {
+        ToolbarItem(placement: .cancellationAction) { backButton }
+          .axisBehavior(.verticalPreferred).visibilityPriority(.high)
+        ToolbarItem(placement: .topBarTrailing) { libraryButton }
+          .axisBehavior(.verticalPreferred)
+        if vertical {
+          ToolbarItemGroup(placement: .bottomBar) {
+            Button {
+              model.loadLyrics()
+              expandedLyrics = true
+            } label: {
+              Label("Testo della canzone", systemImage: "quote.bubble")
+            }.accessibilityIdentifier("toggle-lyrics")
+            meaningButton
+            Button { showQueue = true } label: {
+              Label("Coda di riproduzione", systemImage: "music.note.list")
+            }.accessibilityIdentifier("show-queue")
+          }.axisBehavior(.verticalPreferred).visibilityPriority(.high)
+          ToolbarOverflowMenu {
+            if let song = model.current {
+              Button { optionsSong = song } label: {
+                Label("Opzioni brano", systemImage: "slider.horizontal.3")
+              }.accessibilityIdentifier("player-more-options")
+              YouTubeLikeButton(song: song)
+            }
+            Button(action: openVideo) {
+              Label("Mostra video", systemImage: "play.rectangle")
+            }.accessibilityIdentifier("toggle-video")
+          }
+        }
+      }
+    }
+  #endif
+
+  private func toggleLyrics() {
+    showLyrics.toggle()
+    showVideo = false
+    if showLyrics { model.loadLyrics() }
+  }
+
+  private func nowPlaying(expanded: Bool = false, verticalBar: Bool = false) -> some View {
     GeometryReader { geometry in
       let wide =
         geometry.size.width >= 680 && geometry.size.height >= 280
@@ -602,28 +738,38 @@ struct PlayerScreen: View {
               )
               .clipShape(RoundedRectangle(cornerRadius: 20))
               VStack(spacing: 22) {
-                songHeading(song, expanded: expanded)
+                songHeading(song, expanded: expanded, verticalBar: verticalBar)
                 PlayerControls(player: player, reading: model.reading || model.busyMeaning)
-                HStack {
-                  playerAction("Testo della canzone", icon: "quote.bubble", selected: showLyrics) {
-                    showLyrics.toggle()
-                    showVideo = false
-                    if showLyrics && !expanded { model.loadLyrics() }
-                  }.accessibilityIdentifier("toggle-lyrics")
-                  Spacer()
-                  playerAction(
-                    showVideo ? "Mostra copertina" : "Mostra video",
-                    icon: showVideo ? "photo" : "play.rectangle", selected: showVideo
-                  ) {
-                    openVideo()
-                    showLyrics = false
-                  }.accessibilityIdentifier("toggle-video")
-                  Spacer()
-                  playerAction("Coda di riproduzione", icon: "music.note.list", selected: false) {
-                    showQueue = true
+                if !verticalBar {
+                  HStack {
+                    playerAction("Testo della canzone", icon: "quote.bubble", selected: showLyrics) {
+                      toggleLyrics()
+                    }.accessibilityIdentifier("toggle-lyrics")
+                    Spacer()
+                    playerAction(
+                      showVideo ? "Mostra copertina" : "Mostra video",
+                      icon: showVideo ? "photo" : "play.rectangle", selected: showVideo
+                    ) {
+                      openVideo()
+                      showLyrics = false
+                    }.accessibilityIdentifier("toggle-video")
+                    Spacer()
+                    playerAction("Coda di riproduzione", icon: "music.note.list", selected: false) {
+                      showQueue = true
+                    }
+                    .accessibilityIdentifier("show-queue")
+                  }.padding(.horizontal, 22)
+                }
+                #if DEBUG
+                  if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
+                    Text(
+                      verbatim:
+                        "\(model.narrationStarts):\(model.narrationFinishes):\(model.reading):\(model.busyMeaning):\(model.systemArtworkAvailable):\(model.systemNarrationActive):\(model.preparingNarrationInBackground)"
+                    )
+                    .font(.system(size: 1)).frame(width: 1, height: 1)
+                    .accessibilityIdentifier("carplay-diagnostics")
                   }
-                  .accessibilityIdentifier("show-queue")
-                }.padding(.horizontal, 22)
+                #endif
                 if showLyrics && !expanded {
                   HStack {
                     Button {
@@ -646,7 +792,7 @@ struct PlayerScreen: View {
     }
   }
 
-  private func songHeading(_ song: Song, expanded: Bool) -> some View {
+  private func songHeading(_ song: Song, expanded: Bool, verticalBar: Bool) -> some View {
     let identity = HStack(spacing: 12) {
 
       if showLyrics && !expanded {
@@ -661,42 +807,7 @@ struct PlayerScreen: View {
     }
     let actions = HStack(spacing: 12) {
       YouTubeLikeButton(song: song, iconOnly: true)
-      Button {
-        #if DEBUG
-          #if os(iOS)
-            if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
-              CarPlayNarrationRequest.start(model) { completion in
-                // Reproduce a vehicle that never delivers the presentation callback.
-                if ProcessInfo.processInfo.arguments.contains(
-                  "--test-carplay-presentation-failure")
-                {
-                  completion(false)
-                }
-              }
-            } else {
-              model.explain()
-            }
-          #else
-            model.explain()
-          #endif
-        #else
-          model.explain()
-        #endif
-      } label: {
-        Label("Significato della canzone", systemImage: "lightbulb.max.fill")
-          .labelStyle(.iconOnly).frame(width: 44, height: 44)
-      }
-      .accessibilityLabel("Significato della canzone").disabled(player.isLoading)
-      #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
-          Text(
-            verbatim:
-              "\(model.narrationStarts):\(model.narrationFinishes):\(model.reading):\(model.busyMeaning):\(model.systemArtworkAvailable):\(model.systemNarrationActive):\(model.preparingNarrationInBackground)"
-          )
-          .font(.system(size: 1)).frame(width: 1, height: 1)
-          .accessibilityIdentifier("carplay-diagnostics")
-        }
-      #endif
+      meaningButton
       Button {
         optionsSong = song
       } label: {
@@ -706,13 +817,42 @@ struct PlayerScreen: View {
     return ViewThatFits(in: .horizontal) {
       HStack(spacing: 12) {
         identity
-        actions
+        if !verticalBar { actions }
       }
       VStack(alignment: .leading, spacing: 8) {
         identity
-        actions
+        if !verticalBar { actions }
       }
     }
+  }
+
+  private var meaningButton: some View {
+    Button {
+      #if DEBUG
+        #if os(iOS)
+          if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
+            CarPlayNarrationRequest.start(model) { completion in
+              // Reproduce a vehicle that never delivers the presentation callback.
+              if ProcessInfo.processInfo.arguments.contains(
+                "--test-carplay-presentation-failure")
+              {
+                completion(false)
+              }
+            }
+          } else {
+            model.explain()
+          }
+        #else
+          model.explain()
+        #endif
+      #else
+        model.explain()
+      #endif
+    } label: {
+      Label("Significato della canzone", systemImage: "lightbulb.max.fill")
+        .labelStyle(.iconOnly).frame(width: 44, height: 44)
+    }
+      .accessibilityLabel("Significato della canzone").disabled(player.isLoading)
   }
 
   private func openVideo() {
@@ -739,6 +879,17 @@ struct PlayerScreen: View {
     }.buttonStyle(.plain).accessibilityLabel(label).accessibilityValue(selected ? "Attivo" : "")
   }
 }
+
+#if os(iOS)
+  /// Read the edge inside NavigationStack, where the system supplies bar geometry.
+  /// Using this environment keeps Split View and the inner portrait display native.
+  @available(iOS 27.1, *)
+  private struct PlayerBarLayout<Content: View>: View {
+    @Environment(\.toolbarVerticalEdge) private var verticalEdge
+    @ViewBuilder let content: (Bool) -> Content
+    var body: some View { content(verticalEdge != nil) }
+  }
+#endif
 
 struct LyricsContent: View {
   @EnvironmentObject var model: MusicModel
@@ -783,7 +934,16 @@ struct PlayerControls: View {
       #endif
       VStack(spacing: 4) {
         Slider(
-          value: Binding(get: { min(elapsed, max(duration, 1)) }, set: { scrubTime = $0 }),
+          value: Binding(
+            get: { min(elapsed, max(duration, 1)) },
+            set: { value in
+              scrubTime = value
+              // VoiceOver and accessibility adjustments don't start a touch-edit
+              // session; apply their requested position immediately as well.
+              if !scrubbing {
+                player.seek(to: CMTime(seconds: value, preferredTimescale: 600))
+              }
+            }),
           in: 0...max(duration, 1),
           onEditingChanged: { editing in
             if editing { scrubTime = player.elapsed }

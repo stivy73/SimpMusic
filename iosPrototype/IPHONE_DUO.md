@@ -1,4 +1,73 @@
-# NoteNarrate iOS 0.7.0 (21): iPhone Duo
+# NoteNarrate iOS: iPhone Duo
+
+## 0.12.2 (33) — native controls, Back and edge swipe
+
+The root and retained player no longer clip their native navigation containers.
+On Duo, the system draws tab/toolbar controls in a safe-area region outside the
+content bounds; the old clipping hid them even though the app used native bars.
+Artwork alone remains clipped. The player is retained and minimizes with the
+existing animation, so navigation does not replace its media session.
+
+The player reads `toolbarVerticalEdge` inside NavigationStack. In a vertical bar,
+Back uses cancellation-action placement, Library stays a separate destination,
+and lyrics, interpretation and queue use symbol actions. Native overflow keeps
+song options, account-like and optional video accessible. Axis and compression
+preferences preserve the most useful controls; the inner portrait layout retains
+normal horizontal controls. No device-model or orientation check decides this.
+
+The iOS player also supports an interactive swipe from the leading 20 pt edge.
+It mirrors for right-to-left layout, cancels short gestures and minimizes to the
+previous screen when completed. The touch region excludes the content's sliders;
+vertical lyric scrolling and sheet gestures retain their own behavior. Motion
+preferences and the accessibility escape action are respected.
+
+Song-options Close clears the exact presenting item in the player or album,
+rather than relying solely on an environment dismiss action. Its symbol uses
+the system cancellation position. Nested album navigation remains open when
+closing that album's track menu. Seek changes made outside touch-edit sessions
+(including accessibility adjustments) now apply immediately rather than being lost.
+
+### Validation on 26 October 2026
+
+- Duo simulator: native side alignment/reachability, Back returning to the previous
+  tab, lyrics and queue sheets, minimization with ongoing local audio passed.
+- Duo simulator: completed edge swipe, cancelled short swipe, seek control and
+  retained playback/position passed. The first seek check exposed an accessibility
+  adjustment that did not reach the player; this is corrected in the final source.
+- Duo simulator: Close, reopen and a nested album's track-menu Close passed,
+  including a rotation before closing the nested sheet.
+- iPhone 18 Pro simulator, iOS 27.0: karaoke/follow/seek and minimization across
+  tabs passed with horizontal controls.
+- Signed development build 0.12.2 (33) installed on the connected Duo, iOS 27.1.
+  Physical Home in landscape now shows native side controls; the inner portrait
+  player shows artwork, Back and the horizontal controls.
+- Final physical-device functional test passed: opens the actual song menu,
+  closes it, returns to the mini-player with Back, reopens the player and completes
+  the edge swipe. Playback state is preserved. This test uses the existing account
+  and session; it does not install fixtures or start new audio.
+- The final signed app was explicitly installed before the physical test; merely
+  activating an existing process can leave an older binary running. All four app/
+  extension bundles are 0.12.2 (33), built with `iphoneos27.1`; signature check passed.
+
+These UI checks do not establish live Premium CDN continuity or CarPlay audibility,
+nor certify every hinge angle, Split View size or accessibility configuration.
+Latest internal TestFlight upload remains 0.12.1 (32); this is direct device delivery.
+
+Local evidence: `/tmp/notenarrate33-duo-ui.xcresult` (side bars/minimization),
+`/tmp/notenarrate33-duo-close-swipe.xcresult` (edge swipe/seek passed; an initial
+native-overflow test selector was corrected), `/tmp/notenarrate33-duo-close-confirm.xcresult`
+(menu close and nested album), `/tmp/notenarrate33-iphone-ui.xcresult` (horizontal
+iPhone), `/tmp/notenarrate33-physical-final.xcresult` (one physical test passed).
+Final device app: `/tmp/NoteNarrate33-Duo/Build/Products/Debug-iphoneos/StivySimpMusic.app`.
+
+The separate local Mac target could not complete an additional build because it
+does not register pre-existing shared AlbumScreen/SongOptionsSheet/player-decoder
+sources. That target is not part of this iOS delivery; no Mac package was produced.
+
+Apple guidance: [Raise the bar with iPhone Duo](https://developer.apple.com/videos/play/tech-talks/111462/),
+[Designing for iPhone Duo](https://developer.apple.com/design/human-interface-guidelines/designing-for-iphone-duo).
+
+## Original adaptation — 0.7.0 (21)
 
 The same app adapts to the available window rather than identifying a device by
 screen size, idiom or orientation. Built with the iOS 27.1 SDK; iOS 17 remains the

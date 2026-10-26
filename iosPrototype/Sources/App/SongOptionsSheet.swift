@@ -6,6 +6,7 @@ enum PlayerOption { case lyrics, video }
 /// The same visible actions are used in the player and on every album track.
 struct SongOptionsSheet: View {
   let song: Song
+  var onClose: (() -> Void)? = nil
   var playerOption: ((PlayerOption) -> Void)? = nil
   @EnvironmentObject private var model: MusicModel
   @EnvironmentObject private var library: LibraryModel
@@ -41,13 +42,13 @@ struct SongOptionsSheet: View {
           }.accessibilityIdentifier("song-option-playlist")
           Button {
             model.enqueue(song, playNext: true)
-            dismiss()
+            close()
           } label: {
             option("Riproduci successivo", icon: "play.circle")
           }.accessibilityIdentifier("song-option-next")
           Button {
             model.enqueue(song)
-            dismiss()
+            close()
           } label: {
             option("Aggiungi alla coda", icon: "text.append")
           }.accessibilityIdentifier("song-option-queue")
@@ -65,7 +66,7 @@ struct SongOptionsSheet: View {
           }.accessibilityIdentifier("song-option-album")
           Button {
             model.startRadio(song: song)
-            dismiss()
+            close()
           } label: {
             option("Avvia la radio", icon: "dot.radiowaves.left.and.right")
           }.accessibilityIdentifier("song-option-radio")
@@ -78,13 +79,13 @@ struct SongOptionsSheet: View {
           if let playerOption {
             Button {
               playerOption(.lyrics)
-              dismiss()
+              close()
             } label: {
               option("Aggiungi o modifica il testo", icon: "square.and.pencil")
             }
             Button {
               playerOption(.video)
-              dismiss()
+              close()
             } label: {
               option("Mostra video", icon: "play.rectangle")
             }
@@ -92,15 +93,27 @@ struct SongOptionsSheet: View {
         }.padding(.horizontal, 24).padding(.bottom, 20)
       }.buttonStyle(.plain).tint(.primary)
         .navigationTitle("Opzioni brano").inlineNavigationTitle()
-        .toolbar { Button("Chiudi") { dismiss() }.accessibilityIdentifier("song-options-close") }
+        .toolbar {
+          ToolbarItem(placement: .cancellationAction) {
+            Button(action: close) { Label("Chiudi", systemImage: "xmark") }
+              .accessibilityIdentifier("song-options-close")
+          }
+        }
+        .accessibilityAction(.escape, close)
         .sheet(isPresented: $playlist) { AddToPlaylistSheet(song: song) }
         .onReceive(model.$showPlayer.dropFirst()) { showing in
-          if showing { dismiss() }
+          if showing { close() }
         }
     }
     #if os(iOS)
       .presentationDetents([.large]).presentationDragIndicator(.visible)
     #endif
+  }
+
+  private func close() {
+    // Close the exact item that presented this sheet, including nested album
+    // navigation; retain environment dismissal for any other presentation site.
+    if let onClose { onClose() } else { dismiss() }
   }
 
   private func option(_ title: String, icon: String) -> some View {

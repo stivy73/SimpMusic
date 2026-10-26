@@ -2,6 +2,171 @@ import XCTest
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testConnectedDevicePlayerOptionsCloseAndBack() throws {
+    #if targetEnvironment(simulator)
+      throw XCTSkip("Physical-device check uses the existing account and paused session")
+    #else
+      let app = XCUIApplication()
+      app.activate()
+      let close = app.buttons["song-options-close"]
+      if close.exists {
+        close.tap()
+        XCTAssertEqual(
+          XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: close)], timeout: 6), .completed)
+      }
+      let back = app.buttons["close-player"]
+      if !back.exists {
+        let open = app.buttons["open-player"]
+        guard open.waitForExistence(timeout: 10) else {
+          throw XCTSkip("No saved track; this check does not start new playback")
+        }
+        open.tap()
+      }
+      XCTAssertTrue(back.waitForExistence(timeout: 10), app.debugDescription)
+      openPlayerOptions(app)
+      XCTAssertTrue(close.waitForExistence(timeout: 6), app.debugDescription)
+      XCTAssertTrue(close.isHittable)
+      close.tap()
+      XCTAssertEqual(
+        XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+          predicate: NSPredicate(format: "exists == false"), object: close)], timeout: 6), .completed)
+      XCTAssertTrue(back.isHittable)
+      back.tap()
+      let open = app.buttons["open-player"]
+      let mini = app.buttons["mini-playback-toggle"]
+      XCTAssertTrue(open.waitForExistence(timeout: 6))
+      let previousStatus = mini.value as? String
+      open.tap()
+      XCTAssertTrue(back.waitForExistence(timeout: 6))
+      let window = app.windows.firstMatch
+      window.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.35))
+        .press(forDuration: 0.1, thenDragTo:
+          window.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.35)))
+      XCTAssertTrue(open.waitForExistence(timeout: 6), app.debugDescription)
+      XCTAssertEqual(mini.value as? String, previousStatus)
+      let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+      screenshot.name = "Duo physical device after Close, Back and edge swipe"
+      screenshot.lifetime = .keepAlways
+      add(screenshot)
+    #endif
+  }
+
+  @MainActor
+  func testSongOptionsCloseReturnsToPlayerAndNestedAlbum() {
+    let app = XCUIApplication()
+    startAlbumPlayer(app)
+    let close = app.buttons["song-options-close"]
+    XCTAssertTrue(close.isHittable, app.debugDescription)
+    close.tap()
+    XCTAssertEqual(
+      XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+        predicate: NSPredicate(format: "exists == false"), object: close)], timeout: 6), .completed)
+    XCTAssertTrue(app.buttons["close-player"].isHittable)
+    openPlayerOptions(app)
+    let album = app.buttons["song-option-album"]
+    if !album.isHittable { app.swipeUp() }
+    album.tap()
+    XCTAssertTrue(app.buttons["album-play"].waitForExistence(timeout: 8))
+    let scroll = app.scrollViews["album-scroll"]
+    let trackOptions = app.buttons["album-track-options-1"]
+    for _ in 0..<4 {
+      if trackOptions.isHittable { break }
+      scroll.swipeUp()
+    }
+    XCTAssertTrue(trackOptions.isHittable)
+    trackOptions.tap()
+    XCTAssertTrue(close.waitForExistence(timeout: 6))
+    XCUIDevice.shared.orientation = .landscapeLeft
+    XCTAssertTrue(close.isHittable, "Close remains reachable after resizing")
+    close.tap()
+    XCTAssertTrue(app.scrollViews["album-scroll"].waitForExistence(timeout: 6))
+    XCTAssertFalse(app.buttons["song-option-like"].isHittable,
+      "Only the nested song menu should close; the album stays open")
+    XCUIDevice.shared.orientation = .portrait
+  }
+
+  @MainActor
+  func testPlayerEdgeSwipeBackKeepsMusicAndAllowsScrubbing() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-long-local"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15), app.debugDescription)
+    waitForPlayback(toggle)
+    let back = app.buttons["close-player"]
+    let seek = app.sliders["playback-seek"]
+    if !seek.isHittable { app.swipeUp() }
+    XCTAssertTrue(seek.isHittable, app.debugDescription)
+    seek.adjust(toNormalizedSliderPosition: 0.3)
+    XCTAssertTrue(back.isHittable, "Scrubbing must not dismiss the player")
+    let elapsed = app.staticTexts["playback-elapsed"]
+    let position = XCTNSPredicateExpectation(
+      predicate: NSPredicate { _, _ in (Double(elapsed.value as? String ?? "") ?? 0) >= 20 },
+      object: elapsed)
+    XCTAssertEqual(XCTWaiter.wait(for: [position], timeout: 8), .completed)
+    let window = app.windows.firstMatch
+    let edge = window.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.35))
+    let cancelled = edge.withOffset(CGVector(dx: 18, dy: 0))
+    edge.press(forDuration: 0.1, thenDragTo: cancelled)
+    XCTAssertTrue(back.isHittable, "A short edge gesture must cancel")
+    let destination = window.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.35))
+    edge.press(forDuration: 0.1, thenDragTo: destination)
+    let mini = app.buttons["mini-playback-toggle"]
+    XCTAssertTrue(mini.waitForExistence(timeout: 8), app.debugDescription)
+    XCTAssertEqual(mini.value as? String, "Riproduzione attiva")
+    app.buttons["open-player"].tap()
+    XCTAssertTrue(back.waitForExistence(timeout: 8))
+    XCTAssertEqual(toggle.value as? String, "Riproduzione attiva")
+    XCTAssertGreaterThanOrEqual(Double(elapsed.value as? String ?? "") ?? 0, 20)
+    toggle.tap()
+  }
+
+  @MainActor
+  func testDuoVerticalPlayerBarAndBackNavigation() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-long-local", "--test-karaoke"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15), app.debugDescription)
+    waitForPlayback(toggle)
+    let back = app.buttons["close-player"]
+    let queue = app.buttons["show-queue"]
+    let lyrics = app.buttons["toggle-lyrics"]
+    for button in [back, queue, lyrics] {
+      XCTAssertTrue(button.isHittable, app.debugDescription)
+      XCTAssertTrue(app.windows.firstMatch.frame.contains(button.frame), "Control outside window")
+    }
+    // These commands must share the system's side region, rather than a clipped
+    // toolbar or a second row laid over the album artwork.
+    XCTAssertEqual(back.frame.midX, queue.frame.midX, accuracy: 12)
+    XCTAssertLessThan(back.frame.midY, queue.frame.midY)
+    let sidebar = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    sidebar.name = "Duo player with native side controls and Back"
+    sidebar.lifetime = .keepAlways
+    add(sidebar)
+
+    lyrics.tap()
+    XCTAssertTrue(app.scrollViews["synchronized-lyrics-scroll"].firstMatch.waitForExistence(timeout: 8))
+    app.buttons["Chiudi"].firstMatch.tap()
+    queue.tap()
+    XCTAssertTrue(app.staticTexts["queue-count"].waitForExistence(timeout: 8))
+    app.buttons["Chiudi"].firstMatch.tap()
+    back.tap()
+    let mini = app.buttons["mini-playback-toggle"]
+    XCTAssertTrue(mini.waitForExistence(timeout: 8))
+    XCTAssertEqual(mini.value as? String, "Riproduzione attiva")
+    selectTab("Cerca", symbol: "magnifyingglass", in: app)
+    XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 8))
+    app.buttons["open-player"].tap()
+    XCTAssertTrue(back.waitForExistence(timeout: 8))
+    back.tap()
+    XCTAssertTrue(app.searchFields.firstMatch.isHittable, "Back must return to the previous tab")
+    XCTAssertEqual(mini.value as? String, "Riproduzione attiva")
+    mini.tap()
+  }
+
+  @MainActor
   private func startAlbumPlayer(_ app: XCUIApplication, multipleArtists: Bool = false) {
     app.launchArguments = ["--test-local-playback", "--test-album-player", "--test-remote-library"]
     if multipleArtists { app.launchArguments.append("--test-album-multiple-artists") }
@@ -10,9 +175,28 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertTrue(toggle.waitForExistence(timeout: 15), app.debugDescription)
     if toggle.value as? String == "Riproduzione attiva" { toggle.tap() }
     app.swipeUp()
-    XCTAssertTrue(app.buttons["player-more-options"].waitForExistence(timeout: 5))
-    app.buttons["player-more-options"].tap()
+    openPlayerOptions(app)
     XCTAssertTrue(app.buttons["song-option-like"].waitForExistence(timeout: 5))
+  }
+
+  @MainActor
+  private func openPlayerOptions(_ app: XCUIApplication) {
+    let options = app.buttons["player-more-options"]
+    if !options.isHittable {
+      let overflow = app.buttons.matching(NSPredicate(
+        format: "label IN %@", ["More", "Altro", "Altre opzioni"]
+      )).allElementsBoundByIndex.first { $0.isHittable }
+      XCTAssertNotNil(overflow, app.debugDescription)
+      overflow?.tap()
+    }
+    if options.exists && options.isHittable {
+      options.tap()
+    } else {
+      // Native overflow menus preserve the label, but don't expose SwiftUI IDs.
+      let menuOption = app.buttons["Opzioni brano"].firstMatch
+      XCTAssertTrue(menuOption.waitForExistence(timeout: 5), app.debugDescription)
+      menuOption.tap()
+    }
   }
 
   @MainActor

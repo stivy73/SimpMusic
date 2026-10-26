@@ -1,7 +1,22 @@
-# NoteNarrate iOS — 0.12.1 (32)
+# NoteNarrate iOS — 0.12.2 (33)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
+
+**0.12.2 (33), controlli iPhone Duo:** eliminate le maschere che ritagliavano
+le barre native nella fascia laterale. Il player espone Indietro, Libreria,
+Testo, Significato e Coda nella barra di sistema quando verticale; le opzioni
+aggiuntive restano nel menu di overflow. Sul display interno in verticale si
+mantiene la disposizione orizzontale Apple. Lo swipe dal bordo iniziale riduce
+il player con animazione e torna alla schermata precedente, conservando la
+musica; un gesto breve si annulla e i cursori restano indipendenti.
+Chiudi nelle opzioni brano agisce sulla presentazione esatta, anche nei menu
+delle tracce di un album; il cursore applica anche le regolazioni accessibili.
+Build di sviluppo per installazione diretta sul Duo; l’ultima consegna TestFlight
+rimane la 0.12.1 (32). [Dettagli e collaudo](IPHONE_DUO.md).
+Verificati sul Duo reale: chiusura del menu brano, Indietro e swipe, con stato
+della riproduzione conservato. Le prove automatiche sul simulatore coprono anche
+testi, coda, cursore, minimizzazione e chiusura di un menu annidato nell’album.
 
 
 **0.12.1 (32), karaoke e riproduzione:** il testo sincronizzato segue il tempo reale
