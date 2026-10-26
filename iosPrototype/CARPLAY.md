@@ -1,5 +1,56 @@
 # NoteNarrate iOS — audio in background e CarPlay
 
+## Copertine, orologio e fine audio del 26 ottobre 2026 — 0.12.4 (35)
+
+Le fotografie delle build precedenti mostrano immagini ritagliate come schede
+verticali e solo due elementi in una zona stretta. `CPListImageRowItemRowElement`
+sostituisce `CPListImageRowItemCardElement(showsImageFullHeight: true)`; la riga
+usa la capacità nativa disponibile. Le immagini sono preparate su un quadrato
+600 × 600 con proporzioni conservate, senza stirarle. Le tracce degli album
+restano una lista numerata. Riferimento: [template Apple CarPlay](https://developer.apple.com/videos/play/wwdc2025/216/).
+
+Now Playing non riceve più un nuovo tempo ogni mezzo secondo: il sistema
+estrapola l’avanzamento e vengono pubblicati solo cambi di stato, metadati o
+posizione. La voce ha un identificativo distinto e `IsLiveStream = true`, senza
+durata/posizione del brano. Dopo fine o interruzione viene riscritta la scheda
+musicale completa con `IsLiveStream = false`, durata finita e tempo corrente.
+Riferimento: [pubblicazione Now Playing Apple](https://developer-rno.apple.com/videos/play/wwdc2022/110338/).
+
+**Diagnosi reale:** prima della disconnessione del Duo, un comando DEBUG dell’app
+ha usato la propria sessione Premium senza avviare musica e senza estrarre cookie,
+chiavi o URL firmati. Per Dreams (2004 Remaster) ha rilevato sorgente e catalogo
+258 s, ma contenitore e traccia AVFoundation 515,588390 s. Il codice precedente
+sostituiva la durata corretta con quest’ultima e attendeva la fine tardiva.
+La ragione interna della durata raddoppiata del contenitore non è stata dimostrata.
+
+Ora `AudioPlaybackTiming` usa il termine della traccia audio e, quando supera
+la durata dichiarata dalla stessa sorgente di oltre 2 s/1%, applica una fine
+alla sorgente + 0,25 s. La durata resta coerente in player, crossfade e Now Playing;
+`forwardPlaybackEndTime` attiva l’avanzamento già esistente della coda. Nessuna
+analisi dell’ampiezza, nessun taglio dei silenzi artistici. Ogni caricatore ha un
+URL interno diverso per evitare il riuso di metadati fra tracce; non è dimostrato
+che il precedente URL condiviso fosse la causa della durata raddoppiata.
+
+**Prove:** 236 test core superati. Due casi UI sul simulatore Duo iOS 27.1,
+entrambi superati nello stesso run con `TEST SUCCEEDED`: voce e ripristino del
+tempo musicale finito; file AAC locale di 126 s con suono per 6 s, sorgente 6 s,
+passaggio reale al secondo brano senza attendere i 120 s di coda. I primi tentativi
+del runner hanno avuto un bootstrap fallito e una raccolta diagnostica bloccata;
+il run conclusivo ha disabilitato solo tale raccolta ed è terminato con esito 0.
+
+Log: `/tmp/notenarrate35-core-tests.log`, `/tmp/notenarrate35-final-ui.log`;
+risultati: `/tmp/notenarrate35-final-ui.xcresult`;
+diagnostica numerica reale: `/tmp/notenarrate35-device-timing.json`.
+IPA Release 0.12.4 (35) esportata e verificata da `CheckCarPlayIPA.py`, inclusi
+firma, profili CarPlay, Siri e App Group delle estensioni. Caricamento interno
+TestFlight in preparazione; assegnazione ai tester manuale.
+
+**Limiti:** il rendering finale sul display esterno CarPlay e il termine dei
+brani reali in auto richiedono collaudo. La build finale non è stata reinstallata
+sul Duo dopo che l’utente ha interrotto la sessione Mac/iPhone. Il controllo del
+telefono non è stato riattivato. Il test di coda è una regressione controllata,
+non una prova finale dell’audio nell’auto.
+
 ## Audio e karaoke del 26 ottobre 2026 — 0.12.1 (32)
 
 La diagnostica del telefono con build 31 conferma `HTTP 403` esattamente all’offset

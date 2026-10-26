@@ -4,6 +4,27 @@ import PrototypeCore
 import YouTubeSDK
 
 func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
+  if args.first == "--audio-timing" {
+    let query = args.dropFirst().joined(separator: " ")
+    let results = try await HomeDiscovery(session: nil).search(query: query, filter: .songs)
+    guard let song = results.first else { throw AudioPlaybackError.unavailable }
+    print("Catalog: \(song.title), duration \(song.durationSeconds ?? 0)s")
+    let source = try await YouTubeAudio().resolve(videoID: song.mediaId)
+    print("Source duration: \(source.duration)s; HLS: \(source.isHLS)")
+    let loader = AudioRangeLoader(source: source)
+    try await loader.prepare()
+    let asset = loader.asset()
+    print("Asset duration: \(try await asset.load(.duration).seconds)s")
+    for track in try await asset.loadTracks(withMediaType: .audio) {
+      let range = try await track.load(.timeRange)
+      let segments = try await track.load(.segments)
+      print("Audio range: \(range.start.seconds)..<\(range.end.seconds); segments: \(segments.count)")
+      for segment in segments {
+        print("Segment empty: \(segment.isEmpty), target: \(segment.timeMapping.target.start.seconds)..<\(segment.timeMapping.target.end.seconds)")
+      }
+    }
+    return true
+  }
   guard args.first == "--audio" || args.first == "--audio-long" || args.first == "--audio-ranges"
   else { return false }
   let long = args.first == "--audio-long"

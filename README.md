@@ -21,7 +21,12 @@ La generazione del significato usa il provider IA selezionato e richiede la rela
 ## NoteNarrate per iOS
 
 Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
-rispetto ad Android. La **0.12.3 (34)** apre le opzioni brano direttamente dai tre
+rispetto ad Android. La **0.12.4 (35)** sostituisce le schede verticali CarPlay
+con copertine quadrate proporzionate, ripristina un unico orologio musicale dopo
+la narrazione e limita la riproduzione alla durata della sorgente quando il
+contenitore audio dichiara una coda aggiuntiva. Superati 236 test core e due
+scenari UI; il risultato sul display e sull’audio dell’auto resta da collaudare.
+La **0.12.3 (34)** apre le opzioni brano direttamente dai tre
 puntini, include Mi piace YouTube Music nella scheda, rimuove Mostra video da iOS
 e torna alla Home dopo il salvataggio delle impostazioni.
 La **0.12.2 (33)** corregge le barre laterali native del Duo,

@@ -24,7 +24,41 @@
         music?.configureRadio(session: session)
         music?.searchResults.configure(session: session)
       }
+      #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--diagnose-audio-timing") {
+          Task { await diagnoseAudioTiming() }
+        }
+      #endif
     }
+    #if DEBUG
+      private func diagnoseAudioTiming() async {
+        var report: [String: String] = [:]
+        do {
+          report["accountAvailable"] = String(library.session != nil)
+          let items = try await HomeDiscovery(session: library.session).search(
+            query: "Fleetwood Mac Dreams 2004 Remaster", filter: .songs)
+          guard let song = items.first else { throw AudioPlaybackError.unavailable }
+          report["catalogDuration"] = String(song.durationSeconds ?? 0)
+          let source = try await YouTubeAudio().resolve(videoID: song.mediaId, session: library.session)
+          report["sourceDuration"] = String(source.duration)
+          report["authenticated"] = String(source.authenticated)
+          report["hls"] = String(source.isHLS)
+          let loader = AudioRangeLoader(source: source)
+          try await loader.prepare()
+          let asset = loader.asset()
+          report["assetDuration"] = String(try await asset.load(.duration).seconds)
+          for (index, track) in try await asset.loadTracks(withMediaType: .audio).enumerated() {
+            report["audioEnd\(index)"] = String(try await track.load(.timeRange).end.seconds)
+            for (n, segment) in try await track.load(.segments).enumerated() {
+              report["segment\(index)-\(n)"] = "\(segment.isEmpty):\(segment.timeMapping.target.start.seconds):\(segment.timeMapping.target.end.seconds)"
+            }
+          }
+        } catch { report["error"] = AudioResolutionFailure.detail(error) }
+        let path = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+          .appendingPathComponent("NoteNarrate-AudioTiming.json")
+        try? JSONEncoder().encode(report).write(to: path, options: .atomic)
+      }
+    #endif
   }
 
   @MainActor
@@ -34,6 +68,8 @@
     private var artworkTask: Task<Void, Never>?
     private var artwork: MPMediaItemArtwork?
     private var artworkID: String?
+    private var artworkRevision = UUID()
+    private var publication = NowPlayingPublication()
     private let center = MPNowPlayingInfoCenter.default()
 
     init(model: MusicModel) {
@@ -159,6 +195,7 @@
       artworkTask?.cancel()
       artwork = nil
       artworkID = song?.id
+      artworkRevision = UUID()
       update()
       guard let song else { return }
       artworkTask = Task {
@@ -167,6 +204,7 @@
           !Task.isCancelled, artworkID == song.id
         else { return }
         artwork = Self.systemArtwork(image)
+        artworkRevision = UUID()
         update()
       }
     }
@@ -196,21 +234,40 @@
         && !model.player.isLoading && !model.busyMeaning && !model.reading
       guard let song = model.current else {
         center.nowPlayingInfo = nil
+        publication.reset()
         return
       }
+      let live = model.reading
+      let contentID = live ? song.id + ":narration:" + model.meaningRequestID.uuidString : song.id
+      let rate = model.player.playing || live ? 1.0 : 0.0
+      let duration = model.player.durationSeconds.isFinite ? max(0, model.player.durationSeconds) : 0
+      let time = model.player.currentTime().seconds
+      let position = time.isFinite ? max(0, duration > 0 ? min(time, duration) : time) : 0
+      let key = [contentID, song.title, song.artist, artworkRevision.uuidString].joined(separator: "\n")
+      guard publication.shouldPublish(
+        key: key, duration: live ? 0 : duration, position: position,
+        rate: rate, live: live, now: ProcessInfo.processInfo.systemUptime)
+      else { return }
       var info: [String: Any] = [
-        MPMediaItemPropertyTitle: model.reading ? "Significato della canzone" : song.title,
+        MPMediaItemPropertyTitle: live ? "Significato della canzone" : song.title,
         MPMediaItemPropertyArtist: song.artist,
-        MPMediaItemPropertyPlaybackDuration: model.reading ? 0 : model.player.durationSeconds,
-        MPNowPlayingInfoPropertyElapsedPlaybackTime: model.reading ? 0 : model.player.elapsed,
-        MPNowPlayingInfoPropertyPlaybackRate: model.player.playing || model.reading ? 1.0 : 0.0,
+        MPNowPlayingInfoPropertyIsLiveStream: live,
+        MPNowPlayingInfoPropertyPlaybackRate: rate,
         MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
         MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
-        MPNowPlayingInfoPropertyExternalContentIdentifier: song.id,
+        MPNowPlayingInfoPropertyExternalContentIdentifier: contentID,
       ]
+      // Speech has no seekable music timeline. Give it a distinct identity, then
+      // restore the complete finite music clock when it finishes or is cancelled.
+      if !live {
+        if duration > 0 { info[MPMediaItemPropertyPlaybackDuration] = duration }
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position
+      }
       if let artwork { info[MPMediaItemPropertyArtwork] = artwork }
       center.nowPlayingInfo = info
       #if DEBUG
+        let timeline = "\(live ? 0 : duration):\(live ? 0 : position):\(rate):\(live)"
+        if model.systemNowPlayingTimeline != timeline { model.systemNowPlayingTimeline = timeline }
         let narrationRate =
           model.reading && (info[MPNowPlayingInfoPropertyPlaybackRate] as? Double) == 1
         if model.systemNarrationActive != narrationRate {

@@ -1,3 +1,31 @@
+# NoteNarrate iOS 0.12.4 (35)
+
+Replaces full-height portrait CarPlay cards with native album row elements and
+square, aspect-preserving artwork. Row capacity follows the platform limit rather
+than forcing two cards into a small column. Album tracks remain numbered lists.
+
+Narration publishes a distinct nonseekable Now Playing identity. On completion or
+cancellation, music restores its finite duration, actual position and playback rate.
+Linear music progress is extrapolated by the system, without periodic metadata resets.
+
+The same authenticated Dreams stream reported 258 s in source metadata but 515.588 s
+in AVFoundation on the physical Duo. Native playback now bounds inconsistent padded
+container durations to the exact source length plus 0.25 s and retains that duration
+for crossfade and Now Playing. Each audio loader gets a unique internal asset URL.
+This is a duration correction, not amplitude-based silence removal.
+
+236 core tests and two targeted Duo simulator UI cases passed: finite music clock
+restoration after narration and queue advance without waiting for a 120-second
+silent tail in a controlled native audio fixture. Release archive and distribution
+IPA verified, including CarPlay, Siri, Widgets and Share. All targets use 0.12.4 (35).
+Final physical CarPlay rendering/audibility and phone playback remain to be tested.
+Internal TestFlight upload pending; tester assignment remains manual.
+
+IPA: `deliveries/NoteNarrate-iOS-0.12.4-build35-CarPlayTiming.ipa`.
+SHA256: `1f5b683d36966031689371ac37eda6ef61be19a21dddd25a68cb7295789bc827`.
+
+---
+
 # NoteNarrate iOS 0.12.3 (34)
 
 The player's ellipsis opens the song-options sheet directly in both native Duo

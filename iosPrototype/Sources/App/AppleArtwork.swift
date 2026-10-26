@@ -11,6 +11,22 @@
       cache.totalCostLimit = 32 * 1024 * 1024
       cache.countLimit = 128
     }
+    /// Deliver square pixels to album grids without stretching a non-square source.
+    static func squareCover(_ image: UIImage) -> UIImage {
+      guard image.size.width > 0, image.size.height > 0 else { return image }
+      let side: CGFloat = 600
+      let format = UIGraphicsImageRendererFormat()
+      format.scale = 1
+      format.opaque = true
+      return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
+        UIColor.black.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        let factor = min(side / image.size.width, side / image.size.height)
+        let width = image.size.width * factor
+        let height = image.size.height * factor
+        image.draw(in: CGRect(x: (side - width) / 2, y: (side - height) / 2, width: width, height: height))
+      }.withRenderingMode(.alwaysOriginal)
+    }
     func image(primary: URL?, videoID: String? = nil) async -> UIImage? {
       for url in ArtworkSource.candidates(primary: primary, videoID: videoID) {
         if Task.isCancelled { return nil }

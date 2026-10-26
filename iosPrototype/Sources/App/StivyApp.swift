@@ -769,6 +769,9 @@ struct PlayerScreen: View {
                     )
                     .font(.system(size: 1)).frame(width: 1, height: 1)
                     .accessibilityIdentifier("carplay-diagnostics")
+                    Text(verbatim: model.systemNowPlayingTimeline)
+                      .font(.system(size: 1)).frame(width: 1, height: 1)
+                      .accessibilityIdentifier("now-playing-timing")
                   }
                 #endif
                 if showLyrics && !expanded {
@@ -1180,6 +1183,7 @@ struct SettingsView: View {
         + "\nVoce: " + model.narrationDiagnostic + "\nAccount audio: "
         + model.player.sourceDiagnostic
         + "\nMusica: " + model.player.networkDiagnostic
+        + "\nDurata audio: " + model.player.timingDiagnostic
     #else
       "Voce: " + model.narrationDiagnostic
     #endif

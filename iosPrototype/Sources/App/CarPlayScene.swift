@@ -426,10 +426,13 @@
           index += 1
           continue
         }
-        // Cover content is not an icon grid. Two full-height cards remain legible in a car.
+        // Album covers are square artwork, not portrait cards with cropped sides.
         let first = index
         var positions: [Int] = []
-        while index < count && positions.count < min(2, Int(CPMaximumNumberOfGridImages)) {
+        let rowLimit: Int
+        if #available(iOS 26.0, *) { rowLimit = Int(CPMaximumNumberOfGridImages) }
+        else { rowLimit = 2 }
+        while index < count && positions.count < rowLimit {
           let entry = state.tiles[state.page.range.lowerBound + index]
           guard entry.action != nil, entry.artwork != nil || entry.videoID != nil else { break }
           positions.append(index)
@@ -440,13 +443,12 @@
         if #available(iOS 26.0, *) {
           let elements = positions.map { local in
             let entry = state.tiles[state.page.range.lowerBound + local]
-            let card = CPListImageRowItemCardElement(
-              image: state.images[local], showsImageFullHeight: true,
-              title: entry.title, subtitle: entry.detail, tintColor: nil)
+            let card = CPListImageRowItemRowElement(
+              image: state.images[local], title: entry.title, subtitle: entry.detail)
             state.imageUpdates[local] = { [weak card] image in card?.image = image }
             return card
           }
-          row = CPListImageRowItem(text: nil, cardElements: elements, allowsMultipleLines: false)
+          row = CPListImageRowItem(text: nil, elements: elements, allowsMultipleLines: true)
         } else {
           if #available(iOS 17.4, *) {
             row = CPListImageRowItem(
@@ -522,8 +524,9 @@
             guard let self, let grid, let state, let image, !Task.isCancelled,
               self.controller != nil, self.grids.object(forKey: grid) === state
             else { return }
-            state.images[index] = image
-            state.imageUpdates[index]?(image)
+            let displayImage = state.layout == .covers ? AppleArtworkStore.squareCover(image) : image
+            state.images[index] = displayImage
+            state.imageUpdates[index]?(displayImage)
           })
       }
     }

@@ -37,6 +37,7 @@
     {
       didSet { UserDefaults.standard.set(networkDiagnostic, forKey: "lastAudioNetworkDiagnostic") }
     }
+    @Published private(set) var timingDiagnostic = "Durata non ancora verificata"
     #if DEBUG
       @Published var diagnostic = "idle"
     #endif
@@ -50,6 +51,7 @@
       let loader: AudioRangeLoader?
       let tap: AudioEffectsTap
       let duration: Double
+      let timingDiagnostic: String
       let sourceURL: URL?
     }
     private var prepared: PreparedDeck?
@@ -101,7 +103,12 @@
             duration = source.duration
           }
           try Task.checkCancellation()
+          let timing = try await AudioPlaybackTiming.resolve(asset, source: duration)
+          duration = timing.duration
           let item = AVPlayerItem(asset: asset)
+          if duration > 0 {
+            item.forwardPlaybackEndTime = CMTime(seconds: duration, preferredTimescale: 600)
+          }
           item.preferredForwardBufferDuration = 15
           let tap = AudioEffectsTap()
           tap.configure(AudioPreferences.shared.effects)
@@ -114,7 +121,7 @@
           deck.volume = 0
           prepared = PreparedDeck(
             id: videoID, player: deck, loader: loader, tap: tap, duration: duration,
-            sourceURL: sourceURL)
+            timingDiagnostic: timing.diagnostic, sourceURL: sourceURL)
         } catch { if preparingID == videoID { preparingID = nil } }
       }
     }
@@ -149,8 +156,8 @@
       let expected = intent.load()
       loadID = expected
       elapsed = 0
-      durationSeconds = deck.player.currentItem?.duration.seconds ?? deck.duration
-      if !durationSeconds.isFinite { durationSeconds = deck.duration }
+      durationSeconds = deck.duration
+      timingDiagnostic = deck.timingDiagnostic
       isLoading = false
       playbackError = nil
       bindPlayer()
@@ -309,6 +316,7 @@
       loadID = expected
       elapsed = startAt ?? 0
       if !recovering { durationSeconds = 0 }
+      timingDiagnostic = "Durata in verifica"
       playing = false
       playbackError = nil
       isLoading = true
@@ -339,8 +347,13 @@
       request = Task {
         do {
           let asset: AVURLAsset
+          var sourceDuration = 0.0
           if let local = localFileProvider(videoId) {
             asset = AVURLAsset(url: local)
+            #if DEBUG
+              if ProcessInfo.processInfo.arguments.contains("--test-padded-audio-end"),
+                videoId == "local-1-padded" { sourceDuration = 6 }
+            #endif
             sourceDiagnostic = "File locale verificato"
             networkDiagnostic = "Riproduzione offline, nessuna richiesta CDN"
           } else {
@@ -364,6 +377,7 @@
                 "Nuova sorgente, recupero \(recovery.attempts)/2; " + networkDiagnostic
             }
             durationSeconds = source.duration
+            sourceDuration = source.duration
             let loader = AudioRangeLoader(source: source) { [weak self] message in
               guard
                 message.contains("HTTP ") && !message.contains("HTTP 206")
@@ -390,6 +404,13 @@
           }
           let item = AVPlayerItem(asset: asset)
           item.preferredForwardBufferDuration = 30
+          let timing = try await AudioPlaybackTiming.resolve(asset, source: sourceDuration)
+          try Task.checkCancellation()
+          guard intent.revision == expected, assetRevision == generation else { return }
+          timingDiagnostic = timing.diagnostic
+          if timing.duration > 0 {
+            item.forwardPlaybackEndTime = CMTime(seconds: timing.duration, preferredTimescale: 600)
+          }
           let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first
           // Cancellation can make loadTracks return nil. Always reject an obsolete
           // load before replacing the item, even when there is no effects track.
@@ -410,7 +431,11 @@
                   self.diagnostic = "ready intent \(self.intent.wantsPlayback)"
                 #endif
                 self.isLoading = false
-                if duration.isFinite, duration > 0 { self.durationSeconds = duration }
+                if timing.duration > 0 {
+                  self.durationSeconds = timing.duration
+                } else if duration.isFinite, duration > 0 {
+                  self.durationSeconds = duration
+                }
                 if self.initialSeek != nil {
                   self.restorePendingSeek(expected: expected, generation: generation)
                 } else {

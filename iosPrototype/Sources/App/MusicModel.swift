@@ -334,6 +334,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     @Published var narrationFinishes = 0
     @Published var systemArtworkAvailable = false
     @Published var systemNarrationActive = false
+    @Published var systemNowPlayingTimeline = ""
     var preparingNarrationInBackground: Bool {
       #if os(iOS)
         meaningBackgroundTask != .invalid
@@ -469,10 +470,11 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         let seconds =
           ProcessInfo.processInfo.arguments.contains("--test-long-local")
           ? 80.0 : (ProcessInfo.processInfo.arguments.contains("--test-crossfade") ? 10.0 : 30.0)
+        let padded = ProcessInfo.processInfo.arguments.contains("--test-padded-audio-end")
         let tracks = (1...3).map {
           Song(
-            id: "local-\($0)-\(Int(seconds))", title: "Brano locale \($0)", artist: "Prova offline",
-            artwork: nil, durationSeconds: seconds,
+            id: "local-\($0)-\(padded && $0 == 1 ? "padded" : String(Int(seconds)))", title: "Brano locale \($0)", artist: "Prova offline",
+            artwork: nil, durationSeconds: padded && $0 == 1 ? 126 : seconds,
             albumBrowseID: ProcessInfo.processInfo.arguments.contains("--test-album-player")
               ? "MPREfixture" : nil,
             albumTitle: "Album locale",
@@ -488,7 +490,8 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         for track in tracks where downloads.library.url(for: track.id) == nil {
           let file = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString + ".m4a")
-          try LocalPlaybackFixture.audio(file, seconds: seconds)
+          try LocalPlaybackFixture.audio(file, seconds: track.durationSeconds ?? seconds,
+            audibleSeconds: padded && track.id.hasSuffix("-padded") ? 6 : nil)
           downloads.library.begin(track)
           try await downloads.library.finish(
             track.id, temporary: file, status: 200, contentRange: nil)

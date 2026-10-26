@@ -5,6 +5,16 @@ import YouTubeSDK
 @testable import PrototypeCore
 
 final class AudioPlaybackTests: XCTestCase {
+  func testEachRangeLoaderHasAPrivateDistinctAssetIdentity() {
+    let source = YouTubeAudio.Source(
+      url: URL(string: "https://test.googlevideo.com/audio?sig=private")!, duration: 258,
+      userAgent: "Test", byteCount: 4_000_000, isHLS: false)
+    let first = AudioRangeLoader(source: source)
+    let second = AudioRangeLoader(source: source)
+    XCTAssertEqual(first.asset().url, first.asset().url)
+    XCTAssertNotEqual(first.asset().url, second.asset().url)
+    XCTAssertFalse(first.asset().url.absoluteString.contains("private"))
+  }
   func testResolutionDiagnosticsIdentifyBoundaryWithoutLeakingProviderError() {
     XCTAssertEqual(
       AudioResolutionFailure.detail(

@@ -2,6 +2,44 @@ import XCTest
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testPaddedAudioAdvancesAtSourceEndWithoutWaitingForSilentTail() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-padded-audio-end"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 25))
+    let second = app.staticTexts["Brano locale 2"].firstMatch
+    XCTAssertTrue(second.waitForExistence(timeout: 20), "Six seconds of audio must not wait for a 120-second silent tail")
+    waitForPlayback(toggle)
+    toggle.tap()
+  }
+
+  @MainActor
+  func testCarPlayVoiceRestoresFiniteMusicClockAfterCompletion() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-carplay-meaning", "--test-stream-meaning"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 20))
+    waitForPlayback(toggle)
+    app.swipeUp()
+    app.buttons["Significato della canzone"].tap()
+    let timing = app.staticTexts["now-playing-timing"]
+    let voice = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+      timing.label.hasSuffix(":1.0:true")
+    }, object: timing)
+    XCTAssertEqual(XCTWaiter.wait(for: [voice], timeout: 15), .completed)
+    let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+      let values = timing.label.split(separator: ":")
+      return values.count == 4 && (Double(values[0]) ?? 0) > 29
+        && (Double(values[1]) ?? -1) >= 0 && values[2] == "1.0" && values[3] == "false"
+    }, object: timing)
+    XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 20), .completed)
+    waitForPlayback(toggle)
+    toggle.tap()
+  }
+
+  @MainActor
   func testPlayerMoreOpensSongOptionsDirectlyWithoutVideo() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-local-playback", "--test-long-local", "--test-remote-library"]

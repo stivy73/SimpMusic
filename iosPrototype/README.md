@@ -1,7 +1,31 @@
-# NoteNarrate iOS — 0.12.3 (34)
+# NoteNarrate iOS — 0.12.4 (35)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
+
+**0.12.4 (35), copertine e tempi CarPlay:** il catalogo usa gli elementi nativi
+per copertine quadrate al posto delle schede verticali, sfruttando la larghezza
+disponibile. Le immagini mantengono le proporzioni; le tracce dell’album restano
+una lista numerata. La narrazione ha un’identità Now Playing distinta e senza
+cursore musicale; al termine si ripristinano durata e posizione del brano.
+Il tempo lineare viene lasciato avanzare al sistema, senza riscriverlo ogni mezzo secondo.
+
+Sul Duo, la diagnostica dello stesso flusso Premium di **Dreams (2004 Remaster)**
+ha rilevato 258 secondi nella sorgente e 515,588 secondi in AVFoundation. Ora il
+player conserva la fine della sorgente in caso di questa incongruenza, con margine
+di 0,25 secondi, anziché attendere la coda dichiarata dal contenitore. Non elimina
+i silenzi musicali. Ogni caricatore audio usa inoltre un URL interno distinto.
+
+**Verifica:** 236 test core e due test UI superati sul simulatore Duo: ripristino
+del tempo musicale dopo la voce e passaggio al brano successivo con un file
+contenente sei secondi di suono e due minuti aggiuntivi di silenzio. Archivio
+Release e IPA 35 verificati per firma Apple, CarPlay, Siri, Widget e Condividi.
+Il layout sul display reale CarPlay e l’audio finale in auto richiedono ancora
+collaudo; la build finale non è stata installata direttamente sul Duo.
+IPA: `deliveries/NoteNarrate-iOS-0.12.4-build35-CarPlayTiming.ipa`;
+SHA256 `1f5b683d36966031689371ac37eda6ef61be19a21dddd25a68cb7295789bc827`.
+Caricamento TestFlight in preparazione; assegnazione ai tester manuale.
+[Diagnosi, prove e limiti](CARPLAY.md).
 
 **0.12.3 (34), menu e impostazioni:** i tre puntini aprono direttamente
 **Opzioni brano**, anche nella barra laterale del Duo. **Mi piace su YouTube Music**

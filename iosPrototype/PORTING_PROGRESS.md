@@ -1,3 +1,20 @@
+# iOS CarPlay covers, clock and source end — 0.12.4 (35)
+
+- Native square album rows replace portrait cards; aspect-fit image rendering
+  preserves artwork without lateral stretching. Track lists remain numbered.
+- Narration has a separate live/nonseekable identity; music restores its finite
+  clock on completion. Linear elapsed ticks no longer republish Now Playing.
+- Physical Premium diagnosis: source 258 s versus AVFoundation 515.588 s on Dreams.
+  Inconsistent excess is bounded to the source end with 0.25 s rounding allowance;
+  no detection or removal of natural musical silence. Audio loaders use distinct URLs.
+- 236 core tests and two Duo simulator UI scenarios passed, including actual native
+  queue advance before a 120-second fixture tail and clock restoration after voice.
+- Release archive/IPA signing and CarPlay/Siri/Widget/Share checks passed.
+  Internal TestFlight upload pending. Testers manual; final vehicle test pending.
+  See CARPLAY.md for evidence and physical-device limits.
+
+---
+
 # iOS direct song options and settings completion — 0.12.3 (34)
 
 - One tap on the player ellipsis opens song options in vertical and horizontal bars.

@@ -9,6 +9,7 @@ public final class AudioRangeLoader: NSObject, AVAssetResourceLoaderDelegate, @u
   private let queue = DispatchQueue(label: "NoteNarrate.AudioRanges")
   private let diagnostic: (@Sendable (String) -> Void)?
   private let buffer: AudioRangeBuffer
+  private let assetURL = URL(string: "notenarrate-audio://stream/\(UUID().uuidString)/audio.m4a")!
   // Accessed exclusively on queue, including cancellation and completion.
   private var requests: [ObjectIdentifier: Task<Void, Never>] = [:]
   public init(source: YouTubeAudio.Source, diagnostic: (@Sendable (String) -> Void)? = nil) {
@@ -57,7 +58,8 @@ public final class AudioRangeLoader: NSObject, AVAssetResourceLoaderDelegate, @u
       return AVURLAsset(url: source.url, options: [AVURLAssetHTTPUserAgentKey: source.userAgent])
     }
     // The original signed address stays private to this loader.
-    let asset = AVURLAsset(url: URL(string: "notenarrate-audio://stream/audio.m4a")!)
+    // A shared URL lets AVFoundation reuse another song's duration/sample index.
+    let asset = AVURLAsset(url: assetURL)
     asset.resourceLoader.setDelegate(self, queue: queue)
     return asset
   }
