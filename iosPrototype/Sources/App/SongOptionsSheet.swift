@@ -1,7 +1,12 @@
 import Combine
 import SwiftUI
 
-enum PlayerOption { case lyrics, video }
+enum PlayerOption {
+  case lyrics
+  #if os(macOS)
+    case video
+  #endif
+}
 
 /// The same visible actions are used in the player and on every album track.
 struct SongOptionsSheet: View {
@@ -35,6 +40,7 @@ struct SongOptionsSheet: View {
               .foregroundStyle(liked ? .red : .primary)
           }.accessibilityIdentifier("song-option-like")
             .accessibilityValue(liked ? "Attivo" : "Non attivo")
+          YouTubeLikeButton(song: song).padding(.vertical, 14)
           Button {
             playlist = true
           } label: {
@@ -75,7 +81,6 @@ struct SongOptionsSheet: View {
           }.accessibilityIdentifier("song-option-share")
           Divider().padding(.vertical, 10)
           DownloadAction(song: song).padding(.vertical, 14)
-          YouTubeLikeButton(song: song).padding(.vertical, 14)
           if let playerOption {
             Button {
               playerOption(.lyrics)
@@ -83,12 +88,14 @@ struct SongOptionsSheet: View {
             } label: {
               option("Aggiungi o modifica il testo", icon: "square.and.pencil")
             }
-            Button {
-              playerOption(.video)
-              close()
-            } label: {
-              option("Mostra video", icon: "play.rectangle")
-            }
+            #if os(macOS)
+              Button {
+                playerOption(.video)
+                close()
+              } label: {
+                option("Mostra video", icon: "play.rectangle")
+              }
+            #endif
           }
         }.padding(.horizontal, 24).padding(.bottom, 20)
       }.buttonStyle(.plain).tint(.primary)

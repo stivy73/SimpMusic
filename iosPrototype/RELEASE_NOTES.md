@@ -1,3 +1,22 @@
+# NoteNarrate iOS 0.12.3 (34)
+
+The player's ellipsis opens the song-options sheet directly in both native Duo
+side bars and horizontal layouts. YouTube Music like/unlike is inside that sheet,
+next to local likes; it is no longer a separate player/header/overflow action.
+Removes Show video from the iOS player and song-options sheet.
+
+Save settings returns to the main Home after successful persistence and resets
+any Home navigation history while retaining the music session. A persistence
+error keeps Settings open with its existing error message.
+All app/extension targets use 0.12.3 (34). Direct development delivery;
+latest internal TestFlight upload remains 0.12.1 (32).
+Signed build installed and version confirmed on the physical Duo. Functional
+checks passed for direct options, account-like placement, no video, Close/Back/
+swipe and Save returning Home with existing settings. Targeted simulator cases
+passed on Duo and iPhone 18 Pro; see IPHONE_DUO.md for logs and test-runner limits.
+
+---
+
 # NoteNarrate iOS 0.12.2 (33)
 
 Restores native Duo navigation and player toolbars by removing clipping from the

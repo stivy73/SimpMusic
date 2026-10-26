@@ -1,3 +1,17 @@
+# iOS direct song options and settings completion — 0.12.3 (34)
+
+- One tap on the player ellipsis opens song options in vertical and horizontal bars.
+- YouTube Music like/unlike lives in the sheet, near local favourites.
+- No Show video action in the iOS player or sheet.
+- Saving Settings returns to the main Home only after successful persistence.
+  Music session remains retained; errors keep the panel open.
+- All app/extension targets use 0.12.3 (34); direct device delivery.
+- Verified on the physical Duo: direct menu/Close/Back/swipe with playback state
+  retained, and Save returning Home without editing existing settings. Targeted
+  Duo/iPhone simulator cases also passed; evidence and limits in IPHONE_DUO.md.
+
+---
+
 # iOS Duo native bars and player back — 0.12.2 (33)
 
 - Unclipped native tab/navigation containers restore Duo side controls.

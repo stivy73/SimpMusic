@@ -2,6 +2,76 @@ import XCTest
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testPlayerMoreOpensSongOptionsDirectlyWithoutVideo() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-long-local", "--test-remote-library"]
+    app.launch()
+    XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 15))
+    XCTAssertFalse(app.buttons["youtube-like-local-1-80"].isHittable)
+    openPlayerOptions(app)
+    XCTAssertTrue(app.buttons["song-option-like"].exists)
+    XCTAssertTrue(app.buttons["youtube-like-local-1-80"].exists)
+    XCTAssertTrue(app.buttons["youtube-like-local-1-80"].label.contains("YouTube Music"))
+    XCTAssertFalse(app.buttons["Mostra video"].exists)
+    XCTAssertFalse(app.buttons["toggle-video"].exists)
+    app.buttons["song-options-close"].tap()
+    XCTAssertTrue(app.buttons["close-player"].isHittable)
+    XCTAssertFalse(app.buttons["toggle-video"].exists)
+    if app.buttons["playback-toggle"].value as? String == "Riproduzione attiva" {
+      app.buttons["playback-toggle"].tap()
+    }
+  }
+
+  @MainActor
+  func testSavingSettingsReturnsToHome() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library"]
+    app.launch()
+    selectTab("Impostazioni", symbol: "gearshape.fill", in: app)
+    saveSettingsAndExpectHome(app)
+  }
+
+  @MainActor
+  func testConnectedDeviceSavingSettingsReturnsHome() throws {
+    #if targetEnvironment(simulator)
+      throw XCTSkip("Physical-device check saves the existing settings without editing fields")
+    #else
+      let app = XCUIApplication()
+      app.activate()
+      if app.buttons["song-options-close"].isHittable {
+        app.buttons["song-options-close"].tap()
+      }
+      if app.buttons["close-player"].isHittable { app.buttons["close-player"].tap() }
+      selectTab("Impostazioni", symbol: "gearshape.fill", in: app)
+      saveSettingsAndExpectHome(app)
+    #endif
+  }
+
+  @MainActor
+  private func saveSettingsAndExpectHome(_ app: XCUIApplication) {
+    let save = app.buttons["settings-save"]
+    let form = app.collectionViews.firstMatch
+    for _ in 0..<8 {
+      if save.isHittable { break }
+      // The full Duo window includes the separate system side region. Scroll
+      // the Form itself so the gesture starts in its content on either posture.
+      if form.exists { form.swipeUp() } else { app.swipeUp() }
+    }
+    XCTAssertTrue(save.isHittable)
+    save.tap()
+    XCTAssertEqual(
+      XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+        predicate: NSPredicate(format: "hittable == true"),
+        object: app.buttons["home-filter-all"])], timeout: 8), .completed)
+    XCTAssertFalse(app.staticTexts["settings-error"].exists)
+    XCTAssertFalse(save.isHittable)
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Home after saving settings"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+  }
+
+  @MainActor
   func testConnectedDevicePlayerOptionsCloseAndBack() throws {
     #if targetEnvironment(simulator)
       throw XCTSkip("Physical-device check uses the existing account and paused session")
@@ -25,6 +95,10 @@ final class PrototypeUITests: XCTestCase {
       }
       XCTAssertTrue(back.waitForExistence(timeout: 10), app.debugDescription)
       openPlayerOptions(app)
+      XCTAssertTrue(app.buttons.matching(NSPredicate(
+        format: "identifier BEGINSWITH %@", "youtube-like-")).firstMatch.exists)
+      XCTAssertFalse(app.buttons["Mostra video"].exists)
+      XCTAssertFalse(app.buttons["toggle-video"].exists)
       XCTAssertTrue(close.waitForExistence(timeout: 6), app.debugDescription)
       XCTAssertTrue(close.isHittable)
       close.tap()
@@ -182,21 +256,15 @@ final class PrototypeUITests: XCTestCase {
   @MainActor
   private func openPlayerOptions(_ app: XCUIApplication) {
     let options = app.buttons["player-more-options"]
-    if !options.isHittable {
-      let overflow = app.buttons.matching(NSPredicate(
-        format: "label IN %@", ["More", "Altro", "Altre opzioni"]
-      )).allElementsBoundByIndex.first { $0.isHittable }
-      XCTAssertNotNil(overflow, app.debugDescription)
-      overflow?.tap()
+    XCTAssertTrue(options.waitForExistence(timeout: 6), app.debugDescription)
+    for _ in 0..<3 {
+      if options.isHittable { break }
+      app.swipeDown()
     }
-    if options.exists && options.isHittable {
-      options.tap()
-    } else {
-      // Native overflow menus preserve the label, but don't expose SwiftUI IDs.
-      let menuOption = app.buttons["Opzioni brano"].firstMatch
-      XCTAssertTrue(menuOption.waitForExistence(timeout: 5), app.debugDescription)
-      menuOption.tap()
-    }
+    XCTAssertTrue(options.isHittable)
+    options.tap()
+    XCTAssertTrue(app.buttons["song-options-close"].waitForExistence(timeout: 6),
+      "The three dots should open the sheet directly")
   }
 
   @MainActor
@@ -1324,7 +1392,7 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
-  func testArtworkVideoLyricsAndQueue() {
+  func testArtworkLyricsAndQueue() {
     let app = XCUIApplication()
     app.launch()
     searchReferenceSong(in: app)
@@ -1347,12 +1415,11 @@ final class PrototypeUITests: XCTestCase {
         ], timeout: 30), .completed)
     toggle.tap()
     let before = Double(elapsed.value as? String ?? "") ?? 0
-    // iOS audio no longer relies on WebKit. Video remains an explicit external action.
-    XCTAssertTrue(app.buttons["toggle-video"].exists)
+    XCTAssertFalse(app.buttons["toggle-video"].exists)
     XCTAssertEqual(toggle.value as? String, "In pausa")
     XCTAssertEqual(Double(elapsed.value as? String ?? "") ?? 0, before, accuracy: 2)
     XCTAssertEqual(toggle.value as? String, "In pausa")
-    app.buttons["Altre opzioni"].tap()
+    openPlayerOptions(app)
     app.buttons["Aggiungi o modifica il testo"].tap()
     let editor = app.textViews["manual-lyrics-editor"]
     XCTAssertTrue(editor.waitForExistence(timeout: 5))

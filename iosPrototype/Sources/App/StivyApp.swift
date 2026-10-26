@@ -44,6 +44,7 @@ struct RootView: View {
   @Environment(\.layoutDirection) private var layoutDirection
   @GestureState private var playerBackDrag: CGFloat = 0
   @State private var tab = 0
+  @State private var homeNavigationID = UUID()
   @State private var testShareSheet = false
   var body: some View {
     GeometryReader { geometry in
@@ -198,7 +199,7 @@ struct RootView: View {
     TabView(selection: $tab) {
       NavigationStack {
         HomeView(onSearch: { tab = 1 }, onSettings: { tab = 3 })
-      }.modifier(LegacyMiniPlayerInset()).tabItem {
+      }.id(homeNavigationID).modifier(LegacyMiniPlayerInset()).tabItem {
         Label("Home", systemImage: "house.fill")
       }.tag(0)
       NavigationStack {
@@ -211,7 +212,12 @@ struct RootView: View {
       }.modifier(LegacyMiniPlayerInset()).tabItem {
         Label("Libreria", systemImage: "square.stack.fill")
       }.tag(2)
-      NavigationStack { SettingsView().navigationTitle("Impostazioni") }
+      NavigationStack {
+        SettingsView(onSaved: {
+          homeNavigationID = UUID()
+          tab = 0
+        }).navigationTitle("Impostazioni")
+      }
         .modifier(LegacyMiniPlayerInset())
         .tabItem { Label("Impostazioni", systemImage: "gearshape.fill") }.tag(3)
     }
@@ -560,9 +566,11 @@ struct PlayerScreen: View {
         onDismiss: {
           switch pendingOption {
           case .lyrics: editLyrics = true
-          case .video:
-            openVideo()
-            showLyrics = false
+          #if os(macOS)
+            case .video:
+              openVideo()
+              showLyrics = false
+          #endif
           case nil: break
           }
           pendingOption = nil
@@ -669,17 +677,8 @@ struct PlayerScreen: View {
               Label("Coda di riproduzione", systemImage: "music.note.list")
             }.accessibilityIdentifier("show-queue")
           }.axisBehavior(.verticalPreferred).visibilityPriority(.high)
-          ToolbarOverflowMenu {
-            if let song = model.current {
-              Button { optionsSong = song } label: {
-                Label("Opzioni brano", systemImage: "slider.horizontal.3")
-              }.accessibilityIdentifier("player-more-options")
-              YouTubeLikeButton(song: song)
-            }
-            Button(action: openVideo) {
-              Label("Mostra video", systemImage: "play.rectangle")
-            }.accessibilityIdentifier("toggle-video")
-          }
+          ToolbarItem(placement: .topBarPinnedTrailing) { optionsButton }
+            .axisBehavior(.verticalPreferred).visibilityPriority(.high)
         }
       }
     }
@@ -746,14 +745,16 @@ struct PlayerScreen: View {
                       toggleLyrics()
                     }.accessibilityIdentifier("toggle-lyrics")
                     Spacer()
-                    playerAction(
-                      showVideo ? "Mostra copertina" : "Mostra video",
-                      icon: showVideo ? "photo" : "play.rectangle", selected: showVideo
-                    ) {
-                      openVideo()
-                      showLyrics = false
-                    }.accessibilityIdentifier("toggle-video")
-                    Spacer()
+                    #if os(macOS)
+                      playerAction(
+                        showVideo ? "Mostra copertina" : "Mostra video",
+                        icon: showVideo ? "photo" : "play.rectangle", selected: showVideo
+                      ) {
+                        openVideo()
+                        showLyrics = false
+                      }.accessibilityIdentifier("toggle-video")
+                      Spacer()
+                    #endif
                     playerAction("Coda di riproduzione", icon: "music.note.list", selected: false) {
                       showQueue = true
                     }
@@ -806,13 +807,8 @@ struct PlayerScreen: View {
       }.frame(maxWidth: .infinity, alignment: .leading)
     }
     let actions = HStack(spacing: 12) {
-      YouTubeLikeButton(song: song, iconOnly: true)
       meaningButton
-      Button {
-        optionsSong = song
-      } label: {
-        Image(systemName: "ellipsis").frame(width: 44, height: 44)
-      }.accessibilityLabel("Altre opzioni").accessibilityIdentifier("player-more-options")
+      optionsButton
     }.font(.title2).buttonStyle(.plain)
     return ViewThatFits(in: .horizontal) {
       HStack(spacing: 12) {
@@ -824,6 +820,13 @@ struct PlayerScreen: View {
         if !verticalBar { actions }
       }
     }
+  }
+
+  private var optionsButton: some View {
+    Button { optionsSong = model.current } label: {
+      Label("Opzioni brano", systemImage: "ellipsis").labelStyle(.iconOnly)
+        .frame(minWidth: 44, minHeight: 44)
+    }.accessibilityLabel("Opzioni brano").accessibilityIdentifier("player-more-options")
   }
 
   private var meaningButton: some View {
@@ -855,21 +858,12 @@ struct PlayerScreen: View {
       .accessibilityLabel("Significato della canzone").disabled(player.isLoading)
   }
 
-  private func openVideo() {
-    #if os(macOS)
+  #if os(macOS)
+    private func openVideo() {
       showVideo.toggle()
       showLyrics = false
-    #else
-      guard let id = model.current?.id,
-        var url = URLComponents(string: "https://www.youtube.com/watch")
-      else { return }
-      url.queryItems = [URLQueryItem(name: "v", value: id)]
-      guard let target = url.url else { return }
-      model.stopMeaning(resume: false)
-      player.pause()
-      UIApplication.shared.open(target)
-    #endif
-  }
+    }
+  #endif
   private func playerAction(
     _ label: String, icon: String, selected: Bool, action: @escaping () -> Void
   ) -> some View {
@@ -1077,8 +1071,10 @@ struct MeaningView: View {
 }
 
 struct SettingsView: View {
+  var onSaved: (() -> Void)? = nil
   @EnvironmentObject var model: MusicModel
   @EnvironmentObject var library: LibraryModel
+  @Environment(\.dismiss) private var dismiss
   var body: some View {
     Form {
       Section("Account YouTube Music") {
@@ -1153,8 +1149,14 @@ struct SettingsView: View {
         }
       }
       Section {
-        Button("Salva impostazioni") { model.saveSettings() }
-        if let error = model.settingsError { Text(error).foregroundStyle(.orange) }
+        Button("Salva impostazioni") {
+          model.saveSettings()
+          guard model.settingsError == nil else { return }
+          if let onSaved { onSaved() } else { dismiss() }
+        }.accessibilityIdentifier("settings-save")
+        if let error = model.settingsError {
+          Text(error).foregroundStyle(.orange).accessibilityIdentifier("settings-error")
+        }
       }
       Section(
         "NoteNarrate · "
@@ -1166,7 +1168,7 @@ struct SettingsView: View {
           }.navigationTitle("Licenze")
         }
         Text(
-          "Client Apple sperimentale. Ricerca e riproduzione dipendono dalle API interne di YouTube. Raccolte remote e Mi piace sincronizzati con YouTube Music. Su iOS l’audio usa il player nativo anche in background; il video è opzionale. CarPlay richiede l’abilitazione audio da Apple."
+          "Client Apple sperimentale. Ricerca e riproduzione dipendono dalle API interne di YouTube. Raccolte remote e Mi piace sincronizzati con YouTube Music. Su iOS l’audio usa il player nativo anche in background. CarPlay richiede l’abilitazione audio da Apple."
         ).font(.caption)
       }
     }

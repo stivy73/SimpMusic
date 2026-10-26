@@ -1,7 +1,18 @@
-# NoteNarrate iOS — 0.12.2 (33)
+# NoteNarrate iOS — 0.12.3 (34)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
+
+**0.12.3 (34), menu e impostazioni:** i tre puntini aprono direttamente
+**Opzioni brano**, anche nella barra laterale del Duo. **Mi piace su YouTube Music**
+è all’interno della scheda, vicino ai preferiti locali. **Mostra video** è stato
+rimosso dall’interfaccia iOS. **Salva impostazioni** torna alla Home principale
+dopo un salvataggio riuscito; in caso di errore mantiene aperto il pannello.
+La navigazione Home viene azzerata senza ricreare la sessione musicale.
+Consegna diretta sul Duo; l’ultima build caricata su TestFlight resta la 32.
+Verificati sul Duo reale il menu diretto, Mi piace account nella scheda, assenza
+del video, Chiudi/Indietro/swipe e il ritorno alla Home dopo Salva. Passati anche
+i casi mirati sui simulatori Duo e iPhone 18 Pro. [Evidenze](IPHONE_DUO.md).
 
 **0.12.2 (33), controlli iPhone Duo:** eliminate le maschere che ritagliavano
 le barre native nella fascia laterale. Il player espone Indietro, Libreria,

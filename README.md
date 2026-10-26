@@ -21,7 +21,10 @@ La generazione del significato usa il provider IA selezionato e richiede la rela
 ## NoteNarrate per iOS
 
 Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
-rispetto ad Android. La **0.12.2 (33)** corregge le barre laterali native del Duo,
+rispetto ad Android. La **0.12.3 (34)** apre le opzioni brano direttamente dai tre
+puntini, include Mi piace YouTube Music nella scheda, rimuove Mostra video da iOS
+e torna alla Home dopo il salvataggio delle impostazioni.
+La **0.12.2 (33)** corregge le barre laterali native del Duo,
 aggiunge Indietro nel player e lo swipe dal bordo per ridurlo mantenendo la musica.
 La **0.12.1 (32)** aggiunge il karaoke animato sui timestamp
 forniti dal testo, decodifica locale degli indirizzi audio WEB_REMIX, controlli

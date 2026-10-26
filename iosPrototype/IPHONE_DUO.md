@@ -1,5 +1,43 @@
 # NoteNarrate iOS: iPhone Duo
 
+## 0.12.3 (34) — direct song menu and Save settings
+
+The visible ellipsis is a native pinned toolbar action that opens SongOptionsSheet
+directly, matching the horizontal player's button. YouTube like/unlike is in that
+sheet next to local favourites. iOS no longer exposes the Show video action.
+The system can still adapt other toolbar items when vertical space is limited.
+
+Successful Save settings selects Home and resets that tab's navigation container;
+the player and account models remain retained. Failed persistence leaves the
+settings form open so its existing error can be read and retried.
+
+### Validation on 26 October 2026
+
+- Signed development app and all three extensions verified as 0.12.3 (34),
+  SDK `iphoneos27.1`; installed version confirmed with `devicectl`.
+- Physical Duo: direct song-options opening, YouTube Music like action inside
+  the sheet, absence of video, Close, Back and edge swipe passed. Playback state
+  was preserved without starting a new track or installing test fixtures.
+- Physical Duo: saved the existing settings without editing fields, reached the
+  Home filter, and verified the save/error controls were no longer presented.
+  The test must scroll the Form, rather than the whole Duo window; the latter
+  includes a separate system region and initially failed to reach the button.
+- Duo simulator: direct options/no video, Save to Home and nested album-menu
+  Close passed (3 cases). Xcode's post-test metadata collection stalled after
+  those case results; the remaining collector process was stopped.
+- iPhone 18 Pro simulator, iOS 27.0: direct options/no video and Save to Home
+  passed (2 cases, `TEST SUCCEEDED`).
+- Final Home rendering checked in Device Hub after reopening the installed app.
+
+Physical result bundles: `/tmp/notenarrate34-physical-menu-settings.xcresult`
+(menu test passed; the first save test could not scroll to its button) and
+`/tmp/notenarrate34-physical-save-form.xcresult` (corrected save test passed,
+`TEST SUCCEEDED`). Simulator logs: `/tmp/notenarrate34-duo-menu-settings.log`
+and `/tmp/notenarrate34-iphone-menu-settings.log`.
+Signed app: `/tmp/NoteNarrate34-Duo/Build/Products/Debug-iphoneos/StivySimpMusic.app`.
+These are UI/navigation checks; live Premium CDN continuity and CarPlay audibility
+remain separate. This delivery does not upload a new TestFlight build.
+
 ## 0.12.2 (33) — native controls, Back and edge swipe
 
 The root and retained player no longer clip their native navigation containers.
