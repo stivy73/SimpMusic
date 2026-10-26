@@ -34,9 +34,16 @@ public final class AudioRangeLoader: NSObject, AVAssetResourceLoaderDelegate, @u
     guard offset >= 0, last >= offset,
       var url = URLComponents(url: source.url, resolvingAgainstBaseURL: false)
     else { throw AudioPlaybackError.unavailable }
-    var query = url.queryItems ?? []
-    query.removeAll { $0.name == "range" }
-    url.queryItems = query
+    // The signature covers opaque query values. queryItems would decode/re-encode
+    // their escapes (for example %2B -> + or %2f -> /), invalidating some CDN URLs.
+    // Strip only the old range fields and preserve every other byte and its order.
+    if let query = url.percentEncodedQuery {
+      let fields = query.split(separator: "&", omittingEmptySubsequences: false).filter {
+        $0.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).first?
+          .removingPercentEncoding != "range"
+      }
+      url.percentEncodedQuery = fields.isEmpty ? nil : fields.joined(separator: "&")
+    }
     guard let target = url.url else { throw AudioPlaybackError.unavailable }
     var request = URLRequest(url: target, timeoutInterval: 20)
     request.cachePolicy = .reloadIgnoringLocalCacheData

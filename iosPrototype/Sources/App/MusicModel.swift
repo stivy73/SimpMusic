@@ -510,6 +510,16 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
             "[00:00.000]<00:00.000>Prima <00:01.000>riga\n[00:03.000]Seconda riga\n[00:06.000]Terza riga"
         )
         lyrics = "Prima riga\nSeconda riga\nTerza riga"
+        if ProcessInfo.processInfo.arguments.contains("--test-karaoke") {
+          let lrc = (0..<20).map { index in
+            let second = index * 2
+            return String(
+              format: "[00:%02d]<00:%02d>Parole <00:%02d>sincronizzate %d", second,
+              second, second + 1, index + 1)
+          }.joined(separator: "\n")
+          timeline = LyricsTimeline(lrc: lrc)
+          lyrics = timeline.lines.map(\.text).joined(separator: "\n")
+        }
       } catch { settingsError = "Fixture locale: " + error.localizedDescription }
     }
   #endif

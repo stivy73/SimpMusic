@@ -774,6 +774,7 @@ struct PlayerControls: View {
         {
           Text(player.diagnostic).accessibilityIdentifier("native-audio-status")
           Text(player.sourceDiagnostic).accessibilityIdentifier("native-source-status")
+          Text(String(player.recoveryAttempts)).accessibilityIdentifier("test-audio-recovery-count")
           if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
             Button("Timer test") { model.setSleepTimer(.deadline(Date().addingTimeInterval(2))) }
               .accessibilityIdentifier("test-sleep-short")

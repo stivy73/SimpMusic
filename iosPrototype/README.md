@@ -1,8 +1,31 @@
-# NoteNarrate iOS — 0.12.0 (31)
+# NoteNarrate iOS — 0.12.1 (32)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
+
+**0.12.1 (32), karaoke e riproduzione:** il testo sincronizzato segue il tempo reale
+del player con riempimento progressivo delle parole e scorrimento animato. Lo
+scorrimento manuale sospende l’inseguimento; **Segui il testo** lo riattiva e il
+tocco su un verso sposta la riproduzione. Rispetta Riduci movimento. La precisione
+parola per parola richiede timestamp Enhanced LRC/TTML della fonte: sui testi
+sincronizzati solo per righe non vengono inventati tempi delle singole parole.
+
+Il percorso audio WEB_REMIX riusa la sessione già confermata e decodifica localmente
+firma e parametro `n` con lo script pubblico YouTube, seguendo il registro usato da
+SimpMusic Android. Gli URL firmati conservano i parametri originali nelle richieste
+per intervalli. Prima della riproduzione vengono verificati inizio, confine di 1 MiB
+e fine del file; per HLS si controllano anche segmenti oltre il primo minuto.
+Un errore del flusso o uno stallo attiva al massimo due recuperi sulla stessa traccia,
+conservando posizione, pausa e precedenza della narrazione. La diagnostica riporta
+separatamente il percorso account e le sorgenti pubbliche senza URL o credenziali.
+
+Verificati **231 test core** e cinque scenari UI: karaoke/ricerca della posizione, recupero dopo errore,
+minimizzazione senza stop, timer/testo sincronizzato e TTS streaming con ripresa.
+Prova pubblica con AVPlayer: 98 secondi senza stalli, file AAC interamente leggibile.
+Un altro flusso pubblico riproduce ancora il rifiuto CDN oltre 1 MiB ed è escluso
+dalla validazione. Le prove con l’account Premium sul telefono e di audibilità
+CarPlay restano separate dai test automatici. [Evidenze e limiti](CARPLAY.md).
 
 **0.12.0 (31), player e album:** il pulsante con i tre puntini apre una
 scheda con copertina, titolo e icone per Piaciuti, playlist, riproduci successivo,

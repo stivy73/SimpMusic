@@ -5,6 +5,20 @@ import YouTubeSDK
 @testable import PrototypeCore
 
 final class AudioPlaybackTests: XCTestCase {
+  func testResolutionDiagnosticsIdentifyBoundaryWithoutLeakingProviderError() {
+    XCTAssertEqual(
+      AudioResolutionFailure.detail(
+        AudioPlaybackError.rejectedRange(offset: 1_048_576, status: 403)),
+      "CDN offset 1048576: HTTP 403, intervallo non valido")
+    let privateError = NSError(
+      domain: "https://private.invalid/?cookie=secret", code: 1,
+      userInfo: [NSLocalizedDescriptionKey: "signedURL secret token"])
+    XCTAssertEqual(AudioResolutionFailure.detail(privateError), "nessuno stream completo validato")
+    XCTAssertEqual(
+      AudioResolutionFailure.detail(PlayerCipherError.script),
+      "decodifica indirizzo audio non disponibile")
+  }
+
   func testRangeRequestPreservesSignatureAndUsesOneAbsoluteRange() throws {
     let source = YouTubeAudio.Source(
       url: URL(string: "https://a.googlevideo.com/audio?signature=test%2Btoken&range=0-1")!,
@@ -15,8 +29,28 @@ final class AudioPlaybackTests: XCTestCase {
     let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems
     XCTAssertEqual(query?.filter { $0.name == "range" }.count, 0)
     XCTAssertEqual(query?.first { $0.name == "signature" }?.value, "test+token")
+    XCTAssertEqual(
+      request.url?.absoluteString, "https://a.googlevideo.com/audio?signature=test%2Btoken")
     XCTAssertThrowsError(try AudioRangeLoader.rangeRequest(source: source, offset: -1, last: 0))
     XCTAssertThrowsError(try AudioRangeLoader.rangeRequest(source: source, offset: 100, last: 99))
+  }
+
+  func testRangeRequestPreservesExactSignedQueryBytesAndOrdering() throws {
+    let encoded =
+      "n=token%2B%2f%3D&%72ange=0-1&sig=hashed%2f%2F%2B%3d&empty=&flag&dup=one&range=2-3&dup=two&tail=literal+plus"
+    let source = YouTubeAudio.Source(
+      url: URL(string: "https://a.googlevideo.com/audio?" + encoded)!, duration: 120,
+      userAgent: "Client", byteCount: 4_000_000, isHLS: false)
+    let request = try AudioRangeLoader.rangeRequest(
+      source: source, offset: 1_048_576, last: 1_049_599)
+    XCTAssertEqual(
+      URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.percentEncodedQuery,
+      "n=token%2B%2f%3D&sig=hashed%2f%2F%2B%3d&empty=&flag&dup=one&dup=two&tail=literal+plus")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "Range"), "bytes=1048576-1049599")
+    // Multiple ordinary fields, including empty/bare values, must not be normalized.
+    let values = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems
+    XCTAssertEqual(values?.filter { $0.name == "dup" }.map(\.value), ["one", "two"])
+    XCTAssertEqual(values?.filter { $0.name == "range" }.count, 0)
   }
   func testNativeAudioPrefersAACThenHLSAndDeduplicates() throws {
     let payload = #"""
@@ -48,6 +82,244 @@ final class AudioPlaybackTests: XCTestCase {
       """#
     let video = try JSONDecoder().decode(YouTubeVideo.self, from: Data(payload.utf8))
     XCTAssertTrue(YouTubeAudio.candidates(video).isEmpty)
+  }
+
+  private func validationVideo(hls: Bool = false) throws -> YouTubeVideo {
+    var streaming: [String: Any] = [
+      "adaptiveFormats": [
+        [
+          "itag": 140, "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"", "bitrate": 128000,
+          "url": "https://test.googlevideo.com/high",
+        ],
+        [
+          "itag": 139, "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"", "bitrate": 48000,
+          "url": "https://test.googlevideo.com/low",
+        ],
+      ]
+    ]
+    if hls { streaming["hlsManifestUrl"] = "https://test.googlevideo.com/master.m3u8" }
+    return try JSONDecoder().decode(
+      YouTubeVideo.self,
+      from: JSONSerialization.data(withJSONObject: [
+        "videoDetails": [
+          "videoId": "track", "title": "Song", "author": "Artist",
+          "channelId": "artist", "viewCount": "1", "lengthSeconds": "180",
+        ],
+        "streamingData": streaming,
+      ]))
+  }
+  private func validationTransport() -> URLSession {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [RangeStub.self]
+    return URLSession(configuration: config)
+  }
+  private func validProbe(_ request: URLRequest) throws -> (Int, [String: String], Data) {
+    let range = try XCTUnwrap(request.value(forHTTPHeaderField: "Range"))
+    let parts = range.dropFirst(6).split(separator: "-")
+    let first = try XCTUnwrap(Int64(parts[0]))
+    let last = try XCTUnwrap(Int64(parts[1]))
+    return (
+      206, ["Content-Range": "bytes \(first)-\(last)/4000000"],
+      Data(repeating: 1, count: Int(last - first + 1))
+    )
+  }
+  func testPublicPrefixOnlyStreamFallsBackBeforePlayback() async throws {
+    let calls = RangeCalls()
+    RangeStub.handler = { request in
+      if request.url?.lastPathComponent == "high",
+        request.value(forHTTPHeaderField: "Range") == "bytes=1048576-1049599"
+      {
+        _ = calls.add(1_048_576)
+        return (403, [:], Data())
+      }
+      return try self.validProbe(request)
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let result = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(), userAgent: "Test", authenticated: false, quality: .high)
+    XCTAssertEqual(result.url.lastPathComponent, "low")
+    XCTAssertEqual(calls.count(1_048_576), 1)
+    XCTAssertFalse(result.authenticated)
+  }
+  func testPublicAndAccountStreamsMustPassTailAndBoundary() async throws {
+    for authenticated in [false, true] {
+      RangeStub.handler = { request in
+        if request.value(forHTTPHeaderField: "Range") == "bytes=3998976-3999999" {
+          return (403, [:], Data())
+        }
+        return try self.validProbe(request)
+      }
+      let transport = validationTransport()
+      defer { transport.invalidateAndCancel() }
+      do {
+        _ = try await YouTubeAudio(transport: transport).source(
+          video: validationVideo(), userAgent: "Test", authenticated: authenticated, quality: .high)
+        XCTFail("A source that fails at its tail must not be accepted")
+      } catch is AudioPlaybackError {}
+    }
+  }
+  func testExcludedStreamIsNotRequestedDuringRecovery() async throws {
+    RangeStub.handler = { request in
+      XCTAssertNotEqual(request.url?.lastPathComponent, "high")
+      return try self.validProbe(request)
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let result = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(), userAgent: "Test", authenticated: true, quality: .high,
+      excluding: [URL(string: "https://test.googlevideo.com/high")!])
+    XCTAssertEqual(result.url.lastPathComponent, "low")
+    XCTAssertTrue(result.authenticated)
+  }
+  func testIncorrectPrefixRangeIsNotMistakenForPlayableFile() async throws {
+    RangeStub.handler = { _ in
+      (206, ["Content-Range": "bytes 12-1035/4000000"], Data(repeating: 0, count: 1024))
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    do {
+      _ = try await YouTubeAudio(transport: transport).source(
+        video: validationVideo(), userAgent: "Test", authenticated: false, quality: .high)
+      XCTFail("Wrong offset would corrupt the media stream")
+    } catch is AudioPlaybackError {}
+  }
+  func testHLSFallbackRequiresSegmentsBeyondOneMinute() async throws {
+    let calls = RangeCalls()
+    RangeStub.handler = { request in
+      switch request.url!.lastPathComponent {
+      case "master.m3u8":
+        return (200, [:], Data("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=128000\nmedia.m3u8\n".utf8))
+      case "media.m3u8":
+        return (
+          200, [:],
+          Data(
+            "#EXTM3U\n#EXTINF:60,\nstart.ts\n#EXTINF:60,\nafter.ts\n#EXTINF:60,\nend.ts\n#EXT-X-ENDLIST\n"
+              .utf8)
+        )
+      case "start.ts", "after.ts", "end.ts":
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Range"), "bytes=0-1023")
+        if request.url!.lastPathComponent == "after.ts" { _ = calls.add(60) }
+        return (206, [:], Data(repeating: 1, count: 1024))
+      default: return (403, [:], Data())
+      }
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let result = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(hls: true), userAgent: "Test", authenticated: false, quality: .high)
+    XCTAssertTrue(result.isHLS)
+    XCTAssertEqual(result.url.lastPathComponent, "media.m3u8")
+    XCTAssertEqual(calls.count(60), 1)
+  }
+  func testManifestSuccessDoesNotHideSegment403() async throws {
+    RangeStub.handler = { request in
+      switch request.url!.lastPathComponent {
+      case "master.m3u8":
+        return (
+          200, [:],
+          Data("#EXTM3U\n#EXTINF:60,\nstart.ts\n#EXTINF:60,\nblocked.ts\n#EXT-X-ENDLIST\n".utf8)
+        )
+      case "start.ts": return (206, [:], Data(repeating: 1, count: 1024))
+      default: return (403, [:], Data())
+      }
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    do {
+      _ = try await YouTubeAudio(transport: transport).source(
+        video: validationVideo(hls: true), userAgent: "Test", authenticated: false, quality: .high)
+      XCTFail("Playlist HTTP200 is not sufficient when segments return403")
+    } catch is AudioPlaybackError {}
+  }
+
+  func testHLSUsesDefaultAudioRenditionOfSelectedGroupWithQuotedCommas() async throws {
+    let calls = RangeCalls()
+    RangeStub.handler = { request in
+      switch request.url!.lastPathComponent {
+      case "master.m3u8":
+        return (
+          200, [:],
+          Data(
+            """
+            #EXTM3U
+            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="unrelated",DEFAULT=YES,URI="wrong.m3u8"
+            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio,main",NAME="Alternative",DEFAULT=NO,URI="alternative.m3u8"
+            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio,main",NAME="Original, studio",DEFAULT=YES,URI="audio.m3u8?token=left,right"
+            #EXT-X-STREAM-INF:BANDWIDTH=800000,CODECS="avc1.4d401f,mp4a.40.2",AUDIO="audio,main"
+            video-only.m3u8
+            """.utf8)
+        )
+      case "audio.m3u8":
+        XCTAssertEqual(request.url!.query, "token=left,right")
+        _ = calls.add(1)
+        return (
+          200, [:],
+          Data("#EXTM3U\n#EXTINF:60,\nstart.ts\n#EXTINF:60,\nafter.ts\n#EXT-X-ENDLIST\n".utf8)
+        )
+      case "start.ts", "after.ts": return (206, [:], Data(repeating: 1, count: 1024))
+      case "high", "low": return (403, [:], Data())
+      default:
+        XCTFail("Must use the selected group's default audio, never an isolated video rendition")
+        return (403, [:], Data())
+      }
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let result = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(hls: true), userAgent: "Test", authenticated: false, quality: .high)
+    XCTAssertTrue(result.isHLS)
+    XCTAssertEqual(result.url.lastPathComponent, "audio.m3u8")
+    XCTAssertEqual(calls.count(1), 1)
+  }
+
+  func testHLSRejectsMissingOrForeignAudioGroupWithoutRequestingVideo() async throws {
+    for rendition in [
+      "",
+      "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",DEFAULT=YES,URI=\"https://foreign.example/audio.m3u8\"",
+    ] {
+      RangeStub.handler = { request in
+        XCTAssertEqual(request.url?.host, "test.googlevideo.com")
+        switch request.url!.lastPathComponent {
+        case "master.m3u8":
+          return (
+            200, [:],
+            Data(
+              "#EXTM3U\n\(rendition)\n#EXT-X-STREAM-INF:BANDWIDTH=800000,AUDIO=\"audio\"\nvideo-only.m3u8\n"
+                .utf8)
+          )
+        case "high", "low": return (403, [:], Data())
+        default:
+          XCTFail(
+            "An invalid external audio rendition must not silently become video-only playback")
+          return (403, [:], Data())
+        }
+      }
+      let transport = validationTransport()
+      defer { transport.invalidateAndCancel() }
+      do {
+        _ = try await YouTubeAudio(transport: transport).source(
+          video: validationVideo(hls: true), userAgent: "Test", authenticated: false, quality: .high
+        )
+        XCTFail("Missing/foreign audio group must fail validation")
+      } catch is AudioPlaybackError {}
+    }
+  }
+
+  func testHLSMalformedSegmentDurationFailsWithoutCrashing() async throws {
+    RangeStub.handler = { request in
+      if request.url!.lastPathComponent == "master.m3u8" {
+        return (200, [:], Data("#EXTM3U\n#EXTINF:\nstart.ts\n#EXT-X-ENDLIST\n".utf8))
+      }
+      return (403, [:], Data())
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    do {
+      _ = try await YouTubeAudio(transport: transport).source(
+        video: validationVideo(hls: true), userAgent: "Test", authenticated: false, quality: .high)
+      XCTFail("A malformed playlist must fail without crashing")
+    } catch is AudioPlaybackError {}
   }
 
   func testPauseDuringLoadAndInterruptionDoesNotResume() {

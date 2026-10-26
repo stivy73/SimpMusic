@@ -1,5 +1,38 @@
 # NoteNarrate iOS — audio in background e CarPlay
 
+## Audio e karaoke del 26 ottobre 2026 — 0.12.1 (32)
+
+La diagnostica del telefono con build 31 conferma `HTTP 403` esattamente all’offset
+1048576 e nessuna sorgente account completa validata. Non è un limite temporale del
+player: il flusso pubblico era accettato dopo il solo controllo dei primi byte.
+Mancava inoltre la decodifica WEB_REMIX s/n presente nel codice Android.
+
+La candidata integra il decoder locale, conserva byte e ordine della query firmata,
+valida anche confine/fine per entrambe le sorgenti e ripristina la stessa posizione
+quando un flusso in corso fallisce (massimo due tentativi). HLS mantiene l’effettiva
+traccia audio della master playlist. In caso di errore iniziale, le voci Account audio
+e Musica vengono aggiornate con lo stadio fallito senza credenziali o URL firmati.
+
+Cinque scenari UI superati: evidenziazione/scorrimento karaoke con navigazione
+manuale, recupero reale dell’AVPlayerItem e posizione, testo/timer, minimizzazione
+e TTS streaming/rotazione/interruzione/ripresa. Le prove di stato usano audio locale
+controllato; non vengono presentate come prove della rete Premium o dell’auto.
+I testi karaoke rimangono nell’interfaccia del telefono, non sul display CarPlay.
+
+**Evidenze finali:** 231 test core superati, inclusi decoder WebKit reale su script
+locale, timeout, firme con padding, conservazione degli URL, richieste player
+allineate ad Android, controlli AAC/HLS e budget di recupero. Decoder verificato
+anche sullo script pubblico YouTube corrente senza credenziali. Prova AVPlayer
+pubblica `dQw4w9WgXcQ`: 98,0 secondi avanzati, zero campioni in stallo e tutti i
+3.449.447 byte scaricabili. La sorgente pubblica `ZmzqqdVFw8g` continua invece a
+rifiutare il blocco oltre 1 MiB e la coda: viene esclusa prima della riproduzione.
+Questo non dimostra ancora la continuità dell’account Premium del telefono.
+
+**Da verificare sul dispositivo:** account Premium del telefono oltre 0:59,
+audibilità e corretta uscita CarPlay. Nessuna nuova richiesta di entitlement,
+nessuna modifica al prompt o alle chiavi IA. L’account viene usato solo tramite
+il normale percorso dell’app: nessuna estrazione di sessione in probe esterne.
+
 ## Controllo del 26 ottobre 2026 — 0.12.0 (31)
 
 - Configurazione firmata della precedente IPA 0.11.0 (30) verificata: entitlement

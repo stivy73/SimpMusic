@@ -141,14 +141,67 @@ public final class YouTubeBrowse: Sendable {
   }
 
   /// Reuse the confirmed account identity for media, not just the library.
-  public func player(videoID: String) async throws -> YouTubeVideo {
+  public func player(videoID: String, signatureTimestamp: Int? = nil) async throws -> YouTubeVideo {
+    // Match PipePipe's WEB_REMIX playback contract: the nonce identifies this
+    // player request and is carried into each direct media URL it produces.
+    let alphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+    let nonce = String((0..<16).map { _ in alphabet.randomElement()! })
+    var playbackContext: [String: Any] = ["html5Preference": "HTML5_PREF_WANTS"]
+    if let signatureTimestamp {
+      guard (1...100000).contains(signatureTimestamp) else { throw LibraryError.malformed }
+      playbackContext["signatureTimestamp"] = signatureTimestamp
+    }
     let data = try await send(
       endpoint: "player",
       fields: [
         "videoId": videoID,
-        "playbackContext": ["contentPlaybackContext": ["html5Preference": "HTML5_PREF_WANTS"]],
+        "cpn": nonce,
+        "contentCheckOk": true,
+        "racyCheckOk": true,
+        "playbackContext": ["contentPlaybackContext": playbackContext],
       ])
-    return try JSONDecoder().decode(YouTubeVideo.self, from: data)
+    return try JSONDecoder().decode(
+      YouTubeVideo.self, from: Self.addingPlaybackNonce(nonce, to: data))
+  }
+
+  private static func addingPlaybackNonce(_ nonce: String, to data: Data) throws -> Data {
+    guard var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+      var streaming = root["streamingData"] as? [String: Any]
+    else { return data }
+    func suffix(for address: String) -> String? {
+      guard let url = URLComponents(string: address), url.scheme == "https",
+        let host = url.host, host == "googlevideo.com" || host.hasSuffix(".googlevideo.com"),
+        url.user == nil, url.password == nil, url.port == nil || url.port == 443,
+        url.fragment == nil,
+        !(url.queryItems ?? []).contains(where: { $0.name == "cpn" })
+      else { return nil }
+      return (url.percentEncodedQuery == nil ? "?" : "&") + "cpn=" + nonce
+    }
+    for key in ["formats", "adaptiveFormats"] {
+      guard var formats = streaming[key] as? [[String: Any]] else { continue }
+      for index in formats.indices {
+        if let address = formats[index]["url"] as? String, let suffix = suffix(for: address) {
+          // Do not rebuild signed query items: even percent-escape casing and +
+          // bytes must survive until the signature/n decoder handles its fields.
+          formats[index]["url"] = address + suffix
+        }
+        if let cipher = formats[index]["signatureCipher"] as? String {
+          formats[index]["signatureCipher"] = cipher.split(
+            separator: "&", omittingEmptySubsequences: false
+          ).map { field in
+            let pair = field.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard pair.count == 2, pair[0].removingPercentEncoding == "url",
+              let address = pair[1].removingPercentEncoding, let suffix = suffix(for: address),
+              let encoded = suffix.addingPercentEncoding(withAllowedCharacters: .alphanumerics)
+            else { return String(field) }
+            return String(field) + encoded
+          }.joined(separator: "&")
+        }
+      }
+      streaming[key] = formats
+    }
+    root["streamingData"] = streaming
+    return try JSONSerialization.data(withJSONObject: root)
   }
 
   private func send(endpoint: String, fields: [String: Any], continuationQuery: String? = nil)
@@ -173,6 +226,10 @@ public final class YouTubeBrowse: Sendable {
     request.allHTTPHeaderFields = context.headers
     request.setValue("https://music.youtube.com", forHTTPHeaderField: "Origin")
     request.setValue("https://music.youtube.com/", forHTTPHeaderField: "Referer")
+    if endpoint == "player" {
+      request.setValue("https://music.youtube.com", forHTTPHeaderField: "X-Origin")
+      request.setValue("1", forHTTPHeaderField: "DNT")
+    }
     var payload = context.body
     if let visitorID = visitor.value {
       request.setValue(visitorID, forHTTPHeaderField: "X-Goog-Visitor-Id")

@@ -1,3 +1,19 @@
+# iOS animated lyrics and audio recovery — 0.12.1 (32)
+
+- Animated word progress follows actual media time; scrolling follows active lines,
+  pauses for user browsing and resumes explicitly. Timing is never fabricated.
+- WEB_REMIX account/public responses support local s/n decoding and retain exact
+  signed query bytes. Decoder registry receives only public metadata requests.
+- Validate AAC at start, 1 MiB and tail; HLS checks audio rendition and segment
+  access. Same-occurrence AVPlayer recovery preserves seek, pause and TTS intent.
+- Sanitized account/public diagnostics remain current even if resolution fails.
+- 231 core tests and five simulator UI checks passed; a public live source ran
+  for 98 seconds without stalls. Another public CDN source remains rejected.
+  Live Premium phone/CarPlay proof is separate;
+  see CARPLAY.md. No public App Store submission; testers remain manual.
+
+---
+
 # iOS player/album parity and CarPlay audit — 0.12.0 (31)
 
 | Area | Implementation | Validation |

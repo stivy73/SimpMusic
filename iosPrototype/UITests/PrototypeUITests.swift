@@ -187,6 +187,78 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
+  func testKaraokeFollowsMediaAndResumesAfterManualBrowsing() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-karaoke"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15))
+    if toggle.value as? String == "Riproduzione attiva" { toggle.tap() }
+    app.buttons["toggle-lyrics"].tap()
+    app.buttons["Espandi testo"].tap()
+    let first = app.buttons["lyric-line-0"].firstMatch
+    XCTAssertTrue(first.waitForExistence(timeout: 5))
+    first.tap()
+    let scroll = app.scrollViews["synchronized-lyrics-scroll"].firstMatch
+    XCTAssertTrue(scroll.waitForExistence(timeout: 5))
+    scroll.swipeUp()
+    scroll.swipeUp()
+    let resume = app.buttons["lyrics-resume-follow"].firstMatch
+    XCTAssertTrue(resume.waitForExistence(timeout: 5), app.debugDescription)
+    // Manual browsing must not trigger a seek or immediately snap back to the active line.
+    XCTAssertTrue(resume.exists)
+    resume.tap()
+    XCTAssertEqual(
+      XCTWaiter.wait(
+        for: [
+          XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"), object: first)
+        ], timeout: 5), .completed)
+    XCTAssertFalse(resume.exists)
+    XCTAssertEqual(first.value as? String, "Riga in riproduzione")
+    app.buttons["Chiudi"].firstMatch.tap()
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+    toggle.tap()
+    app.buttons["Espandi testo"].tap()
+    let nextLine = app.buttons.matching(
+      NSPredicate(
+        format: "identifier BEGINSWITH %@ AND identifier != %@ AND value == %@",
+        "lyric-line-", "lyric-line-0", "Riga in riproduzione")
+    ).firstMatch
+    XCTAssertTrue(nextLine.waitForExistence(timeout: 8), app.debugDescription)
+    XCTAssertTrue(nextLine.isHittable)
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Karaoke parole e riga sincronizzate"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+    app.buttons["Chiudi"].firstMatch.tap()
+    toggle.tap()
+  }
+
+  @MainActor
+  func testNativeAudioRecoversSameTrackAndPositionAfterResourceFailure() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-audio-recovery"]
+    app.launch()
+    let elapsed = app.staticTexts["playback-elapsed"]
+    XCTAssertTrue(elapsed.waitForExistence(timeout: 15))
+    let recovery = app.staticTexts["test-audio-recovery-count"]
+    XCTAssertTrue(recovery.waitForExistence(timeout: 5))
+    XCTAssertEqual(
+      XCTWaiter.wait(
+        for: [
+          XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+              (Double(elapsed.value as? String ?? "") ?? 0) > 9
+                && recovery.label == "1"
+            }, object: elapsed)
+        ], timeout: 20), .completed, app.debugDescription)
+    XCTAssertTrue(app.staticTexts["Brano locale 1"].firstMatch.exists)
+    XCTAssertEqual(app.buttons["playback-toggle"].value as? String, "Riproduzione attiva")
+    app.buttons["playback-toggle"].tap()
+  }
+
+  @MainActor
   func testRestoredSessionKeepsPositionAndQueuePaused() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-local-playback", "--test-session"]
@@ -1158,17 +1230,9 @@ final class PrototypeUITests: XCTestCase {
   func testStreamingSpeechRotationCompletionAndStop() {
     continueAfterFailure = false
     let app = XCUIApplication()
-    app.launchArguments = ["--test-stream-meaning"]
+    // Isolate the real player/PCM/cache regression from YouTube catalog/CDN availability.
+    app.launchArguments = ["--test-local-playback", "--test-long-local", "--test-stream-meaning"]
     app.launch()
-    XCTAssertTrue(app.buttons["home-filter-all"].waitForExistence(timeout: 10))
-    let home = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-    home.name = "NoteNarrate Home"
-    home.lifetime = .keepAlways
-    add(home)
-    searchReferenceSong(in: app)
-    let song = findReferenceSong(in: app)
-    XCTAssertTrue(song.exists)
-    song.tap()
     let toggle = app.buttons["playback-toggle"]
     XCTAssertTrue(toggle.waitForExistence(timeout: 10))
     waitForPlayback(toggle)
@@ -1191,7 +1255,8 @@ final class PrototypeUITests: XCTestCase {
   @MainActor
   func testMinimizingKeepsMusicPlayingAcrossTabs() {
     let app = XCUIApplication()
-    app.launchArguments = ["--test-native-audio"]
+    // The UI lifecycle must preserve native audio even when external services are unavailable.
+    app.launchArguments = ["--test-local-playback", "--test-long-local"]
     app.launch()
     let toggle = app.buttons["playback-toggle"]
     XCTAssertTrue(toggle.waitForExistence(timeout: 10))

@@ -79,6 +79,24 @@ public struct LyricsTimeline: Equatable, Sendable {
     return low > 0 ? lines[low - 1] : nil
   }
   public func activeWord(in line: LyricLine, at seconds: Double, delay: Double = 0) -> Int? {
-    line.words.last { $0.time + delay <= seconds }?.id
+    guard seconds.isFinite, delay.isFinite else { return nil }
+    return line.words.last { $0.time + delay <= seconds }?.id
+  }
+
+  /// Visual progress follows the media position, never elapsed wall time. The next real
+  /// word/line timestamp bounds the sweep; an unbounded last word lights up at its start.
+  /// This does not manufacture word timing for line-only lyrics.
+  public func progress(
+    of word: LyricWord, in line: LyricLine, at seconds: Double, delay: Double = 0
+  ) -> Double {
+    guard seconds.isFinite, delay.isFinite, word.time.isFinite else { return 0 }
+    let position = seconds - delay
+    guard position >= word.time else { return 0 }
+    let nextWord = line.words.lazy.map(\.time).filter { $0 > word.time && $0.isFinite }.min()
+    let nextLine = lines.first { $0.time > word.time }?.time
+    guard let end = [nextWord, nextLine].compactMap({ $0 }).min(), end.isFinite else {
+      return 1
+    }
+    return min(1, max(0, (position - word.time) / (end - word.time)))
   }
 }

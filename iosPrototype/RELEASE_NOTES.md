@@ -1,3 +1,36 @@
+# NoteNarrate iOS 0.12.1 (32)
+
+Adds animated word fill and line following driven by actual playback time, without
+increasing the global player publication rate. Manual browsing suspends following;
+Follow lyrics and tapping a line resume it. Word-level timing requires real Enhanced
+LRC/TTML timestamps. Line-only/plain lyrics are not assigned fabricated word timing;
+Reduce Motion uses immediate highlighting and nonanimated positioning.
+
+Adds local WEB_REMIX s/n decoding based on the Android Faraday registry and the
+public YouTube player, with cached public metadata and a disposable network-disabled
+WebKit worker. No account cookies, video IDs or media URLs are sent to the registry.
+Signed query bytes are preserved when constructing CDN Range requests. Both account
+and public AAC candidates must pass beginning, 1 MiB boundary and tail validation;
+HLS validates the actual audio playlist and early/post-minute/final segment prefixes.
+A prefix-only stream is not accepted as a complete playable source.
+
+Native playback can recover twice per queue occurrence after CDN rejection, item
+failure or a measured stall, excluding failed sources and preserving position and
+pause/narration intent. Diagnosis now records sanitized account and public stages
+rather than retaining the previous track's status when source resolution fails.
+
+231 core tests and five simulator scenarios passed: karaoke/manual follow/seek, real AVPlayer item
+replacement and position restoration, synchronized lyrics/sleep timer, minimization,
+and streaming TTS interruption/completion with music resumption. The latter use
+validated local audio fixtures and do not establish live CDN or vehicle behavior.
+Live public AVPlayer probe: 98.0 seconds of progress, zero stalled samples, all
+3,449,447 AAC bytes readable. Another public track still rejects CDN access after
+1 MiB and is rejected by validation; no universal playback claim. Premium phone
+continuity and CarPlay audibility still require physical verification.
+All targets use 0.12.1 (32); distribution remains internal TestFlight, testers manual.
+
+---
+
 # NoteNarrate iOS 0.12.0 (31)
 
 Adds the Android-like player action sheet: local likes, playlist picker, Play next,

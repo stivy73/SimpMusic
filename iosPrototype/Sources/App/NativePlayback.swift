@@ -50,6 +50,7 @@
       let loader: AudioRangeLoader?
       let tap: AudioEffectsTap
       let duration: Double
+      let sourceURL: URL?
     }
     private var prepared: PreparedDeck?
     private var preparingID: String?
@@ -85,12 +86,14 @@
           let asset: AVURLAsset
           var loader: AudioRangeLoader?
           var duration = 0.0
+          var sourceURL: URL?
           if let url = localFileProvider(videoID) {
             asset = AVURLAsset(url: url)
           } else {
             let source = try await YouTubeAudio().resolve(
               videoID: videoID, session: accountProvider(),
               quality: AudioPreferences.shared.currentQuality)
+            sourceURL = source.url
             let nextLoader = AudioRangeLoader(source: source)
             try await nextLoader.prepare()
             loader = nextLoader
@@ -110,7 +113,8 @@
           let deck = AVPlayer(playerItem: item)
           deck.volume = 0
           prepared = PreparedDeck(
-            id: videoID, player: deck, loader: loader, tap: tap, duration: duration)
+            id: videoID, player: deck, loader: loader, tap: tap, duration: duration,
+            sourceURL: sourceURL)
         } catch { if preparingID == videoID { preparingID = nil } }
       }
     }
@@ -131,6 +135,12 @@
       outgoingTap = currentTap ?? effectsTap
       nativePlayer = deck.player
       rangeLoader = deck.loader
+      activeSourceURL = deck.sourceURL
+      assetRevision = UUID()
+      recovery = AudioRecovery()
+      rejectedSources.removeAll()
+      deferredRecovery = false
+      startRecoveryWatch()
       currentTap = deck.tap
       prepared = nil
       preparingID = nil
@@ -144,11 +154,25 @@
       isLoading = false
       playbackError = nil
       bindPlayer()
+      let generation = assetRevision
+      statusObservation = deck.player.currentItem?.observe(\.status, options: [.new]) {
+        @Sendable [weak self] item, _ in
+        guard item.status == .failed else { return }
+        Task { @MainActor in
+          guard let self, self.assetRevision == generation else { return }
+          if !self.recoverAudio(reason: "Errore del flusso durante la transizione") {
+            self.pause()
+            self.playbackError = AudioPlaybackError.unavailable.localizedDescription
+          }
+        }
+      }
       ended = NotificationCenter.default.addObserver(
         forName: .AVPlayerItemDidPlayToEndTime, object: deck.player.currentItem, queue: .main
       ) { [weak self] _ in
         Task { @MainActor in
-          guard let self, self.intent.revision == expected else { return }
+          guard let self, self.intent.revision == expected,
+            self.assetRevision == generation
+          else { return }
           self.pause()
           self.onEnded?()
         }
@@ -201,6 +225,15 @@
     private var progress: Any?
     private var ended: NSObjectProtocol?
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
+    private var activeSourceURL: URL?
+    private var rejectedSources = Set<URL>()
+    private var assetRevision = UUID()
+    private var recovery = AudioRecovery()
+    private var recoveryWatch: Task<Void, Never>?
+    private var deferredRecovery = false
+    #if DEBUG
+      var recoveryAttempts: Int { recovery.attempts }
+    #endif
     var wantsPlayback: Bool { intent.wantsPlayback }
     var rate: Float { nativePlayer.rate }
     var timeControlStatus: AVPlayer.TimeControlStatus { nativePlayer.timeControlStatus }
@@ -233,11 +266,13 @@
         Task { @MainActor [weak self] in
           guard let self, self.nativePlayer === observedPlayer, seconds.isFinite, seconds >= 0
           else { return }
+          // Item replacement briefly reports zero before the restoring seek ends.
+          guard !self.isLoading, self.initialSeek == nil else { return }
           self.elapsed = seconds
           #if DEBUG
             if self.nativePlayer.currentItem?.status == .readyToPlay {
               self.diagnostic =
-                "ready intent \(self.intent.wantsPlayback), rate \(self.nativePlayer.rate), control \(self.nativePlayer.timeControlStatus.rawValue), time \(Int(seconds)), PCM \((self.currentTap ?? self.effectsTap).state.processedFrames)"
+                "ready intent \(self.intent.wantsPlayback), rate \(self.nativePlayer.rate), control \(self.nativePlayer.timeControlStatus.rawValue), time \(Int(seconds)), recovery \(self.recovery.attempts), PCM \((self.currentTap ?? self.effectsTap).state.processedFrames)"
             }
           #endif
         }
@@ -245,6 +280,16 @@
     }
 
     func load(videoId: String, startAt: Double? = nil) {
+      recovery = AudioRecovery()
+      rejectedSources.removeAll()
+      deferredRecovery = false
+      activeSourceURL = nil
+      startLoad(videoId: videoId, startAt: startAt, recovering: false)
+    }
+
+    /// A repaired source is still the same queue occurrence. Keep loadID and the
+    /// user's intent so narration, pause, seeks and track changes remain authoritative.
+    private func startLoad(videoId: String, startAt: Double?, recovering: Bool) {
       restoredPosition = nil
       initialSeek = startAt
       cancelTransition()
@@ -257,14 +302,18 @@
       statusObservation = nil
       if let ended { NotificationCenter.default.removeObserver(ended) }
       ended = nil
-      let expected = intent.load()
+      let expected = recovering ? intent.revision : intent.load()
+      assetRevision = UUID()
+      let generation = assetRevision
       self.videoId = videoId
       loadID = expected
-      elapsed = 0
-      durationSeconds = 0
+      elapsed = startAt ?? 0
+      if !recovering { durationSeconds = 0 }
       playing = false
       playbackError = nil
       isLoading = true
+      recovery.resetStall()
+      startRecoveryWatch()
       #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--test-playback-order")
           || ProcessInfo.processInfo.arguments.contains("--test-full-search")
@@ -277,7 +326,9 @@
       backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Prepare music") {
         [weak self] in
         Task { @MainActor [weak self] in
-          guard let self, self.intent.revision == expected else { return }
+          guard let self, self.intent.revision == expected, self.assetRevision == generation else {
+            return
+          }
           self.request?.cancel()
           self.isLoading = false
           self.pause()
@@ -295,17 +346,23 @@
           } else {
             let source = try await YouTubeAudio().resolve(
               videoID: videoId, session: accountProvider(),
-              quality: AudioPreferences.shared.currentQuality)
+              quality: AudioPreferences.shared.currentQuality, excluding: rejectedSources,
+              preferHLS: recovering)
             #if DEBUG
               diagnostic = "source bytes \(source.byteCount ?? 0)"
             #endif
             try Task.checkCancellation()
-            guard intent.revision == expected else { return }
+            guard intent.revision == expected, assetRevision == generation else { return }
+            activeSourceURL = source.url
             sourceDiagnostic = source.accountDiagnostic
             networkDiagnostic =
               source.authenticated
               ? "Flusso account YouTube Music; controllo finale superato"
-              : "Flusso IOS pubblico; nessun flusso autenticato disponibile"
+              : "Flusso pubblico; controlli oltre 1 MiB e finali superati"
+            if recovering {
+              networkDiagnostic =
+                "Nuova sorgente, recupero \(recovery.attempts)/2; " + networkDiagnostic
+            }
             durationSeconds = source.duration
             let loader = AudioRangeLoader(source: source) { [weak self] message in
               guard
@@ -313,49 +370,51 @@
                   || message.contains("network error")
               else { return }
               Task { @MainActor [weak self] in
-                guard let self, self.intent.revision == expected else { return }
+                guard let self, self.intent.revision == expected, self.assetRevision == generation
+                else { return }
                 self.networkDiagnostic = String(message.prefix(300))
+                if message.contains("HTTP 403"), !self.isLoading {
+                  if !self.recoverAudio(reason: "Il server ha rifiutato il flusso") {
+                    self.pause()
+                    self.playbackError =
+                      "Il server non consente di proseguire questo brano. Riprova."
+                  }
+                }
               }
             }
             rangeLoader = loader
             try await loader.prepare()
             try Task.checkCancellation()
-            guard intent.revision == expected else { return }
+            guard intent.revision == expected, assetRevision == generation else { return }
             asset = loader.asset()
           }
           let item = AVPlayerItem(asset: asset)
           item.preferredForwardBufferDuration = 30
-          if let track = try? await asset.loadTracks(withMediaType: .audio).first {
-            try Task.checkCancellation()
-            guard intent.revision == expected else { return }
-            effectsTap.attach(to: item, track: track)
-          }
+          let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first
+          // Cancellation can make loadTracks return nil. Always reject an obsolete
+          // load before replacing the item, even when there is no effects track.
+          try Task.checkCancellation()
+          guard intent.revision == expected, assetRevision == generation else { return }
+          if let audioTrack { effectsTap.attach(to: item, track: audioTrack) }
           statusObservation = item.observe(\.status, options: [.initial, .new]) {
             @Sendable [weak owner = self] item, _ in
             let status = item.status
             let duration = item.duration.seconds
             Task { @MainActor [weak owner] in
-              guard let self = owner, self.intent.revision == expected else { return }
+              guard let self = owner, self.intent.revision == expected,
+                self.assetRevision == generation
+              else { return }
               switch status {
               case .readyToPlay:
                 #if DEBUG
                   self.diagnostic = "ready intent \(self.intent.wantsPlayback)"
                 #endif
-                self.finishLoadingTask()
                 self.isLoading = false
                 if duration.isFinite, duration > 0 { self.durationSeconds = duration }
-                if let position = self.initialSeek {
-                  self.initialSeek = nil
-                  self.nativePlayer.seek(to: CMTime(seconds: position, preferredTimescale: 600)) {
-                    [weak self] _ in
-                    Task { @MainActor in
-                      guard let self, self.intent.revision == expected, self.intent.wantsPlayback
-                      else { return }
-                      self.play()
-                    }
-                  }
-                } else if self.intent.wantsPlayback {
-                  self.play()
+                if self.initialSeek != nil {
+                  self.restorePendingSeek(expected: expected, generation: generation)
+                } else {
+                  self.startPreparedPlayback()
                 }
                 #if DEBUG
                   self.diagnostic +=
@@ -370,8 +429,10 @@
                 #endif
                 self.finishLoadingTask()
                 self.isLoading = false
-                self.pause()
-                self.playbackError = AudioPlaybackError.unavailable.localizedDescription
+                if !self.recoverAudio(reason: "Il flusso audio si è interrotto") {
+                  self.pause()
+                  self.playbackError = AudioPlaybackError.unavailable.localizedDescription
+                }
               default: break
               }
             }
@@ -380,20 +441,131 @@
             forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
           ) { [weak owner = self] _ in
             Task { @MainActor [weak owner] in
-              guard let self = owner, self.intent.revision == expected else { return }
+              guard let self = owner, self.intent.revision == expected,
+                self.assetRevision == generation
+              else { return }
               self.pause()
               self.onEnded?()
             }
           }
           nativePlayer.replaceCurrentItem(with: item)
         } catch {
-          guard intent.revision == expected, !Task.isCancelled else { return }
+          guard intent.revision == expected, assetRevision == generation, !Task.isCancelled else {
+            return
+          }
           isLoading = false
           finishLoadingTask()
-          pause()
-          playbackError = AudioPlaybackError.unavailable.localizedDescription
+          if let failure = error as? AudioResolutionFailure {
+            sourceDiagnostic = failure.accountDiagnostic
+            networkDiagnostic = failure.networkDiagnostic
+          }
+          if !recoverAudio(reason: "Caricamento audio non riuscito") {
+            pause()
+            playbackError = AudioPlaybackError.unavailable.localizedDescription
+          }
         }
       }
+    }
+
+    private func restorePendingSeek(expected: UUID, generation: UUID) {
+      guard intent.revision == expected, assetRevision == generation,
+        let position = initialSeek
+      else { return }
+      nativePlayer.seek(to: CMTime(seconds: position, preferredTimescale: 600)) {
+        [weak self] finished in
+        Task { @MainActor in
+          guard let self, self.intent.revision == expected,
+            self.assetRevision == generation
+          else { return }
+          // A seek made while replacement was loading wins over the old position.
+          if self.initialSeek != position {
+            self.restorePendingSeek(expected: expected, generation: generation)
+            return
+          }
+          guard finished else {
+            self.finishLoadingTask()
+            self.initialSeek = nil
+            self.pause()
+            self.playbackError = "Impossibile riprendere dalla posizione richiesta. Riprova."
+            return
+          }
+          self.initialSeek = nil
+          self.elapsed = position
+          self.recovery.resetStall()
+          self.startPreparedPlayback()
+        }
+      }
+    }
+
+    private func startPreparedPlayback() {
+      defer { finishLoadingTask() }
+      guard intent.wantsPlayback, !isLoading, initialSeek == nil,
+        beforePlay?() ?? true
+      else { return }
+      do {
+        try AppleAudioSession.activate()
+        nativePlayer.playImmediately(atRate: 1)
+      } catch {
+        pause()
+        playbackError = "Impossibile attivare l’uscita audio. Riprova."
+      }
+    }
+
+    private func startRecoveryWatch() {
+      recoveryWatch?.cancel()
+      recoveryWatch = Task { [weak self] in
+        while !Task.isCancelled {
+          do { try await Task.sleep(for: .seconds(1)) } catch { return }
+          guard let self else { return }
+          let position = self.nativePlayer.currentTime().seconds
+          #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--test-audio-recovery"),
+              self.recovery.attempts == 0, position >= 6, self.intent.wantsPlayback
+            {
+              _ = self.recoverAudio(reason: "Test: flusso interrotto")
+              return
+            }
+          #endif
+          guard
+            self.recovery.observe(
+              position: position, now: ProcessInfo.processInfo.systemUptime,
+              shouldPlay: self.intent.wantsPlayback,
+              ready: !self.isLoading && self.initialSeek == nil
+                && self.nativePlayer.currentItem?.status == .readyToPlay,
+              duration: self.durationSeconds)
+          else { continue }
+          guard self.activeSourceURL != nil else { continue }
+          if !self.recoverAudio(reason: "La riproduzione non avanza") {
+            self.pause()
+            self.playbackError = "La riproduzione non riesce a proseguire. Riprova."
+          }
+          return
+        }
+      }
+    }
+
+    @discardableResult private func recoverAudio(reason: String) -> Bool {
+      var canRecover = activeSourceURL != nil
+      #if DEBUG
+        canRecover =
+          canRecover
+          || ProcessInfo.processInfo.arguments.contains("--test-audio-recovery")
+      #endif
+      guard canRecover, !videoId.isEmpty else { return false }
+      guard !isLoading else { return true }
+      // Pause/TTS owns playback. Remember a failed source, but do not start audio
+      // or consume retry budget until the user (or narration completion) resumes.
+      guard intent.wantsPlayback else {
+        deferredRecovery = true
+        return true
+      }
+      guard recovery.begin() else { return false }
+      if let activeSourceURL { rejectedSources.insert(activeSourceURL) }
+      let actual = nativePlayer.currentTime().seconds
+      let position = initialSeek ?? (actual.isFinite && actual >= 0 ? actual : elapsed)
+      networkDiagnostic = "\(reason); recupero \(recovery.attempts)/2 a \(Int(position)) s"
+      startLoad(videoId: videoId, startAt: position, recovering: true)
+      return true
     }
 
     private func finishLoadingTask() {
@@ -403,6 +575,13 @@
     }
 
     func clear() {
+      recoveryWatch?.cancel()
+      recoveryWatch = nil
+      assetRevision = UUID()
+      activeSourceURL = nil
+      rejectedSources.removeAll()
+      recovery = AudioRecovery()
+      deferredRecovery = false
       cancelTransition()
       currentTap = nil
       restoredPosition = nil
@@ -441,6 +620,17 @@
       do {
         try AppleAudioSession.activate()
         intent.play()
+        recovery.resetStall()
+        if deferredRecovery {
+          deferredRecovery = false
+          if recoverAudio(reason: "Riprendo il flusso interrotto") { return }
+          pause()
+          playbackError = AudioPlaybackError.unavailable.localizedDescription
+          return
+        }
+        // A user can resume while replacement is still resolving. The ready/seek
+        // callback starts audio after preparation, never the removed old item.
+        guard !isLoading, initialSeek == nil else { return }
         nativePlayer.playImmediately(atRate: 1)
       } catch {
         #if DEBUG
@@ -454,6 +644,7 @@
       cancelTransition()
       controlRevision = UUID()
       intent.pause()
+      recovery.resetStall()
       nativePlayer.pause()
       playing = false
     }
@@ -461,6 +652,12 @@
       cancelTransition()
       guard time.seconds.isFinite else { return }
       let value = max(0, min(durationSeconds > 0 ? durationSeconds : time.seconds, time.seconds))
+      recovery.resetStall()
+      if isLoading || initialSeek != nil {
+        initialSeek = value
+        elapsed = value
+        return
+      }
       if restoredPosition != nil {
         restoredPosition = value
         elapsed = value
@@ -473,11 +670,12 @@
       if fadeTask == nil { nativePlayer.volume = Float(volume / 100) }
     }
     func currentTime() -> CMTime {
-      restoredPosition == nil
+      restoredPosition == nil && !isLoading && initialSeek == nil
         ? nativePlayer.currentTime() : CMTime(seconds: elapsed, preferredTimescale: 600)
     }
     func interruptionBegan() {
       intent.interruptionBegan()
+      recovery.resetStall()
       nativePlayer.pause()
       playing = false
     }

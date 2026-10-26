@@ -15,6 +15,7 @@ final class ProbeTimings: NSObject, URLSessionTaskDelegate, @unchecked Sendable 
 
 do {
   let args = Array(CommandLine.arguments.dropFirst())
+  if try await probeCipherIfRequested(args) { exit(0) }
   if args.first == "--album-detail" {
     let query = args.dropFirst().joined(separator: " ")
     let albums = try await HomeDiscovery(session: nil).search(

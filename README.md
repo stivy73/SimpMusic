@@ -21,7 +21,11 @@ La generazione del significato usa il provider IA selezionato e richiede la rela
 ## NoteNarrate per iOS
 
 Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
-rispetto ad Android. La **0.12.0 (31)** aggiunge il menu player con le azioni
+rispetto ad Android. La **0.12.1 (32)** aggiunge il karaoke animato sui timestamp
+forniti dal testo, decodifica locale degli indirizzi audio WEB_REMIX, controlli
+oltre il primo megabyte e recupero della riproduzione dalla stessa posizione.
+La continuità sull’account Premium del telefono richiede ancora la prova reale.
+La **0.12.0 (31)** aggiunge il menu player con le azioni
 della versione Android e una pagina album con copertina grande, metadati,
 Play/casuale/download, preferiti persistenti e tracce numerate con menu.
 iPhone e CarPlay condividono il recupero completo delle tracce dell’album,

@@ -229,7 +229,7 @@ final class YouTubeBrowseTests: XCTestCase {
       cookies: "SAPISID=fixture", accountIndex: "2",
       delegatedID: "brand-account", identity: "test", clientVersion: "fixture-version")
     let player = try await YouTubeBrowse(session: session, transport: transport).player(
-      videoID: "fixture-video")
+      videoID: "fixture-video", signatureTimestamp: 20746)
     XCTAssertEqual(player.id, "fixture-video")
     XCTAssertEqual(YouTubeAudio.candidates(player).first?.host, "media.googlevideo.com")
     let request = try XCTUnwrap(BrowseURLProtocol.store.requests(id).first)
@@ -240,14 +240,74 @@ final class YouTubeBrowseTests: XCTestCase {
       request.value(forHTTPHeaderField: "Authorization")?.hasPrefix("SAPISIDHASH ") == true)
     XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-AuthUser"), "2")
     XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-PageId"), "brand-account")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Origin"), "https://music.youtube.com")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "DNT"), "1")
     let json = try payload(request)
     XCTAssertEqual(json["videoId"] as? String, "fixture-video")
+    let nonce = try XCTUnwrap(json["cpn"] as? String)
+    XCTAssertNotNil(nonce.range(of: #"^[A-Za-z0-9_-]{16}$"#, options: .regularExpression))
+    XCTAssertEqual(json["contentCheckOk"] as? Bool, true)
+    XCTAssertEqual(json["racyCheckOk"] as? Bool, true)
+    let playback =
+      (json["playbackContext"] as? [String: Any])?["contentPlaybackContext"]
+      as? [String: Any]
+    XCTAssertEqual(playback?["signatureTimestamp"] as? Int, 20746)
+    XCTAssertEqual(playback?["html5Preference"] as? String, "HTML5_PREF_WANTS")
+    XCTAssertEqual(
+      player.streamingData?.adaptiveFormats.first?.url,
+      "https://media.googlevideo.com/audio?cpn=" + nonce)
     XCTAssertNil(json["browseId"])
     XCTAssertNil(json["continuation"])
     let context = try XCTUnwrap(json["context"] as? [String: Any])
     let client = try XCTUnwrap(context["client"] as? [String: Any])
     XCTAssertEqual(client["clientName"] as? String, "WEB_REMIX")
     XCTAssertEqual(client["clientVersion"] as? String, "fixture-version")
+  }
+
+  func testPlayerNoncePreservesSignedBytesAndCipherEnvelopeAcrossRequests() async throws {
+    let signed = "https://media.googlevideo.com/audio?sig=A%2Bb&opaque=a%2fb+c&n=challenge"
+    let encoded = try XCTUnwrap(signed.addingPercentEncoding(withAllowedCharacters: .alphanumerics))
+    let cipher = "s=secret%2Bsignature&sp=sig&url=" + encoded
+    let object: [String: Any] = [
+      "videoDetails": [
+        "videoId": "video", "title": "Fixture", "viewCount": "1",
+        "author": "Artist", "channelId": "artist", "lengthSeconds": "180",
+      ],
+      "streamingData": [
+        "adaptiveFormats": [
+          [
+            "itag": 140, "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"", "bitrate": 128000,
+            "url": signed,
+          ],
+          [
+            "itag": 141, "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"", "bitrate": 256000,
+            "signatureCipher": cipher,
+          ],
+        ]
+      ],
+    ]
+    let body = try XCTUnwrap(
+      String(data: JSONSerialization.data(withJSONObject: object), encoding: .utf8))
+    let (transport, id) = transport(body: body)
+    defer { BrowseURLProtocol.store.remove(id) }
+    let browse = YouTubeBrowse(session: nil, transport: transport)
+    let first = try await browse.player(videoID: "video")
+    let second = try await browse.player(videoID: "video")
+    let requests = BrowseURLProtocol.store.requests(id)
+    let firstNonce = try XCTUnwrap(try payload(requests[0])["cpn"] as? String)
+    let secondNonce = try XCTUnwrap(try payload(requests[1])["cpn"] as? String)
+    XCTAssertNotEqual(firstNonce, secondNonce)
+    for (video, nonce) in [(first, firstNonce), (second, secondNonce)] {
+      let formats = try XCTUnwrap(video.streamingData?.adaptiveFormats)
+      XCTAssertEqual(formats[0].url, signed + "&cpn=" + nonce)
+      let rawCipher = try XCTUnwrap(formats[1].signatureCipher)
+      XCTAssertTrue(rawCipher.hasPrefix(cipher + "%26cpn%3D"))
+      let parsed = try CipherStreamRequest(url: nil, cipher: rawCipher)
+      XCTAssertEqual(parsed.url.absoluteString, signed + "&cpn=" + nonce)
+      XCTAssertEqual(parsed.signature, "secret+signature")
+    }
+    XCTAssertNil(requests[0].value(forHTTPHeaderField: "Authorization"))
+    XCTAssertNil(requests[0].value(forHTTPHeaderField: "Cookie"))
   }
 
   func testAuthenticationAccountParamsAndVisitorSurviveContinuation() async throws {
@@ -263,6 +323,8 @@ final class YouTubeBrowseTests: XCTestCase {
     let requests = BrowseURLProtocol.store.requests(id)
     XCTAssertEqual(requests.count, 2)
     let first = try XCTUnwrap(requests.first)
+    XCTAssertNil(first.value(forHTTPHeaderField: "X-Origin"))
+    XCTAssertNil(first.value(forHTTPHeaderField: "DNT"))
     XCTAssertEqual(first.url?.host, "music.youtube.com")
     XCTAssertEqual(first.httpMethod, "POST")
     XCTAssertTrue(
