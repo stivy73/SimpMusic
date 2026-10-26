@@ -21,11 +21,12 @@ La generazione del significato usa il provider IA selezionato e richiede la rela
 ## NoteNarrate per iOS
 
 Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
-rispetto ad Android. La **0.9.0 (28)**, caricata su TestFlight interno, porta download/offline, testi sincronizzati,
-timer e ripristino coda, qualità audio, EQ/AutoEq ed effetti, crossfade/DJ, strumenti
-per i testi, statistiche e Wrapped locali. Stato, prove e limiti sono nel
-[registro del porting](iosPrototype/PORTING_PROGRESS.md). Distribuzione tramite
-TestFlight interno; non è una pubblicazione su App Store.
+rispetto ad Android. La **0.10.0 (29)** aggiunge widget iOS Player/Playlist/Ascolti, sezioni
+Classifiche/Podcast/Mix, artisti seguiti con avvisi facoltativi sulle nuove uscite
+e consigli musicali Gemini verificati nel catalogo. Restano disponibili download/offline,
+testi sincronizzati, timer, ripristino della coda, qualità audio, effetti, crossfade,
+strumenti dei testi e statistiche/riepiloghi. Le prove fisiche Duo/CarPlay su voce e
+continuità CDN restano separate. [Stato del porting](iosPrototype/PORTING_PROGRESS.md).
 
 ## Download e aggiornamenti
 

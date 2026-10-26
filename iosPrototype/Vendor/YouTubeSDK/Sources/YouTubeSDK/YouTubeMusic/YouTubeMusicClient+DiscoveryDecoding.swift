@@ -161,6 +161,7 @@ extension YouTubeMusicClient {
           }
         } else if row["musicResponsiveListItemRenderer"] != nil
           || row["musicTwoRowItemRenderer"] != nil
+          || row["musicMultiRowListItemRenderer"] != nil
         {
           recognizedContent = true
           looseItems.append(row)

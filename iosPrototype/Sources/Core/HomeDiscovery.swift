@@ -54,8 +54,8 @@ public struct HomeFilter: Identifiable, Hashable, Sendable {
   ]
 }
 
-public struct DiscoveryItem: Identifiable, Hashable, Sendable {
-  public enum Kind: String, Sendable { case song, album, playlist, artist }
+public struct DiscoveryItem: Identifiable, Codable, Hashable, Sendable {
+  public enum Kind: String, Codable, Sendable { case song, album, playlist, artist }
   public let kind: Kind
   public let mediaId: String
   public let title: String
@@ -129,6 +129,15 @@ public struct HomeShelf: Identifiable, Sendable {
   public let more: BrowseTarget?
   public var items: [DiscoveryItem]
 
+  public init(id: String, title: String, items: [DiscoveryItem], more: BrowseTarget? = nil) {
+    self.id = id
+    self.title = title
+    self.items = items
+    self.more = more
+    subtitle = ""
+    avatar = nil
+  }
+
   init(_ section: YouTubeMusicSection) {
     title = section.title
     subtitle = section.subtitle
@@ -160,6 +169,11 @@ public struct HomePage: Sendable {
   public var shelves: [HomeShelf]
   public var categories: [HomeCategorySection]
   public let continuation: String?
+  public init(shelves: [HomeShelf], continuation: String? = nil) {
+    self.shelves = shelves
+    self.categories = []
+    self.continuation = continuation
+  }
   public init(_ page: YouTubeMusicHomePage) {
     shelves = page.sections.map(HomeShelf.init)
     categories = page.categories.map { section in

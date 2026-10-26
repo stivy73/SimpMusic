@@ -1,8 +1,27 @@
-# NoteNarrate iOS — 0.9.0 (28)
+# NoteNarrate iOS — 0.10.0 (29)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
+
+**0.10.0 (29), punti 20, 22, 23 e 25:** widget iOS Player, Playlist e Ascolti;
+Classifiche per paese, Podcast e Mix dedicati; segui/non seguire gli artisti su
+YouTube Music e avvisi facoltativi sulle nuove uscite; consigli musicali Gemini
+verificati nel catalogo, riproducibili, aggiungibili alla coda o a una playlist privata.
+Si aprono da **Home → Esplora** oppure **Impostazioni → Scopri**.
+
+Gli avvisi partono dopo una base iniziale senza notifiche storiche. I controlli
+in background dipendono dalla pianificazione iOS; resta disponibile “Controlla ora”.
+I widget condividono solo metadati, copertine e conteggi, senza chiavi o sessioni.
+I consigli IA riusano la chiave Gemini salvata e non inventano ID riproducibili.
+[Implementazione, limiti e verifiche](PORTING_PROGRESS.md). Verificati 179 test core, tre scenari UI
+(compresi Pausa/Riproduci dal widget reale) e i cataloghi pubblici con continuazione.
+Prova Gemini reale: 8 proposte strutturate, 7 corrispondenze verificate nel catalogo.
+La build include anche le frasi Siri per ricerca/riproduzione in Base, italiano e
+inglese, correggendo la configurazione segnalata da Apple con ITMS-90626 sulla build 25.
+Archivio Release e compilazione Mac condivisa verificati. Firma Apple in attesa
+dell’autorizzazione specifica al nuovo App Group; build 29 non ancora caricata.
+L’assegnazione ai tester resta manuale.
 
 **Consegna 0.9.0 (28), 25 ottobre 2026 ore 22:35 Europe/Rome:** caricamento
 Apple riuscito per TestFlight interno (`Upload succeeded`, pacchetto in elaborazione,

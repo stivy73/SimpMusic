@@ -50,6 +50,27 @@ private final class BrowseURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 final class YouTubeBrowseTests: XCTestCase {
+  func testChartsCountryAndFollowEndpointUseExistingAccountTransport() async throws {
+    let (transport, id) = transport(body: "{\"status\":\"STATUS_SUCCEEDED\"}")
+    defer { BrowseURLProtocol.store.remove(id) }
+    let account = YouTubeSession(
+      cookies: "SAPISID=test", accountIndex: "2", delegatedID: "brand", identity: "test",
+      clientVersion: "test")
+    let browse = YouTubeBrowse(session: account, transport: transport)
+    _ = try await browse.request(browseId: "FEmusic_charts", country: "IT")
+    try await browse.setFollowed(artistID: "UCartist", followed: true)
+    try await browse.setFollowed(artistID: "UCartist", followed: false)
+    let requests = BrowseURLProtocol.store.requests(id)
+    XCTAssertEqual(
+      (try payload(requests[0])["formData"] as? [String: [String]])?["selectedValues"], ["IT"])
+    XCTAssertTrue(requests[1].url!.path.hasSuffix("subscription/subscribe"))
+    XCTAssertTrue(requests[2].url!.path.hasSuffix("subscription/unsubscribe"))
+    for request in requests.dropFirst() {
+      XCTAssertEqual(try payload(request)["channelIds"] as? [String], ["UCartist"])
+      XCTAssertNotNil(request.value(forHTTPHeaderField: "Authorization"))
+      XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-AuthUser"), "2")
+    }
+  }
   private func transport(status: Int = 200, body: String = "{}") -> (URLSession, String) {
     let id = BrowseURLProtocol.store.register(status: status, body: Data(body.utf8))
     let configuration = URLSessionConfiguration.ephemeral

@@ -93,6 +93,36 @@ enum HomeFixture {
 }
 
 final class HomeDiscoveryTests: XCTestCase {
+  func testPodcastMultiRowEpisodeUsesWatchIDAndShowTitle() async throws {
+    let show: [String: Any] = [
+      "browseEndpoint": [
+        "browseId": "MPSPshow",
+        "browseEndpointContextSupportedConfigs": [
+          "browseEndpointContextMusicConfig": [
+            "pageType": "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE"
+          ]
+        ],
+      ]
+    ]
+    let row: [String: Any] = [
+      "musicMultiRowListItemRenderer": [
+        "title": HomeFixture.text("Episodio di prova"),
+        "secondTitle": ["runs": [["text": "Il mio podcast", "navigationEndpoint": show]]],
+        "onTap": ["watchEndpoint": ["videoId": "episode-id"]],
+        "thumbnail": HomeFixture.thumbnail,
+      ]
+    ]
+    let data = try HomeFixture.data(rows: [
+      ["musicCarouselShelfRenderer": ["title": HomeFixture.text("Podcast"), "contents": [row]]]
+    ])
+    let page = try await HomePage(YouTubeMusicClient().decodeDiscoveryPage(from: data))
+    let episode = try XCTUnwrap(page.shelves.first?.items.first)
+    XCTAssertEqual(episode.kind, .song)
+    XCTAssertEqual(episode.mediaId, "episode-id")
+    XCTAssertEqual(episode.title, "Episodio di prova")
+    XCTAssertEqual(episode.subtitle, "Il mio podcast")
+    XCTAssertNil(episode.artistBrowseID)
+  }
   func testSearchEnvelopePreservesResponsiveArtistAndAlbumRows() async throws {
     func row(_ id: String, type: String) -> [String: Any] {
       var nav = HomeFixture.endpoint(id)

@@ -71,6 +71,7 @@ public final class LibraryModel: ObservableObject {
   @Published public var showLogin = false
   @Published public private(set) var collections: [RemoteLibraryKind: RemoteLibraryState] = [:]
   @Published public private(set) var pendingLikes = Set<String>()
+  @Published public private(set) var pendingFollows = Set<String>()
   @Published public var syncError: String?
   private var request: Task<Void, Never>?
   private var revision = UUID()
@@ -80,8 +81,10 @@ public final class LibraryModel: ObservableObject {
   public typealias FetchCollection =
     @Sendable (YouTubeSession, RemoteLibraryKind) async throws -> [DiscoveryItem]
   public typealias RateSong = @Sendable (YouTubeSession, String, Bool) async throws -> Void
+  public typealias FollowArtist = @Sendable (YouTubeSession, String, Bool) async throws -> Void
   private let fetchCollection: FetchCollection
   private let rateSong: RateSong
+  private let followArtist: FollowArtist
 
   private let save: @MainActor (YouTubeSession?) throws -> Void
   private let fetch: @Sendable (YouTubeSession) async throws -> [LibraryAlbum]
@@ -97,6 +100,9 @@ public final class LibraryModel: ObservableObject {
     },
     rateSong: @escaping RateSong = { session, id, liked in
       try await YouTubeBrowse(session: session).setLiked(videoID: id, liked: liked)
+    },
+    followArtist: @escaping FollowArtist = { session, id, followed in
+      try await YouTubeBrowse(session: session).setFollowed(artistID: id, followed: followed)
     }
   ) {
     self.session = session
@@ -104,6 +110,7 @@ public final class LibraryModel: ObservableObject {
     self.fetch = fetch
     self.fetchCollection = fetchCollection
     self.rateSong = rateSong
+    self.followArtist = followArtist
   }
 
   public func connect(_ value: YouTubeSession) {
@@ -135,6 +142,7 @@ public final class LibraryModel: ObservableObject {
     collectionRevisions = [:]
     collections = [:]
     pendingLikes = []
+    pendingFollows = []
     syncError = nil
     revision = UUID()
     albums = []
@@ -157,7 +165,9 @@ public final class LibraryModel: ObservableObject {
         guard expected == revision else { return }
         albums = result
         loading = false
-      } catch is CancellationError {} catch {
+      } catch is CancellationError {
+        if expected == revision { loading = false }
+      } catch {
         guard expected == revision else { return }
         albums = []
         loading = false
@@ -178,6 +188,7 @@ public final class LibraryModel: ObservableObject {
   public func load(_ kind: RemoteLibraryKind, force: Bool = false) async {
     guard let session else { return }
     if kind == .likes && !pendingLikes.isEmpty { return }
+    if kind == .artists && !pendingFollows.isEmpty { return }
     if state(kind).loading {
       await collectionRequests[kind]?.value
       return
@@ -193,7 +204,10 @@ public final class LibraryModel: ObservableObject {
         try Task.checkCancellation()
         guard self.session == session, collectionRevisions[kind] == expected else { return }
         collections[kind] = RemoteLibraryState(items: items, loaded: true)
-      } catch is CancellationError {} catch {
+      } catch is CancellationError {
+        guard self.session == session, collectionRevisions[kind] == expected else { return }
+        collections[kind, default: RemoteLibraryState()].loading = false
+      } catch {
         guard self.session == session, collectionRevisions[kind] == expected else { return }
         collections[kind, default: RemoteLibraryState()].loading = false
         collections[kind, default: RemoteLibraryState()].error =
@@ -201,11 +215,51 @@ public final class LibraryModel: ObservableObject {
       }
     }
     collectionRequests[kind] = task
-    await task.value
+    await withTaskCancellationHandler {
+      await task.value
+    } onCancel: {
+      task.cancel()
+    }
   }
 
   public func isLiked(_ id: String) -> Bool {
     state(.likes).items.contains { $0.mediaId == id }
+  }
+
+  public func isFollowed(_ id: String) -> Bool {
+    state(.artists).items.contains { $0.mediaId == id }
+  }
+
+  public func toggleFollow(_ artist: DiscoveryItem) async {
+    guard artist.kind == .artist else { return }
+    guard let session else {
+      showLogin = true
+      return
+    }
+    let expected = accountRevision
+    await load(.artists)
+    guard expected == accountRevision, self.session == session else { return }
+    guard state(.artists).loaded, state(.artists).error == nil else {
+      syncError = "Non posso verificare gli artisti seguiti. Aggiorna la raccolta e riprova."
+      return
+    }
+    guard !pendingFollows.contains(artist.mediaId) else { return }
+    pendingFollows.insert(artist.mediaId)
+    syncError = nil
+    let followed = !isFollowed(artist.mediaId)
+    do {
+      try await followArtist(session, artist.mediaId, followed)
+      guard expected == accountRevision else { return }
+      if followed {
+        collections[.artists]?.items.insert(artist, at: 0)
+      } else {
+        collections[.artists]?.items.removeAll { $0.mediaId == artist.mediaId }
+      }
+    } catch {
+      guard expected == accountRevision else { return }
+      syncError = "Modifica non confermata da YouTube Music. Riprova."
+    }
+    pendingFollows.remove(artist.mediaId)
   }
 
   public func toggleLike(_ item: DiscoveryItem) async {

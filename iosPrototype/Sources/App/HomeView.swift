@@ -72,6 +72,7 @@ struct HomeView: View {
     .accessibilityIdentifier("home-scroll")
     .navigationTitle("NoteNarrate")
     .toolbar {
+      ToolbarItem(placement: .platformTrailing) { DiscoveryMenu() }
       if library.session != nil {
         ToolbarItem(placement: .platformTrailing) {
           NavigationLink {
@@ -136,6 +137,10 @@ struct HomeBrowseView: View {
     }.navigationTitle(title).inlineNavigationTitle()
       .toolbar {
         if target.browseId.hasPrefix("UC") {
+          FollowArtistButton(
+            artist: DiscoveryItem(
+              kind: .artist, mediaId: target.browseId, title: title, subtitle: "Artista",
+              artwork: nil))
           Button {
             model.startRadio(artistID: target.browseId, title: title)
           } label: {
@@ -152,7 +157,7 @@ struct HomeBrowseView: View {
   }
 }
 
-private struct DiscoveryShelves: View {
+struct DiscoveryShelves: View {
   let shelves: [HomeShelf]
   var songsAsList = false
   var body: some View {
@@ -222,7 +227,7 @@ private struct DiscoveryCard: View {
   }
 }
 
-private struct DiscoveryItemLink<Content: View>: View {
+struct DiscoveryItemLink<Content: View>: View {
   @EnvironmentObject private var model: MusicModel
   @EnvironmentObject private var library: LibraryModel
   let item: DiscoveryItem

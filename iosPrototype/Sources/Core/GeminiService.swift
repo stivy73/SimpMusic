@@ -124,7 +124,7 @@ public struct GeminiService: Sendable {
     return data
   }
 
-  private func post(url: URL, key: String, body: [String: Any], timeout: TimeInterval = 90)
+  func post(url: URL, key: String, body: [String: Any], timeout: TimeInterval = 90)
     async throws -> [String: Any]
   {
     guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

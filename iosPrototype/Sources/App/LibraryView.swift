@@ -36,7 +36,7 @@ extension LibraryModel {
             if ProcessInfo.processInfo.arguments.contains("--test-like-failure") {
               throw LibraryError.http(403)
             }
-          })
+          }, followArtist: { _, _, _ in })
         return
       }
     #endif

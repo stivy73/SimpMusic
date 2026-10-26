@@ -21,6 +21,31 @@ private final class GeminiStub: URLProtocol, @unchecked Sendable {
 }
 
 final class GeminiRequestTests: XCTestCase {
+  func testMusicSuggestionsUseSeparatePromptAndStructuredOutputWithOnlyChosenSeed() async throws {
+    let service = service { request in
+      XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "fixture-key")
+      let body = try self.body(request)
+      let instruction = String(describing: body["systemInstruction"]!)
+      XCTAssertTrue(instruction.contains("consigliere musicale"))
+      XCTAssertFalse(instruction.contains("900 caratteri"))
+      XCTAssertEqual(
+        (body["generationConfig"] as? [String: String])?["responseMimeType"], "application/json")
+      let contents = String(describing: body["contents"]!)
+      XCTAssertTrue(contents.contains("Reference"))
+      XCTAssertFalse(contents.contains("cookies"))
+      let response = #"{"songs":[{"title":"Real","artist":"Artist","reason":"Un motivo"}]}"#
+      return (
+        200,
+        try JSONSerialization.data(withJSONObject: [
+          "candidates": [["content": ["parts": [["text": response]]]]]
+        ])
+      )
+    }
+    let values = try await service.suggestMusic(
+      key: "fixture-key", model: "gemini-3.8-flash", request: "Rock",
+      seeds: [PlaybackTrack(id: "seed", title: "Reference", artist: "Artist", artwork: nil)])
+    XCTAssertEqual(values.count, 1)
+  }
   private func service(_ handler: @escaping (URLRequest) throws -> (Int, Data)) -> GeminiService {
     GeminiStub.handler = handler
     let configuration = URLSessionConfiguration.ephemeral

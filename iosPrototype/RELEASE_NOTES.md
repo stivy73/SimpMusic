@@ -1,3 +1,34 @@
+# NoteNarrate iOS 0.10.0 (29)
+
+Implements parity points 20, 22, 23 and 25: three WidgetKit widgets (interactive
+player, playlist shortcuts, actual listening insights) with shared display-only
+App Group snapshots; dedicated country-filtered Charts, current Podcasts Home
+filter/show search/episode renderer and authenticated personal Mix; confirmed
+YouTube artist subscriptions plus opt-in release polling, baseline/deduplication,
+account-scoped inbox and local notifications; Gemini music recommendations using
+the existing key with optional current-track context, Italian explanations and
+verified YouTube Music catalog matches before play/queue/private-playlist actions.
+
+No historical-alert burst on first sync. Background refresh is opportunistic, not
+server push or an exact six-hour promise. Widget timelines are system-budgeted.
+No keys/cookies/signed media URLs enter the App Group. Unresolved AI suggestions
+are not playable. Android prompt/Home/search filters stay unchanged. Points 21
+and 24 are not included. Physical Duo/CarPlay narration/CDN testing remains deferred.
+
+Adds localized AppIntentVocabulary.plist in the main app only (Base/it/en), with
+examples for both declared Siri media intents. The final IPA gate checks every
+intent/locale to address ITMS-90626 reported by Apple on 0.8.1 (25).
+
+179 core tests and three final simulator scenarios passed, including actual Home
+widget pause/play and release baseline/new notice. Real IT/global Charts and
+Podcast episode continuation verified. Live Gemini: 8 structured suggestions,
+7 verified catalog matches; unresolved candidates remain excluded from playback.
+Release archive and shared Mac compilation succeeded. Distribution signing is
+pending specific authorization to register/associate the widget App Group; build 29
+not uploaded. Internal TestFlight only, manual testers, no public submission.
+
+---
+
 # NoteNarrate iOS 0.9.0 (28)
 
 Implements iOS parity points 10–19: persistent AAC music downloads with background

@@ -1,3 +1,46 @@
+# iOS parity: points 20, 22, 23, 25 — 0.10.0 (29)
+
+| Point | Implementation | Validation |
+|---|---|---|
+| 20 | WidgetKit Player (play/pause/next), Playlist shortcuts, actual listening statistics; App Group display snapshots and strict deep links | Shared-state/route tests; embedded extension and interactive app intents; distribution signature gate checks both App Group profiles |
+| 22 | Dedicated Charts with country, Podcasts with show search and playable episodes, account-personalized Mix | Real IT/global chart and podcast catalog probes; country/account/pagination tests and simulator navigation |
+| 23 | Confirmed YouTube artist follow/unfollow; opt-in release monitoring, local inbox and iOS alerts | Baseline/dedup/account/persistence/failure tests; simulator baseline and subsequent-new-release scenario |
+| 25 | Gemini music recommendations using the existing key, optional current-track seed, Italian reasons, real catalog resolution, play/queue/private playlist actions | Structured-response transport and matching/cancellation tests; simulator generation-to-player flow |
+
+Validation: **179 core tests passed** and three final simulator scenarios passed:
+dedicated discovery/AI-to-player; release baseline/new notice; actual Home widget
+pause/play against the retained native player. Public catalog probe: IT Charts
+43 items, global 42; Podcasts 30 items and 23 on continuation (server-dependent).
+Live Gemini probe: 8 structured suggestions in 17.59 s, 7 verified catalog matches.
+
+Also corrects the Apple ITMS-90626 Siri vocabulary warning reported for build 25:
+Base/Italian/English example phrases for every declared media intent in the main
+app bundle; exported-IPA validation covers the locale/intent matrix.
+
+Use **Home → Esplora** or **Impostazioni → Scopri**. Widgets are added from the
+iOS Home screen. Open Library → Playlist to populate the playlist widget.
+New-release notifications are opt-in; the first successful check of each artist
+seeds a baseline without historical notifications. iOS schedules background checks
+opportunistically (requested no sooner than six hours), with foreground catch-up
+and an explicit Check now action. No server push service or fixed schedule is promised.
+
+Widgets share display metadata and compressed cover files only, never API keys,
+cookies or signed streaming URLs. Interactive media actions use AudioPlaybackIntent
+in the app process. Timeline refreshes remain under iOS control.
+
+Podcasts use YouTube Music's live Home chip and its multi-row episode renderer.
+Mix requires the confirmed account. AI never supplies playable video IDs; unresolved
+recommendations stay visible and cannot enter a queue or playlist. Only the request
+and explicitly selected reference metadata are sent to Gemini.
+
+No changes to Android, account multi-switching (21), Spotify playlist import (24),
+or the physical-car/Duo tests (1–2). Live Premium CDN continuity and physical CarPlay
+voice audibility remain deferred. No public App Store submission; testers manual.
+
+Build, upload and source commit status are recorded in README and RELEASE_NOTES.
+
+---
+
 # iOS parity work: points 10–19 — 0.9.0 (28)
 
 User-authorized sequence after 0.8.3 (27). All ten features below are implemented.

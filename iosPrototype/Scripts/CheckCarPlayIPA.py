@@ -72,8 +72,9 @@ def verify(ipa):
             require(signed.get("com.apple.developer.siri") is True, "Siri missing from app signature")
             require(profile["Entitlements"].get("com.apple.developer.siri") is True, "Siri missing from app profile")
             extensions = list((app / "PlugIns").glob("*.appex"))
-            require(len(extensions) == 1, "Expected one Siri media extension")
-            extension = extensions[0]
+            by_id = {plistlib.loads((value / "Info.plist").read_bytes())["CFBundleIdentifier"]: value for value in extensions}
+            require(set(by_id) == {bundle + ".MediaIntents", bundle + ".Widgets"}, "Expected Siri and WidgetKit extensions")
+            extension = by_id[bundle + ".MediaIntents"]
             extension_info = plistlib.loads((extension / "Info.plist").read_bytes())
             require(extension_info["CFBundleIdentifier"] == bundle + ".MediaIntents", "Unexpected extension ID")
             attributes = extension_info["NSExtension"]["NSExtensionAttributes"]
@@ -89,6 +90,30 @@ def verify(ipa):
             extension_entitlements = plistlib.loads(extension_sign[extension_sign.find(b"<?xml"):])
             require(extension_entitlements.get("com.apple.developer.siri") is True,
                     "Siri missing from extension signature")
+            widget = by_id[bundle + ".Widgets"]
+            widget_info = plistlib.loads((widget / "Info.plist").read_bytes())
+            require(widget_info["NSExtension"]["NSExtensionPointIdentifier"] == "com.apple.widgetkit-extension", "Widget extension type mismatch")
+            for field in ("CFBundleShortVersionString", "CFBundleVersion"):
+                require(widget_info[field] == info[field] == extension_info[field], "App/extension version mismatch")
+            widget_profile = plistlib.loads(subprocess.check_output(["security", "cms", "-D", "-i", str(widget / "embedded.mobileprovision")]))
+            widget_sign = subprocess.run(["codesign", "-d", "--entitlements", ":-", str(widget)], capture_output=True, check=True).stdout
+            widget_entitlements = plistlib.loads(widget_sign[widget_sign.find(b"<?xml"):])
+            group = "group.com.stivy.simpmusic.prototype"
+            for name, value in (("app signature", signed), ("app profile", profile["Entitlements"]), ("widget signature", widget_entitlements), ("widget profile", widget_profile["Entitlements"])):
+                require(group in value.get("com.apple.security.application-groups", []), "App Group missing from " + name)
+            require(widget_profile["TeamIdentifier"] == [team], "Unexpected Widget Team")
+            require(widget_entitlements.get("application-identifier") == f"{team}.{bundle}.Widgets", "Unexpected Widget app identifier")
+            require(widget_entitlements.get("get-task-allow") is False, "Widget must use distribution signing")
+            required_intents = set(attributes["IntentsSupported"])
+            for locale in ("Base", "it", "en"):
+                vocabulary = app / (locale + ".lproj") / "AppIntentVocabulary.plist"
+                require(vocabulary.exists(), "Siri vocabulary missing for " + locale)
+                phrases = plistlib.loads(vocabulary.read_bytes()).get("IntentPhrases", [])
+                covered = {entry.get("IntentName") for entry in phrases
+                           if any(isinstance(text, str) and "NoteNarrate" in text
+                                  for text in entry.get("IntentExamples", []))}
+                require(required_intents <= covered, "Missing Siri example phrases for " + locale)
+            require(not list(extension.rglob("AppIntentVocabulary.plist")), "Siri vocabulary belongs to main app only")
         scenes = info["UIApplicationSceneManifest"]["UISceneConfigurations"]
         carplay = scenes.get("CPTemplateApplicationSceneSessionRoleApplication", [])
         require(
@@ -109,6 +134,8 @@ def verify(ipa):
             "profile_carplay": True,
             "codesign_verified": True,
             "siri_media_extension_verified": voice,
+            "widget_app_group_verified": voice,
+            "siri_example_phrases_verified": voice,
             "sha256": hashlib.sha256(ipa.read_bytes()).hexdigest(),
         }
 

@@ -46,3 +46,10 @@ Default Home continuation semantics are unchanged. Responsive podcast shows
 (`MUSIC_PAGE_TYPE_PODCAST_SHOW` / `MPSP…`) retain their browse destination through
 the existing playlist-like model. No SDK network/authentication changes.
 All seven search params match Android, checked by Scripts/CheckSearchFilters.py.
+
+Discovery additions (0.10.0): decode musicMultiRowListItemRenderer podcast
+episodes through their onTap watch endpoint, retaining the show title from
+secondTitle and artwork. Podcast-show metadata does not become a music-artist
+browse ID. Loose multi-row continuations are accepted by discovery decoding.
+The app resolves the live Podcasts Home chip rather than a retired browse ID.
+No credential, network, Home filter or music search filter changes in the SDK.

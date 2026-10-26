@@ -313,6 +313,8 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   private var lyricsGeneration = UUID()
   @Published var current: Song?
   @Published var showPlayer = false
+  @Published var externalRoute: AppRoute?
+  let releases = MusicModel.makeArtistReleases()
   @Published var showMeaning = false
   private(set) var meaningPresentationOnPhone = true
   @Published var busyMeaning = false

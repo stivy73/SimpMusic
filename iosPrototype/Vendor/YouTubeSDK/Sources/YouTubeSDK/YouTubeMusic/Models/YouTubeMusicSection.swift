@@ -30,6 +30,13 @@ public struct YouTubeMusicSection: Identifiable, Sendable {
   }
 
   private static func item(_ data: [String: Any]) -> YouTubeMusicItem? {
+    if let episode = data["musicMultiRowListItemRenderer"] as? [String: Any] {
+      var box = episode
+      box["navigationEndpoint"] = episode["onTap"]
+      box["subtitle"] = episode["secondTitle"] ?? episode["subtitle"]
+      box["thumbnailRenderer"] = episode["thumbnail"]
+      return item(["musicTwoRowItemRenderer": box])
+    }
     if let row = data["musicResponsiveListItemRenderer"] as? [String: Any],
       let song = YouTubeMusicSong(from: row)
     {

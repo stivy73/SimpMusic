@@ -498,6 +498,133 @@ final class PrototypeUITests: XCTestCase {
     XCUIDevice.shared.orientation = .portrait
   }
 
+  @MainActor func testDedicatedDiscoveryAndVerifiedAISuggestions() {
+    let app = XCUIApplication()
+    app.launchArguments = [
+      "--test-discovery-extras", "--test-remote-library", "--test-local-playback", "--test-session",
+    ]
+    app.launch()
+    XCTAssertTrue(app.buttons["close-player"].waitForExistence(timeout: 20))
+    app.buttons["close-player"].tap()
+    selectTab("Home", symbol: "house.fill", in: app)
+    let menu = app.buttons["discovery-menu"]
+    XCTAssertTrue(menu.waitForExistence(timeout: 10))
+    menu.tap()
+    app.buttons["open-charts"].tap()
+    XCTAssertTrue(app.staticTexts["Brano di classifica"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.buttons["charts-country"].exists)
+    app.navigationBars.buttons.element(boundBy: 0).tap()
+    menu.tap()
+    app.buttons["open-podcasts"].tap()
+    XCTAssertTrue(app.staticTexts["Podcast di prova"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.buttons["podcasts-search"].exists)
+    app.navigationBars.buttons.element(boundBy: 0).tap()
+    menu.tap()
+    app.buttons["open-mixes"].tap()
+    XCTAssertTrue(app.staticTexts["Brano di classifica"].waitForExistence(timeout: 10))
+    app.navigationBars.buttons.element(boundBy: 0).tap()
+    menu.tap()
+    app.buttons["open-ai-suggestions"].tap()
+    let request = app.textFields["ai-music-request"]
+    let multiline = app.textViews["ai-music-request"]
+    let field = request.exists ? request : multiline
+    XCTAssertTrue(field.waitForExistence(timeout: 10))
+    field.tap()
+    field.typeText("Rock per un viaggio")
+    app.buttons["generate-ai-music"].tap()
+    XCTAssertTrue(app.staticTexts["Brano suggerito"].waitForExistence(timeout: 10))
+    app.swipeUp()
+    XCTAssertTrue(app.buttons["play-ai-suggestions"].waitForExistence(timeout: 5))
+    app.buttons["play-ai-suggestions"].tap()
+    XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Brano suggerito"].exists)
+  }
+
+  @MainActor func testHomeWidgetInteractivePlayback() {
+    let app = XCUIApplication()
+    app.launchArguments = [
+      "--test-local-playback", "--test-long-local", "--test-session", "--test-remote-library",
+    ]
+    app.launch()
+    XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 20))
+    XCUIDevice.shared.press(.home)
+    let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    let icon = springboard.icons["NoteNarrate"].firstMatch
+    XCTAssertTrue(icon.waitForExistence(timeout: 10))
+    icon.press(forDuration: 1.5)
+    let medium = springboard.buttons["Widget medio"]
+    XCTAssertTrue(medium.waitForExistence(timeout: 10))
+    medium.tap()
+    XCUIDevice.shared.press(.home)
+    let pause = springboard.buttons["Pausa"]
+    XCTAssertTrue(pause.waitForExistence(timeout: 20), springboard.debugDescription)
+    let screenshot = XCTAttachment(screenshot: springboard.screenshot())
+    screenshot.name = "NoteNarrate Player widget"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+    pause.tap()
+    app.activate()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+    XCTAssertEqual(
+      XCTWaiter.wait(
+        for: [
+          XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "In pausa"), object: toggle)
+        ], timeout: 8), .completed)
+    XCUIDevice.shared.press(.home)
+    let play = springboard.buttons["Riproduci"]
+    XCTAssertTrue(play.waitForExistence(timeout: 15))
+    play.tap()
+    app.activate()
+    waitForPlayback(toggle)
+    toggle.tap()
+  }
+
+  @MainActor func testFollowedArtistsReleaseBaselineAndNewNotice() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-discovery-extras", "--test-remote-library"]
+    app.launch()
+    selectTab("Home", symbol: "house.fill", in: app)
+    XCTAssertTrue(app.buttons["discovery-menu"].waitForExistence(timeout: 10))
+    app.buttons["discovery-menu"].tap()
+    app.buttons["open-artist-releases"].tap()
+    XCTAssertTrue(app.staticTexts["Artista seguito di prova"].waitForExistence(timeout: 10))
+    let toggle = app.switches["release-alerts-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+    addUIInterruptionMonitor(withDescription: "Notifications permission") { alert in
+      let button = alert.buttons.matching(
+        NSPredicate(format: "label IN %@", ["Allow", "Consenti", "Consenti notifiche"])
+      ).firstMatch
+      if button.exists {
+        button.tap()
+        return true
+      }
+      return false
+    }
+    toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+    let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    let allow = springboard.buttons.matching(
+      NSPredicate(format: "label IN %@", ["Allow", "Consenti", "Consenti notifiche"])
+    ).firstMatch
+    if allow.waitForExistence(timeout: 4) { allow.tap() }
+    XCTAssertTrue(app.buttons["check-releases"].waitForExistence(timeout: 15))
+    XCTAssertEqual(
+      XCTWaiter.wait(
+        for: [
+          XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: app.buttons["check-releases"]
+          )
+        ], timeout: 15), .completed, app.debugDescription)
+    XCTAssertFalse(app.staticTexts["Nuova uscita di prova"].exists)
+    app.buttons["check-releases"].tap()
+    app.swipeUp()
+    XCTAssertTrue(app.staticTexts["Nuova uscita di prova"].waitForExistence(timeout: 12))
+    // Disable the preference again; the test must not leave background notifications enabled.
+    app.swipeDown()
+    toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+  }
+
   @MainActor
   private func selectTab(_ label: String, symbol: String, in app: XCUIApplication) {
     let standard = app.tabBars.buttons[label]

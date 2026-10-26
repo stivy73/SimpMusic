@@ -15,7 +15,55 @@ final class ProbeTimings: NSObject, URLSessionTaskDelegate, @unchecked Sendable 
 
 do {
   let args = Array(CommandLine.arguments.dropFirst())
-  if args.first == "--lyrics-catalog" {
+  if args.first == "--music-suggestions-key-file", args.count == 2 {
+    // Explicit path only; never echo the file, request/response body or key.
+    let source = try String(contentsOfFile: args[1], encoding: .utf8)
+    let pattern = try NSRegularExpression(pattern: #"AIza[A-Za-z0-9_-]{30,80}"#)
+    guard
+      let match = pattern.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
+      let range = Range(match.range, in: source)
+    else { throw PrototypeError.missingKey }
+    let key = String(source[range])
+    let start = Date()
+    let suggestions = try await GeminiService().suggestMusic(
+      key: key, model: "gemini-3.8-flash",
+      request: "Rock italiano melodico per un viaggio, artisti diversi", seeds: [])
+    print(
+      "AI music: \(suggestions.count) structured suggestions in \(String(format: "%.2f", Date().timeIntervalSince(start))) seconds"
+    )
+    var verified = 0
+    let discovery = HomeDiscovery(session: nil)
+    for suggestion in suggestions {
+      let items = try await discovery.search(
+        query: suggestion.title + " " + suggestion.artist, filter: .songs)
+      if suggestion.match(in: items) != nil { verified += 1 }
+    }
+    print("AI music: \(verified)/\(suggestions.count) verified catalog matches")
+    guard verified > 0 else { throw LibraryError.malformed }
+    exit(0)
+  }
+  if args.first == "--discovery-extras" {
+    for section in [DiscoveryDestination.charts, .podcasts] {
+      let catalog = DiscoveryCatalog(session: nil)
+      let page = try await catalog.page(section)
+      print(
+        "Discovery \(section.rawValue): \(page.shelves.count) shelves, \(page.shelves.flatMap(\.items).count) items, continuation \(page.continuation != nil)"
+      )
+      guard !page.shelves.flatMap(\.items).isEmpty else { throw LibraryError.malformed }
+      if let token = page.continuation {
+        let next = try await catalog.page(section, continuation: token)
+        print(
+          "Discovery \(section.rawValue) continuation: \(next.shelves.flatMap(\.items).count) items"
+        )
+        guard !next.shelves.flatMap(\.items).isEmpty else { throw LibraryError.malformed }
+      }
+      if section == .charts {
+        let global = try await DiscoveryCatalog(session: nil).page(section, country: "ZZ")
+        print("Discovery global charts: \(global.shelves.flatMap(\.items).count) items")
+      }
+    }
+    exit(0)
+  } else if args.first == "--lyrics-catalog" {
     let items = try await HomeDiscovery(session: nil).search(
       query: "Tracy Chapman Baby Can I Hold You", filter: .songs)
     guard let song = items.first else { throw LyricsLookupError.unavailable }

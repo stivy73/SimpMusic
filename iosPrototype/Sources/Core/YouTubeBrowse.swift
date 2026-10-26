@@ -20,7 +20,9 @@ public final class YouTubeBrowse: Sendable {
 
   deinit { transport.invalidateAndCancel() }
 
-  public func request(browseId: String, params: String? = nil, token: String? = nil) async throws
+  public func request(
+    browseId: String, params: String? = nil, token: String? = nil, country: String? = nil
+  ) async throws
     -> Data
   {
     var fields: [String: Any] = [:]
@@ -30,6 +32,12 @@ public final class YouTubeBrowse: Sendable {
     } else {
       fields["browseId"] = browseId
       if let params { fields["params"] = params }
+      if let country {
+        guard
+          country == "ZZ" || country.range(of: #"^[A-Z]{2}$"#, options: .regularExpression) != nil
+        else { throw LibraryError.malformed }
+        fields["formData"] = ["selectedValues": [country]]
+      }
     }
     return try await send(endpoint: "browse", fields: fields)
   }
@@ -121,6 +129,15 @@ public final class YouTubeBrowse: Sendable {
     let id = id.hasPrefix("VL") ? String(id.dropFirst(2)) : id
     guard !id.isEmpty, id != "LM" else { throw LibraryError.malformed }
     _ = try await confirmedWrite(endpoint: "playlist/delete", fields: ["playlistId": id])
+  }
+
+  public func setFollowed(artistID: String, followed: Bool) async throws {
+    guard artistID.hasPrefix("UC"),
+      artistID.range(of: #"^[A-Za-z0-9_-]{3,100}$"#, options: .regularExpression) != nil
+    else { throw LibraryError.malformed }
+    _ = try await confirmedWrite(
+      endpoint: followed ? "subscription/subscribe" : "subscription/unsubscribe",
+      fields: ["channelIds": [artistID]])
   }
 
   /// Reuse the confirmed account identity for media, not just the library.

@@ -11,11 +11,15 @@
     let music = MusicModel()
     let library = LibraryModel()
     let home = HomeModel()
+    private(set) var widgets: WidgetBridge!
+    private(set) var releaseNotifications: ReleaseNotifications!
     private var media: AppleMediaSession!
     private var radioSubscription: AnyCancellable?
     private init() {
       music.player.accountProvider = { [weak library] in library?.session }
       media = AppleMediaSession(model: music)
+      widgets = WidgetBridge(music: music, library: library)
+      releaseNotifications = ReleaseNotifications(music: music, library: library)
       radioSubscription = library.$session.sink { [weak music] session in
         music?.configureRadio(session: session)
         music?.searchResults.configure(session: session)

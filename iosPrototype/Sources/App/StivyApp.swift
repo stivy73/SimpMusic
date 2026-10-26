@@ -70,6 +70,29 @@ struct RootView: View {
     }.clipped()
       .onChange(of: scenePhase) { _, phase in
         if phase != .active { model.saveSession() } else { _ = model.checkSleepTimer() }
+        #if os(iOS)
+          AppleAppSession.shared.widgets.publish()
+          if phase == .active {
+            Task { await AppleAppSession.shared.releaseNotifications.refresh() }
+          } else {
+            AppleAppSession.shared.releaseNotifications.schedule()
+          }
+        #endif
+      }
+      .onOpenURL { url in
+        guard let route = AppRoute(url: url) else { return }
+        if route == .player {
+          model.showPlayer = model.current != nil
+        } else {
+          model.showPlayer = false
+          model.externalRoute = route
+        }
+      }
+      .sheet(item: $model.externalRoute) { route in
+        NavigationStack {
+          AppRouteScreen(route: route)
+            .toolbar { Button("Chiudi") { model.externalRoute = nil } }
+        }
       }
       .modifier(RadioFeedback())
       #if DEBUG
@@ -899,13 +922,27 @@ struct SettingsView: View {
         )
         .font(.caption).foregroundStyle(.secondary)
       }
+      Section("Scopri") {
+        ForEach(DiscoveryDestination.allCases) { destination in
+          NavigationLink {
+            DiscoveryCatalogScreen(destination: destination)
+          } label: {
+            Label(destination.title, systemImage: destination.symbol)
+          }
+        }
+        NavigationLink("Consigli musicali IA") { MusicSuggestionsScreen() }
+        NavigationLink("Artisti e nuove uscite") { ArtistReleasesScreen() }
+        Text(
+          "Aggiungi i widget Player, Playlist e Ascolti dalla schermata Home di iOS. Apri la Libreria → Playlist per aggiornare le raccolte mostrate."
+        ).font(.caption).foregroundStyle(.secondary)
+      }
       Section("Interpretazione IA") {
         SecureField("Chiave API Google Gemini", text: $model.apiKey).verbatimTextInput()
           .accessibilityIdentifier("gemini-key")
         Link("Non hai le API?", destination: URL(string: "https://aistudio.google.com/apikey")!)
         TextField("Modello", text: $model.textModel).verbatimTextInput()
         Text(
-          "Titolo, artista e testo vengono inviati a Google solo quando richiedi il significato. La chiave è salvata nel Portachiavi."
+          "Titolo, artista e testo vengono inviati a Google quando richiedi il significato o la traduzione; i consigli musicali usano solo la richiesta e i riferimenti che scegli. La chiave è salvata nel Portachiavi."
         ).font(.caption).foregroundStyle(.secondary)
       }
       Section("Lettura") {
