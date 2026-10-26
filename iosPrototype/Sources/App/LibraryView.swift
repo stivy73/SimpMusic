@@ -6,7 +6,9 @@ extension LibraryModel {
   convenience init() {
     #if DEBUG
       if ProcessInfo.processInfo.arguments.contains("--test-reset-collection-preferences") {
-        for key in ["albums", "artists", "playlists", "songs", "likes", "local", "offline"] {
+        for key in [
+          "albums", "artists", "playlists", "songs", "likes", "local", "offline", "favoriteAlbums",
+        ] {
           UserDefaults.standard.removeObject(forKey: "collectionPresentation." + key)
         }
       }
@@ -71,6 +73,7 @@ private enum LibrarySection: String, CaseIterable, Identifiable {
   case playlists = "Playlist"
   case artists = "Artisti seguiti"
   case local = "Preferiti locali"
+  case favoriteAlbums = "Album preferiti"
   case offline = "Download e offline"
   var id: String { rawValue }
   var remote: RemoteLibraryKind? {
@@ -108,6 +111,22 @@ struct LibraryView: View {
       }
       if section == .offline {
         OfflineScreen(downloads: model.downloads)
+      } else if section == .favoriteAlbums {
+        if model.favoriteAlbums.isEmpty {
+          ContentUnavailableView("Nessun album preferito", systemImage: "heart")
+        } else {
+          LibraryCollection(
+            items: model.favoriteAlbums, key: "favoriteAlbums", title: \.title, artist: \.artist
+          ) {
+            album, layout, _ in
+            NavigationLink {
+              AlbumView(album: album, identity: library.session?.identity)
+            } label: {
+              LibraryItemLabel(
+                title: album.title, subtitle: album.artist, artwork: album.artwork, layout: layout)
+            }.buttonStyle(.plain).accessibilityIdentifier("favorite-album-" + album.id)
+          }
+        }
       } else if section == .local {
         if model.favorites.isEmpty {
           ContentUnavailableView("Nessun preferito locale", systemImage: "heart")
@@ -152,7 +171,9 @@ struct LibraryView: View {
             Label("Nuova playlist", systemImage: "plus")
           }
         }
-        if library.session != nil && section != .local && section != .offline {
+        if library.session != nil && section != .local && section != .offline
+          && section != .favoriteAlbums
+        {
           Button {
             if let remote = section.remote {
               Task { await library.load(remote, force: true) }
@@ -209,7 +230,10 @@ struct LibraryView: View {
 
 extension LibrarySection {
   fileprivate var name: String {
-    remote?.rawValue ?? (self == .albums ? "albums" : self == .offline ? "offline" : "local")
+    remote?.rawValue
+      ?? (self == .albums
+        ? "albums"
+        : self == .offline ? "offline" : self == .favoriteAlbums ? "favoriteAlbums" : "local")
   }
 }
 
@@ -259,50 +283,6 @@ private struct RemoteLibraryView: View {
     }.frame(maxWidth: .infinity, maxHeight: .infinity)
       .refreshable { await library.load(kind, force: true) }
       .task(id: library.session) { await library.load(kind) }
-  }
-}
-
-struct AlbumView: View {
-  let album: LibraryAlbum
-  let identity: String?
-  @EnvironmentObject var library: LibraryModel
-  @Environment(\.dismiss) private var dismiss
-  @State private var songs: [Song] = []
-  @State private var loading = true
-  @State private var error: String?
-  var body: some View {
-    Group {
-      if loading {
-        ProgressView("Carico l'album…")
-      } else if let error {
-        ContentUnavailableView {
-          Label("Album non disponibile", systemImage: "exclamationmark.triangle")
-        } description: {
-          Text(error)
-        } actions: {
-          Button("Riprova") { Task { await load() } }
-        }
-      } else if songs.isEmpty {
-        ContentUnavailableView("Nessuna traccia disponibile", systemImage: "music.note")
-      } else {
-        SongList(songs: songs)
-      }
-    }.navigationTitle(album.title)
-      .task { await load() }
-      .onChange(of: library.session?.identity) { _, new in if new != identity { dismiss() } }
-  }
-  private func load() async {
-    loading = true
-    error = nil
-    do {
-      let result = try await YouTubeMusicClient().getAlbum(browseId: album.id)
-      try Task.checkCancellation()
-      songs = result.map { Song($0, albumArtwork: album.artwork) }
-      loading = false
-    } catch is CancellationError {} catch {
-      self.error = "Impossibile caricare le tracce. Riprova."
-      loading = false
-    }
   }
 }
 

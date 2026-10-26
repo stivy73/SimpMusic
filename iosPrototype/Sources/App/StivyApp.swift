@@ -455,7 +455,8 @@ struct PlayerScreen: View {
   @State private var expandedLyrics = false
   @State private var showQueue = false
   @State private var editLyrics = false
-  @State private var playlistSong: Song?
+  @State private var optionsSong: Song?
+  @State private var pendingOption: PlayerOption?
 
   var body: some View {
     NavigationStack {
@@ -512,7 +513,21 @@ struct PlayerScreen: View {
       ) {
         MeaningView().environmentObject(model).platformSheetSize()
       }
-      .sheet(item: $playlistSong) { song in AddToPlaylistSheet(song: song) }
+      .sheet(
+        item: $optionsSong,
+        onDismiss: {
+          switch pendingOption {
+          case .lyrics: editLyrics = true
+          case .video:
+            openVideo()
+            showLyrics = false
+          case nil: break
+          }
+          pendingOption = nil
+        }
+      ) { song in
+        SongOptionsSheet(song: song) { pendingOption = $0 }
+      }
       .sheet(isPresented: $showQueue) { QueueScreen() }
       .sheet(isPresented: $expandedLyrics) {
         NavigationStack {
@@ -682,35 +697,11 @@ struct PlayerScreen: View {
           .accessibilityIdentifier("carplay-diagnostics")
         }
       #endif
-      Menu {
-        QueueActions(song: song)
-        Button("Aggiungi a playlist") { playlistSong = song }
-        Button {
-          model.toggleFavorite(song)
-        } label: {
-          Label(
-            model.favorites.contains(where: { $0.id == song.id })
-              ? "Rimuovi dai preferiti locali" : "Salva nei preferiti locali", systemImage: "heart")
-        }
-        ShareLink(item: URL(string: "https://music.youtube.com/watch?v=\(song.id)")!) {
-          Label("Condividi brano", systemImage: "square.and.arrow.up")
-        }
-        Button {
-          editLyrics = true
-        } label: {
-          Label("Aggiungi o modifica il testo", systemImage: "square.and.pencil")
-        }
-        Button {
-          openVideo()
-          showLyrics = false
-        } label: {
-          Label(
-            showVideo ? "Mostra copertina" : "Mostra video",
-            systemImage: "play.rectangle")
-        }
+      Button {
+        optionsSong = song
       } label: {
         Image(systemName: "ellipsis").frame(width: 44, height: 44)
-      }.accessibilityLabel("Altre opzioni")
+      }.accessibilityLabel("Altre opzioni").accessibilityIdentifier("player-more-options")
     }.font(.title2).buttonStyle(.plain)
     return ViewThatFits(in: .horizontal) {
       HStack(spacing: 12) {

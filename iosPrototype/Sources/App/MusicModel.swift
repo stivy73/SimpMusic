@@ -346,6 +346,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   @Published var meaningError: String?
   @Published var manualLyrics = ""
   @Published var favorites: [Song] = []
+  @Published private(set) var favoriteAlbums: [LibraryAlbum] = []
   @Published var settingsError: String?
   @Published var apiKey = SecureStore.read("gemini")
   @Published var textModel = UserDefaults.standard.string(forKey: "textModel") ?? "gemini-3.8-flash"
@@ -428,6 +429,11 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     {
       favorites = stored
     }
+    if let data = UserDefaults.standard.data(forKey: "favoriteAlbums"),
+      let stored = try? JSONDecoder().decode([LibraryAlbum].self, from: data)
+    {
+      favoriteAlbums = stored
+    }
     #if DEBUG
       if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
         autoplayEnabled = false
@@ -466,7 +472,18 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         let tracks = (1...3).map {
           Song(
             id: "local-\($0)-\(Int(seconds))", title: "Brano locale \($0)", artist: "Prova offline",
-            artwork: nil, durationSeconds: seconds, albumTitle: "Album locale")
+            artwork: nil, durationSeconds: seconds,
+            albumBrowseID: ProcessInfo.processInfo.arguments.contains("--test-album-player")
+              ? "MPREfixture" : nil,
+            albumTitle: "Album locale",
+            artistBrowseID: ProcessInfo.processInfo.arguments.contains("--test-album-player")
+              ? "UCfixture" : nil,
+            artistReferences: ProcessInfo.processInfo.arguments.contains(
+              "--test-album-multiple-artists")
+              ? [
+                TrackArtist(id: "UCfixture", name: "Prova offline"),
+                TrackArtist(id: "UCguest", name: "Artista ospite"),
+              ] : nil)
         }
         for track in tracks where downloads.library.url(for: track.id) == nil {
           let file = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -969,6 +986,17 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     }
     if let data = try? JSONEncoder().encode(favorites) {
       UserDefaults.standard.set(data, forKey: "favorites")
+    }
+  }
+
+  func toggleFavoriteAlbum(_ album: LibraryAlbum) {
+    if favoriteAlbums.contains(where: { $0.id == album.id }) {
+      favoriteAlbums.removeAll { $0.id == album.id }
+    } else {
+      favoriteAlbums.append(album)
+    }
+    if let data = try? JSONEncoder().encode(favoriteAlbums) {
+      UserDefaults.standard.set(data, forKey: "favoriteAlbums")
     }
   }
 

@@ -66,12 +66,14 @@ public struct DiscoveryItem: Identifiable, Codable, Hashable, Sendable {
   public var albumBrowseID: String? = nil
   public var artistBrowseID: String? = nil
   public var albumTitle: String? = nil
+  public var artistReferences: [TrackArtist]? = nil
   public var target: BrowseTarget? { kind == .song ? nil : BrowseTarget(browseId: mediaId) }
 
   public init(
     kind: Kind, mediaId: String, title: String, subtitle: String, artwork: URL?,
     durationSeconds: Double? = nil, albumBrowseID: String? = nil,
-    artistBrowseID: String? = nil, albumTitle: String? = nil
+    artistBrowseID: String? = nil, albumTitle: String? = nil,
+    artistReferences: [TrackArtist]? = nil
   ) {
     self.kind = kind
     self.mediaId = mediaId
@@ -82,6 +84,7 @@ public struct DiscoveryItem: Identifiable, Codable, Hashable, Sendable {
     self.albumBrowseID = albumBrowseID
     self.artistBrowseID = artistBrowseID
     self.albumTitle = albumTitle
+    self.artistReferences = artistReferences
   }
 
   init(_ item: YouTubeMusicItem) {
@@ -90,6 +93,7 @@ public struct DiscoveryItem: Identifiable, Codable, Hashable, Sendable {
       albumBrowseID = value.albumBrowseID
       artistBrowseID = value.artistBrowseID
       albumTitle = value.album
+      artistReferences = value.artistReferences
       kind = .song
       mediaId = value.videoId
       title = value.title

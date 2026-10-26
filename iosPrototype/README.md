@@ -1,8 +1,36 @@
-# NoteNarrate iOS — 0.11.0 (30)
+# NoteNarrate iOS — 0.12.0 (31)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
+
+**0.12.0 (31), player e album:** il pulsante con i tre puntini apre una
+scheda con copertina, titolo e icone per Piaciuti, playlist, riproduci successivo,
+aggiungi alla coda, artisti, album, radio e condivisione. Restano disponibili
+scaricamento, Mi piace YouTube Music, testo manuale e video facoltativo. I Piaciuti
+locali e quelli dell’account mantengono raccolte separate.
+
+La pagina album presenta copertina grande, titolo/artista/anno, Play/Pausa,
+casuale, download dell’intero album, descrizione quando disponibile e lista
+numerata delle tracce con durata e menu. Gli album preferiti persistono in
+**Libreria → Album preferiti**. Il menu album permette accodamento e condivisione.
+Quando un brano accredita più artisti, è possibile scegliere il relativo profilo.
+Se un vecchio brano non conserva l’ID album/artista, si cercano risultati reali
+nel catalogo invece di inventare un collegamento.
+
+Il caricamento album, autenticato con l’account già confermato, è condiviso con
+CarPlay e completa le continuazioni prima di attivare Play/Download; i caroselli
+di raccomandazioni restano esclusi. Conserva copertina, contesto album, artisti e
+posizione della traccia anche in presenza di ripetizioni. Corretta la perdita
+del comando Radio dell’artista CarPlay dopo il caricamento/paginazione.
+
+Verificati 199 test core e quattro scenari UI nuovi (menu/coda/playlist, pagina
+album/preferiti/riavvio, profilo artista/casuale, scelta di tutti gli artisti).
+Verificato anche il catalogo reale: Tracy Chapman (1988), 11 tracce, 2175 secondi,
+copertina disponibile. [Controllo CarPlay e limiti delle prove](CARPLAY.md).
+Le prove fisiche di voce in auto e continuità Premium oltre un minuto restano aperte.
+Build candidata firmata; stato della consegna registrato dopo la verifica dell’IPA.
+Assegnazione ai tester manuale, nessuna pubblicazione App Store.
 
 **0.11.0 (30), punti 27 e 35:** ricezione dei link YouTube Music/YouTube e dei
 brani condivisi come testo, compreso il formato Now Playing/Ambient Music Mod;

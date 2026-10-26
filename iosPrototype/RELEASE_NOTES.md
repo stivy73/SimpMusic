@@ -1,3 +1,30 @@
+# NoteNarrate iOS 0.12.0 (31)
+
+Adds the Android-like player action sheet: local likes, playlist picker, Play next,
+Add to queue, artists, album, radio and sharing, with artwork/title and accessible
+icons. Existing download/account-like/manual-lyrics/video actions remain available.
+All credited artists retain their catalogue IDs; old tracks without IDs use a
+filtered catalogue lookup instead of guessed destinations.
+
+Replaces the basic album song list with a large-artwork page, title/artist/year,
+Play/Pause, shuffle, complete album download, optional description, duration/count,
+numbered tracks and per-track menus. Local album favourites persist and appear in
+Library. Album queue and share actions are available from its menu.
+
+Phone and CarPlay use the same authenticated complete album loader, excluding
+recommendation carousels and preserving album metadata, track order and repeated
+occurrences. Fixes the CarPlay artist Radio action being overwritten by rendering
+or pagination. No audio-pipeline, AI prompt, API key or entitlement changes.
+
+199 core tests passed, four new UI scenarios passed, plus player/lyrics and CarPlay
+regression checks. Public catalogue proof: Tracy Chapman (1988), 11 tracks,
+2175 seconds and artwork. Vehicle audibility and Premium playback beyond a minute
+remain separate physical tests; no claim of resolution. Template UI source review
+is distinguished from iPhone simulator tests in CARPLAY.md.
+All targets use 0.12.0 (31). Tester assignment stays manual; no public App Store submission.
+
+---
+
 # NoteNarrate iOS 0.11.0 (30)
 
 Ports parity points 27 and 35. A native iOS Share extension accepts YouTube/YouTube

@@ -52,11 +52,17 @@ public enum LibraryError: LocalizedError {
   }
 }
 
-public struct LibraryAlbum: Identifiable, Sendable, Equatable {
+public struct LibraryAlbum: Identifiable, Codable, Sendable, Equatable {
   public let id: String
   public let title: String
   public let artist: String
   public let artwork: URL?
+  public init(id: String, title: String, artist: String, artwork: URL?) {
+    self.id = id
+    self.title = title
+    self.artist = artist
+    self.artwork = artwork
+  }
 }
 
 /// Adapts the same grid/section envelopes handled by Android LibraryAlbumsPage.

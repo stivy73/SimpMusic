@@ -2,6 +2,119 @@ import XCTest
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  private func startAlbumPlayer(_ app: XCUIApplication, multipleArtists: Bool = false) {
+    app.launchArguments = ["--test-local-playback", "--test-album-player", "--test-remote-library"]
+    if multipleArtists { app.launchArguments.append("--test-album-multiple-artists") }
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15), app.debugDescription)
+    if toggle.value as? String == "Riproduzione attiva" { toggle.tap() }
+    app.swipeUp()
+    XCTAssertTrue(app.buttons["player-more-options"].waitForExistence(timeout: 5))
+    app.buttons["player-more-options"].tap()
+    XCTAssertTrue(app.buttons["song-option-like"].waitForExistence(timeout: 5))
+  }
+
+  @MainActor
+  func testPlayerOffersEveryCreditedArtist() {
+    let app = XCUIApplication()
+    startAlbumPlayer(app, multipleArtists: true)
+    app.buttons["song-option-artists"].tap()
+    XCTAssertTrue(app.buttons["context-artist-UCfixture"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["context-artist-UCguest"].exists)
+    app.buttons["context-artist-UCguest"].tap()
+    XCTAssertTrue(app.navigationBars["Artista ospite"].waitForExistence(timeout: 5))
+  }
+
+  @MainActor
+  func testPlayerOptionsLikesPlaylistAndPlayNextKeepCurrentTrack() {
+    let app = XCUIApplication()
+    startAlbumPlayer(app)
+    let like = app.buttons["song-option-like"]
+    let before = like.value as? String
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Menu brano come Android"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+    like.tap()
+    XCTAssertNotEqual(like.value as? String, before)
+    for action in ["playlist", "next", "queue", "artists", "album", "radio", "share"] {
+      XCTAssertTrue(app.buttons["song-option-" + action].exists, action)
+    }
+    app.buttons["song-option-playlist"].tap()
+    XCTAssertTrue(app.buttons["Playlist di prova"].waitForExistence(timeout: 8))
+    app.buttons["Chiudi"].firstMatch.tap()
+    app.buttons["song-option-next"].tap()
+    XCTAssertTrue(app.buttons["show-queue"].waitForExistence(timeout: 5))
+    app.buttons["show-queue"].tap()
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "4 brani")
+    let current = app.buttons.matching(identifier: "queue-local-1-30").allElementsBoundByIndex
+    XCTAssertTrue(current.contains { $0.value as? String == "Brano corrente" })
+  }
+
+  @MainActor
+  func testAlbumHeaderFavoriteDownloadAndTrackOptions() {
+    let app = XCUIApplication()
+    startAlbumPlayer(app)
+    let albumLink = app.buttons["song-option-album"]
+    if !albumLink.isHittable { app.swipeUp() }
+    albumLink.tap()
+    XCTAssertTrue(app.buttons["album-play"].waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertEqual(app.staticTexts["album-year"].label, "1988 · Album")
+    XCTAssertTrue(app.buttons["album-shuffle"].exists)
+    XCTAssertEqual(app.buttons["album-download"].label, "Album disponibile offline")
+    let favorite = app.buttons["album-favorite"]
+    let wasLiked = favorite.value as? String
+    favorite.tap()
+    XCTAssertNotEqual(favorite.value as? String, wasLiked)
+    if favorite.value as? String != "Attivo" { favorite.tap() }
+    let scroll = app.scrollViews["album-scroll"]
+    scroll.swipeUp()
+    XCTAssertEqual(app.staticTexts["album-track-summary"].label, "3 tracce, 2 minuti")
+    XCTAssertTrue(app.staticTexts["album-description"].label.contains("Storie e viaggi"))
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Album con tracce numerate e opzioni"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+    app.buttons["album-track-options-1"].tap()
+    XCTAssertTrue(app.buttons["song-option-queue"].waitForExistence(timeout: 5))
+    app.buttons["song-options-close"].tap()
+    app.buttons["album-track-1"].tap()
+    XCTAssertTrue(app.buttons["player-more-options"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Brano locale 2"].exists)
+    app.buttons["playback-toggle"].tap()
+    app.terminate()
+    app.launch()
+    XCTAssertTrue(app.buttons["return-to-library"].waitForExistence(timeout: 15))
+    app.buttons["return-to-library"].tap()
+    app.buttons["library-section-menu"].tap()
+    app.buttons["library-menu-favoriteAlbums"].tap()
+    XCTAssertTrue(app.buttons["favorite-album-MPREfixture"].waitForExistence(timeout: 10))
+  }
+
+  @MainActor
+  func testPlayerArtistDestinationAndAlbumShuffle() {
+    let app = XCUIApplication()
+    startAlbumPlayer(app)
+    app.buttons["song-option-artists"].tap()
+    XCTAssertTrue(app.navigationBars["Prova offline"].waitForExistence(timeout: 5))
+    app.navigationBars.buttons.firstMatch.tap()
+    let album = app.buttons["song-option-album"]
+    if !album.isHittable { app.swipeUp() }
+    album.tap()
+    XCTAssertTrue(app.buttons["album-shuffle"].waitForExistence(timeout: 5))
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Copertina e comandi album"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+    app.buttons["album-shuffle"].tap()
+    XCTAssertTrue(app.buttons["playback-shuffle"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.buttons["playback-shuffle"].value as? String, "Attiva")
+    app.buttons["show-queue"].tap()
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
+  }
+
+  @MainActor
   func testLocalOfflineAudioContinuesBeyondMinuteAndMinimizingKeepsPlaying() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-local-playback", "--test-long-local"]
@@ -998,7 +1111,9 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertGreaterThan(rows.count, 1)
     rows.element(boundBy: 1).tap()
     waitForPlayback(toggle)
-    XCTAssertFalse(app.staticTexts["song-lyrics"].label.contains("Un ricordo"))
+    let nextLyrics = app.staticTexts["song-lyrics"]
+    // Another recording may have no lyrics. Both states must discard the previous manual text.
+    XCTAssertFalse(nextLyrics.exists && nextLyrics.label.contains("Un ricordo"))
     toggle.tap()
     let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
     screenshot.name = "Player copertina testo e controlli Android"
@@ -1231,7 +1346,7 @@ final class PrototypeUITests: XCTestCase {
   func testRejectedCarPlayPresentationResumesMusicWithoutStartingVoice() {
     let app = XCUIApplication()
     app.launchArguments = [
-      "--test-native-audio", "--test-carplay-meaning", "--test-meaning",
+      "--test-local-playback", "--test-carplay-meaning", "--test-meaning",
       "--test-carplay-presentation-failure",
     ]
     app.launch()

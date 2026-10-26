@@ -1,3 +1,24 @@
+# iOS player/album parity and CarPlay audit — 0.12.0 (31)
+
+| Area | Implementation | Validation |
+|---|---|---|
+| Player menu | Artwork/title; local liked songs; existing account playlist picker; Play next and Add queue; artist chooser; real album/artist catalogue fallback; radio; native sharing | UI menu/playlist/queue and artist routing; account writes remain in the existing confirmed transport |
+| Album | Large artwork, title/artist/year, Play/Pause, shuffle, validated album download, numbered track rows with durations and the same song menu; description, queue/share actions | Live Tracy Chapman 1988 album: 11 tracks, 2175 seconds, artwork; UI track selection, shuffle, verified local offline files |
+| Album favourites | Persistent local metadata and Library collection with existing list/grid/sort/index tools | Favourite/unfavourite and relaunch UI proof; Codable metadata round-trip |
+| Shared CarPlay data | Complete authenticated album pages, own track shelves only, artwork/album context, all artist IDs, exact occurrence index | Header and track decoding, pagination, repeated token/failure rejection, unrelated carousel exclusion tests |
+| CarPlay audit | Existing tab/search/player/queue/media commands reviewed; artist Radio action preserved after data/page changes | Initial eight simulator scenarios passed; candidate streaming/minimization and rejected-presentation confirmation passed. Actual external-display templates were source-reviewed, not driven in Simulator.app |
+
+199 core tests passed. Four new UI scenarios passed across the initial and final
+confirmation runs. The live playback/lyrics regression also passed after fixing
+an obsolete test assumption about missing lyrics in the next recording. A live
+YouTube startup timeout occurred before the rejected-presentation test reached
+CarPlay; that cancellation scenario was confirmed with a validated local file.
+Physical narration audibility and Premium CDN continuity remain deferred.
+No new backend, login, provider key, entitlement or external dependency.
+All app/extension targets use 0.12.0 (31). Delivery status is recorded after export.
+
+---
+
 # iOS parity: points 27 and 35 — 0.11.0 (30)
 
 | Point | Implementation | Validation |

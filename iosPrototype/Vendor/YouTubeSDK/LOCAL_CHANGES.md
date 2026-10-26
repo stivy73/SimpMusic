@@ -53,3 +53,10 @@ secondTitle and artwork. Podcast-show metadata does not become a music-artist
 browse ID. Loose multi-row continuations are accepted by discovery decoding.
 The app resolves the live Podcasts Home chip rather than a retired browse ID.
 No credential, network, Home filter or music search filter changes in the SDK.
+
+Album/player additions (0.12.0): responsive songs preserve metadata from every
+flex column and the duration from fixed columns. All artist browse IDs/names are
+retained for the artist chooser; the first artist ID stays backward compatible.
+The app's authenticated AlbumDetail loader isolates track shelves, excluding
+recommendation carousels, and loads every continuation before Play/Download album.
+No SDK transport, cookies, playback extraction or external dependency changes.

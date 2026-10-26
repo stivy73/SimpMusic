@@ -1,5 +1,50 @@
 # NoteNarrate iOS — audio in background e CarPlay
 
+## Controllo del 26 ottobre 2026 — candidata 0.12.0 (31)
+
+- Configurazione firmata della precedente IPA 0.11.0 (30) verificata: entitlement
+  CarPlay Audio nella firma e nel profilo, scena CarPlay conservata, audio in
+  background, Siri e frasi d’esempio in Base/italiano/inglese; nessuna incongruenza.
+- Nel sorgente: Home personalizzata, generi/stati d’animo, album remoti, preferiti
+  locali/YouTube Music e offline; catalogo con due copertine grandi per riga,
+  tracce album a lista numerata, paginazione e caricamento immagini limitato.
+- Ricerca Siri direttamente in auto con risultati filtrabili per canzone,
+  artista e album; icone album/artista nel player, coda modificabile, radio,
+  autoplay, casuale/ripetizione e comandi multimediali sul modello condiviso.
+- Bug trovato e corretto: il comando Radio dell’artista veniva sovrascritto
+  da `setTiles` dopo la risposta. Ora resta nella barra e durante la paginazione.
+- Album iPhone e CarPlay passano per `AlbumDetail`: tutte le pagine, ordine e
+  occorrenze delle tracce, metadati/copertina e riferimenti artista; nessuna
+  raccomandazione inserita in Play o Download dell’album.
+
+**Prove eseguite:** 199 test core superati. Prima delle modifiche, otto test UI
+superati su narrazione nativa/streaming, Now Playing durante la voce, rifiuto
+presentazione, background, ricerca album/artista/playlist, coda e casuale/ripetizione.
+Sulla candidata: quattro scenari UI nuovi superati; regressioni TTS streaming e
+minimizzazione superate; conferma di testo manuale e rifiuto del popup superata.
+Il primo tentativo di quest’ultima si era fermato nel caricamento YouTube prima
+che la richiesta CarPlay iniziasse: la conferma usa un file audio locale verificato.
+Una vecchia asserzione sui testi assumeva che ogni registrazione successiva avesse
+lyrics: corretta per verificare l’assenza del testo manuale del brano precedente
+anche quando il nuovo testo non è disponibile.
+
+**Limite della verifica:** XCTest ha usato il simulatore iPhone e il percorso
+condiviso della richiesta CarPlay. La UI esterna CarPlay non è stata pilotata:
+Simulator.app non risulta disponibile nell’installazione Xcode corrente. La revisione
+dei template/limiti/paginazione è quindi sul sorgente, separata dalle prove UI.
+Restano da provare sul dispositivo l’udibilità della voce nell’auto e la continuità
+YouTube Premium oltre un minuto/CDN 403. Questi risultati non certificano quei due punti.
+
+Log locali: `/tmp/notenarrate-carplay-audit-core.log`,
+`/tmp/notenarrate-carplay-audit-ui.xcresult`, `/tmp/notenarrate31-core-final.log`,
+`/tmp/notenarrate31-player-album-ui.xcresult`, `/tmp/notenarrate31-final-ui.xcresult`.
+
+## Riferimenti e cronologia delle implementazioni precedenti
+
+Le sezioni seguenti conservano il contesto storico delle build indicate; gli
+stati e i limiti superati successivamente non descrivono la candidata corrente.
+
+
 Implementazione candidata 0.6.2 (19); upload19 confermato il 20 ottobre 2026,
 elaborazione Apple in corso al termine dell'upload. Assegnazione ai tester
 affidata all'utente; disponibilità e collaudo in auto non ancora confermati.
@@ -119,7 +164,9 @@ templates and Now Playing controls. A custom action offers a short spoken song
 interpretation, with stop and music resume. The car interface displays no lyrics,
 interpretation text or video. No custom driving UI is used.”
 
-I Download non sono implementati su iOS e non vengono presentati come disponibili.
+Alla build 19 i Download non erano implementati. Dalla build 28 sono disponibili
+in Libreria e nei Preferiti CarPlay; non richiedono una nuova risoluzione CDN quando
+il file completo è già stato verificato e salvato.
 La ricerca, il playback di tutti i contenuti del catalogo, i comandi di sistema su
 hardware reale e la scena CarPlay non sono certificati dal solo test del core.
 

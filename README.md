@@ -21,7 +21,11 @@ La generazione del significato usa il provider IA selezionato e richiede la rela
 ## NoteNarrate per iOS
 
 Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
-rispetto ad Android. La **0.11.0 (30)** integra l’estensione Condividi per brani e
+rispetto ad Android. La **0.12.0 (31)** aggiunge il menu player con le azioni
+della versione Android e una pagina album con copertina grande, metadati,
+Play/casuale/download, preferiti persistenti e tracce numerate con menu.
+iPhone e CarPlay condividono il recupero completo delle tracce dell’album,
+escludendo i suggerimenti. La **0.11.0 (30)** integra l’estensione Condividi per brani e
 link YouTube Music/YouTube, una raccolta Ricevuti e lista/griglia, ordinamenti e
 indice alfabetico persistenti per le raccolte. La **0.10.0 (29)** ha aggiunto
 widget iOS Player/Playlist/Ascolti, sezioni

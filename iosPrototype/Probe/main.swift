@@ -15,6 +15,28 @@ final class ProbeTimings: NSObject, URLSessionTaskDelegate, @unchecked Sendable 
 
 do {
   let args = Array(CommandLine.arguments.dropFirst())
+  if args.first == "--album-detail" {
+    let query = args.dropFirst().joined(separator: " ")
+    let albums = try await HomeDiscovery(session: nil).search(
+      query: query.isEmpty ? "Tracy Chapman Tracy Chapman" : query, filter: .albums)
+    guard let item = albums.first else { throw LibraryError.malformed }
+    let detail = try await AlbumDetail.load(
+      album: LibraryAlbum(
+        id: item.mediaId, title: item.title, artist: item.subtitle, artwork: item.artwork),
+      session: nil)
+    print(
+      "Album: \(detail.album.title); artist: \(detail.album.artist); year: \(detail.year ?? "unavailable")"
+    )
+    print(
+      "Tracks: \(detail.songs.count); total seconds: \(detail.durationSeconds.map { String(Int($0)) } ?? "unavailable"); cover: \(detail.album.artwork != nil); description: \(!detail.description.isEmpty)"
+    )
+    guard !detail.songs.isEmpty,
+      detail.songs.allSatisfy({
+        $0.albumBrowseID == item.mediaId && $0.albumTitle == detail.album.title
+      })
+    else { throw LibraryError.malformed }
+    exit(0)
+  }
   if args.first == "--music-suggestions-key-file", args.count == 2 {
     // Explicit path only; never echo the file, request/response body or key.
     let source = try String(contentsOfFile: args[1], encoding: .utf8)

@@ -478,6 +478,7 @@
     private func setTiles(
       _ tiles: [Tile], in grid: CPListTemplate, offset: Int? = nil,
       layout requestedLayout: Layout? = nil,
+      leadingButtons: [CPBarButton] = [],
       refresh: (@MainActor () -> Void)? = nil
     ) {
       let previous = grids.object(forKey: grid)
@@ -497,14 +498,16 @@
       grid.leadingNavigationBarButtons =
         refresh.map { action in
           [CPBarButton(image: UIImage(systemName: "arrow.clockwise")!) { _ in action() }]
-        } ?? []
+        } ?? leadingButtons
       var navigation: [CPBarButton] = []
       for (offset, symbol) in [(page.previous, "chevron.left"), (page.next, "chevron.right")] {
         if let offset {
           navigation.append(
             CPBarButton(image: UIImage(systemName: symbol)!) { [weak self, weak grid] _ in
               guard let self, let grid else { return }
-              self.setTiles(tiles, in: grid, offset: offset, layout: layout, refresh: refresh)
+              self.setTiles(
+                tiles, in: grid, offset: offset, layout: layout, leadingButtons: leadingButtons,
+                refresh: refresh)
             })
         }
       }
@@ -555,20 +558,23 @@
     }
 
     private func displaySongs(_ songs: [Song], title: String) {
-      let tiles = songs.map { song in
+      push(songTiles(songs), title: title, layout: .tracks)
+    }
+
+    private func songTiles(_ songs: [Song]) -> [Tile] {
+      songs.enumerated().map { index, song in
         Tile(
           id: song.id, title: song.title, detail: song.artist, artwork: song.artwork,
           videoID: song.id
         ) {
           [weak self] in
-          self?.play(song, queue: songs)
+          self?.play(song, queue: songs, selectedIndex: index)
         }
       }
-      push(tiles, title: title, layout: .tracks)
     }
 
-    private func play(_ song: Song, queue: [Song]) {
-      app.music.play(song, queue: queue)
+    private func play(_ song: Song, queue: [Song], selectedIndex: Int? = nil) {
+      app.music.play(song, queue: queue, selectedIndex: selectedIndex)
       controller?.pushTemplate(CPNowPlayingTemplate.shared, animated: true, completion: { _, _ in })
     }
 
@@ -610,19 +616,32 @@
       let expected = detailRevision
       let account = app.library.session
       let loading = CPListTemplate(title: title, sections: [])
-      setTiles([status("Caricamento…")], in: loading)
-      controller?.pushTemplate(loading, animated: true, completion: { _, _ in })
-      if target.browseId.hasPrefix("UC") {
-        loading.trailingNavigationBarButtons = [
+      let artistButtons: [CPBarButton] =
+        target.browseId.hasPrefix("UC")
+        ? [
           CPBarButton(title: "Radio") { [weak self] _ in
             self?.app.music.startRadio(artistID: target.browseId, title: title)
             self?.openQueue()
           }
-        ]
-      }
+        ] : []
+      setTiles([status("Caricamento…")], in: loading, leadingButtons: artistButtons)
+      controller?.pushTemplate(loading, animated: true, completion: { _, _ in })
       tasks.append(
         Task {
           do {
+            if albumArtwork != nil || target.browseId.hasPrefix("MPRE") {
+              let detail = try await AlbumDetail.load(
+                album: LibraryAlbum(
+                  id: target.browseId, title: title, artist: albumArtist ?? "",
+                  artwork: albumArtwork),
+                session: account)
+              try Task.checkCancellation()
+              guard detailRevision == expected, controller != nil else { return }
+              setTiles(
+                detail.songs.isEmpty ? [status("Nessun contenuto")] : songTiles(detail.songs),
+                in: loading, layout: .tracks)
+              return
+            }
             let provider = HomeDiscovery(session: account)
             var items: [DiscoveryItem] = []
             var seen = Set<String>()
@@ -644,7 +663,8 @@
             setTiles(
               content.isEmpty ? [status("Nessun contenuto")] : content, in: loading,
               layout: albumArtwork != nil
-                || (!items.isEmpty && items.allSatisfy { $0.kind == .song }) ? .tracks : .covers)
+                || (!items.isEmpty && items.allSatisfy { $0.kind == .song }) ? .tracks : .covers,
+              leadingButtons: artistButtons)
           } catch {
             guard !Task.isCancelled, detailRevision == expected else { return }
             setTiles(

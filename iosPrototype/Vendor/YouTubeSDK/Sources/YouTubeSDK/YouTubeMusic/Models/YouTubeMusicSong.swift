@@ -7,6 +7,15 @@
 
 import Foundation
 
+public struct YouTubeMusicArtistReference: Codable, Hashable, Sendable {
+  public let id: String
+  public let name: String
+  public init(id: String, name: String) {
+    self.id = id
+    self.name = name
+  }
+}
+
 public struct YouTubeMusicSong: Identifiable, Sendable {
   public let id: String
   public let title: String
@@ -14,6 +23,7 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
   public let album: String?
   public let albumBrowseID: String?
   public let artistBrowseID: String?
+  public let artistReferences: [YouTubeMusicArtistReference]
   public let duration: TimeInterval?
   public let thumbnailURL: URL?
   public let videoId: String
@@ -63,46 +73,67 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
     var foundAlbum: String?
     var foundAlbumID: String?
     var foundArtistID: String?
+    var foundArtistReferences: [YouTubeMusicArtistReference] = []
     var foundDuration: TimeInterval?
 
     if let columns = data["flexColumns"] as? [[String: Any]], columns.count > 1 {
-      let secondCol = columns[1]
-      if let textParams = secondCol["musicResponsiveListItemFlexColumnRenderer"] as? [String: Any],
-        let textData = textParams["text"] as? [String: Any],
-        let runs = textData["runs"] as? [[String: Any]]
-      {
+      for column in columns.dropFirst() {
+        if let textParams = column["musicResponsiveListItemFlexColumnRenderer"] as? [String: Any],
+          let textData = textParams["text"] as? [String: Any],
+          let runs = textData["runs"] as? [[String: Any]]
+        {
 
-        // Iterate through runs to categorize them
-        // Kaset logic: Look for navigationEndpoint to identify Artist/Album
-        for run in runs {
-          if let text = run["text"] as? String {
-            if let endpoint = run["navigationEndpoint"] as? [String: Any],
-              let browse = endpoint["browseEndpoint"] as? [String: Any],
-              let pageType = browse["browseEndpointContextSupportedConfigs"] as? [String: Any]
-            {
-
-              // Check type (Artist vs Album)
-              let config = pageType["browseEndpointContextMusicConfig"] as? [String: Any]
-              let type = config?["pageType"] as? String
-
-              if type == "MUSIC_PAGE_TYPE_ARTIST" {
-                foundArtists.append(text)
-                if foundArtistID == nil { foundArtistID = browse["browseId"] as? String }
-              } else if type == "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE"
-                || type == "MUSIC_PAGE_TYPE_PODCAST_SHOW"
+          // Iterate through runs to categorize them
+          // Kaset logic: Look for navigationEndpoint to identify Artist/Album
+          for run in runs {
+            if let text = run["text"] as? String {
+              if let endpoint = run["navigationEndpoint"] as? [String: Any],
+                let browse = endpoint["browseEndpoint"] as? [String: Any],
+                let pageType = browse["browseEndpointContextSupportedConfigs"] as? [String: Any]
               {
-                foundArtists.append(text)
-              } else if type == "MUSIC_PAGE_TYPE_ALBUM" {
-                foundAlbum = text
-                foundAlbumID = browse["browseId"] as? String
-              }
-            } else {
-              // If it's a timestamp (e.g. "3:45"), parse it
-              if text.contains(":") {
-                foundDuration = Self.parseDuration(text)
+
+                // Check type (Artist vs Album)
+                let config = pageType["browseEndpointContextMusicConfig"] as? [String: Any]
+                let type = config?["pageType"] as? String
+
+                if type == "MUSIC_PAGE_TYPE_ARTIST" {
+                  foundArtists.append(text)
+                  if foundArtistID == nil { foundArtistID = browse["browseId"] as? String }
+                  if let id = browse["browseId"] as? String,
+                    !foundArtistReferences.contains(where: { $0.id == id })
+                  {
+                    foundArtistReferences.append(.init(id: id, name: text))
+                  }
+                } else if type == "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE"
+                  || type == "MUSIC_PAGE_TYPE_PODCAST_SHOW"
+                {
+                  foundArtists.append(text)
+                } else if type == "MUSIC_PAGE_TYPE_ALBUM" {
+                  foundAlbum = text
+                  foundAlbumID = browse["browseId"] as? String
+                }
+              } else {
+                // If it's a timestamp (e.g. "3:45"), parse it
+                if text.contains(":") {
+                  foundDuration = Self.parseDuration(text)
+                }
               }
             }
           }
+        }
+      }
+    }
+    // Album track durations are normally in the fixed column, not beside the artist.
+    if foundDuration == nil, let columns = data["fixedColumns"] as? [[String: Any]] {
+      for column in columns {
+        let renderer = column["musicResponsiveListItemFixedColumnRenderer"] as? [String: Any]
+        let text = renderer?["text"] as? [String: Any]
+        let value =
+          (text?["runs"] as? [[String: Any]])?.compactMap { $0["text"] as? String }.joined()
+          ?? text?["simpleText"] as? String ?? ""
+        if value.contains(":"), let duration = Self.parseDuration(value) {
+          foundDuration = duration
+          break
         }
       }
     }
@@ -110,6 +141,7 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
     self.album = foundAlbum
     self.albumBrowseID = foundAlbumID
     self.artistBrowseID = foundArtistID
+    self.artistReferences = foundArtistReferences
     self.duration = foundDuration
 
     // 4. Thumbnail

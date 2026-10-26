@@ -1,6 +1,8 @@
 import Foundation
 import YouTubeSDK
 
+public typealias TrackArtist = YouTubeMusicArtistReference
+
 public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
   public let id: String
   public let title: String
@@ -10,9 +12,11 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
   public var albumBrowseID: String? = nil
   public var albumTitle: String? = nil
   public var artistBrowseID: String? = nil
+  public var artistReferences: [TrackArtist]? = nil
   public init(
     id: String, title: String, artist: String, artwork: URL?, durationSeconds: Double? = nil,
-    albumBrowseID: String? = nil, albumTitle: String? = nil, artistBrowseID: String? = nil
+    albumBrowseID: String? = nil, albumTitle: String? = nil, artistBrowseID: String? = nil,
+    artistReferences: [TrackArtist]? = nil
   ) {
     self.id = id
     self.title = title
@@ -22,11 +26,13 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
     self.albumBrowseID = albumBrowseID
     self.albumTitle = albumTitle
     self.artistBrowseID = artistBrowseID
+    self.artistReferences = artistReferences
   }
   public init(_ item: DiscoveryItem) {
     albumBrowseID = item.albumBrowseID
     artistBrowseID = item.artistBrowseID
     albumTitle = item.albumTitle
+    artistReferences = item.artistReferences
     id = item.mediaId
     title = item.title
     artist = item.subtitle
@@ -37,7 +43,7 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
     DiscoveryItem(
       kind: .song, mediaId: id, title: title, subtitle: artist, artwork: artwork,
       durationSeconds: durationSeconds, albumBrowseID: albumBrowseID,
-      artistBrowseID: artistBrowseID, albumTitle: albumTitle)
+      artistBrowseID: artistBrowseID, albumTitle: albumTitle, artistReferences: artistReferences)
   }
   public func withAlbumArtwork(
     _ albumArtwork: URL?, artist albumArtist: String? = nil, albumID: String? = nil
@@ -49,6 +55,7 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
       artwork: albumArtwork ?? artwork,
       durationSeconds: durationSeconds)
     result.artistBrowseID = artistBrowseID
+    result.artistReferences = artistReferences
     result.albumTitle = albumTitle
     result.albumBrowseID = albumID ?? albumBrowseID
     return result
@@ -62,5 +69,6 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
     albumTitle = song.album
     albumBrowseID = song.albumBrowseID
     artistBrowseID = song.artistBrowseID
+    artistReferences = song.artistReferences
   }
 }
