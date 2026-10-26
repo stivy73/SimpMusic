@@ -29,6 +29,13 @@ Live public AVPlayer probe: 98.0 seconds of progress, zero stalled samples, all
 continuity and CarPlay audibility still require physical verification.
 All targets use 0.12.1 (32); distribution remains internal TestFlight, testers manual.
 
+Release archive and exported IPA verified: distribution signatures/profiles,
+CarPlay Audio, Siri/vocabulary, Widgets and Share App Groups. Source `bfea9a9e`
+pushed and verified on both personal branches. IPA SHA256:
+`70e1ec9938f5e38e36df18942cbbcf02a936be98593f1328451477b0c9138775`.
+TestFlight upload remains pending: Xcode rejected App Store Connect account access
+on 26 October 2026. Export success does not establish upload or tester readiness.
+
 ---
 
 # NoteNarrate iOS 0.12.0 (31)

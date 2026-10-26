@@ -27,6 +27,15 @@ Un altro flusso pubblico riproduce ancora il rifiuto CDN oltre 1 MiB ed è esclu
 dalla validazione. Le prove con l’account Premium sul telefono e di audibilità
 CarPlay restano separate dai test automatici. [Evidenze e limiti](CARPLAY.md).
 
+Archivio Release e IPA 0.12.1 (32) verificati: firma Apple, profili CarPlay Audio,
+Siri/frasi, WidgetKit e Condividi/App Group. Sorgenti `bfea9a9e` pubblicati e
+verificati sui branch personali `dev` e `feature/youtube-library-albums`.
+IPA locale: `deliveries/NoteNarrate-iOS-0.12.1-build32-KaraokeAudio.ipa`;
+SHA256 `70e1ec9938f5e38e36df18942cbbcf02a936be98593f1328451477b0c9138775`.
+**Caricamento TestFlight ancora da completare:** il tentativo del 26 ottobre 2026
+richiede il rinnovo dell’accesso App Store Connect in Xcode. Non è una build già
+consegnata ad Apple. Assegnazione ai tester manuale, nessuna pubblicazione App Store.
+
 **0.12.0 (31), player e album:** il pulsante con i tre puntini apre una
 scheda con copertina, titolo e icone per Piaciuti, playlist, riproduci successivo,
 aggiungi alla coda, artisti, album, radio e condivisione. Restano disponibili

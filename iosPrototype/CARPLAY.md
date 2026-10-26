@@ -33,6 +33,11 @@ audibilità e corretta uscita CarPlay. Nessuna nuova richiesta di entitlement,
 nessuna modifica al prompt o alle chiavi IA. L’account viene usato solo tramite
 il normale percorso dell’app: nessuna estrazione di sessione in probe esterne.
 
+**Pacchetto verificato:** IPA 0.12.1 (32), firma/profili CarPlay, Siri e App Group
+superati da `CheckCarPlayIPA.py`. Sorgenti `bfea9a9e` verificati sui due branch
+personali. Caricamento TestFlight in attesa del rinnovo login Xcode; nessuna prova
+di disponibilità ai tester finché Apple non accetta il pacchetto.
+
 ## Controllo del 26 ottobre 2026 — 0.12.0 (31)
 
 - Configurazione firmata della precedente IPA 0.11.0 (30) verificata: entitlement
