@@ -23,9 +23,13 @@ intent/locale to address ITMS-90626 reported by Apple on 0.8.1 (25).
 widget pause/play and release baseline/new notice. Real IT/global Charts and
 Podcast episode continuation verified. Live Gemini: 8 structured suggestions,
 7 verified catalog matches; unresolved candidates remain excluded from playback.
-Release archive and shared Mac compilation succeeded. Distribution signing is
-pending specific authorization to register/associate the widget App Group; build 29
-not uploaded. Source 0d743682 pushed and verified on both personal branches.
+Release archive and shared Mac compilation succeeded. Apple distribution signing
+verified: CarPlay Audio, Siri, localized phrases and App Group in both app/widget
+signatures and profiles. App and both extensions match 0.10.0 (29).
+Uploaded to Apple on 26 October 2026 at 08:19 Europe/Rome: Upload succeeded,
+package processing, EXPORT SUCCEEDED, exit 0. Source 4357622a pushed and verified
+on both personal branches. Exported IPA SHA256:
+005df0b7445db2e09615d7a72e24e01ab338c2e1d2f06e877c246bedc569d267.
 Internal TestFlight only, manual testers, no public submission.
 
 ---

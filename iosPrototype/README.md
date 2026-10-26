@@ -19,9 +19,12 @@ I consigli IA riusano la chiave Gemini salvata e non inventano ID riproducibili.
 Prova Gemini reale: 8 proposte strutturate, 7 corrispondenze verificate nel catalogo.
 La build include anche le frasi Siri per ricerca/riproduzione in Base, italiano e
 inglese, correggendo la configurazione segnalata da Apple con ITMS-90626 sulla build 25.
-Archivio Release e compilazione Mac condivisa verificati. Firma Apple in attesa
-dell’autorizzazione specifica al nuovo App Group; build 29 non ancora caricata.
-Sorgenti build 29: `0d743682`, pubblicati e verificati sui branch personali `dev` e
+Archivio Release, compilazione Mac condivisa e firma Apple verificati. L’App Group
+è associato all’app e all’estensione WidgetKit, con profili e firme controllati nell’IPA.
+**Consegna 0.10.0 (29), 26 ottobre 2026 ore 08:19 Europe/Rome:** caricamento
+Apple riuscito per TestFlight interno (`Upload succeeded`, pacchetto in elaborazione,
+comando terminato con esito 0). App ed estensioni riportano tutte 0.10.0 (29).
+Sorgenti build 29: `4357622a`, pubblicati e verificati sui branch personali `dev` e
 `feature/youtube-library-albums`. L’assegnazione ai tester resta manuale.
 
 **Consegna 0.9.0 (28), 25 ottobre 2026 ore 22:35 Europe/Rome:** caricamento

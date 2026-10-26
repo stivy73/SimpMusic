@@ -13,6 +13,12 @@ pause/play against the retained native player. Public catalog probe: IT Charts
 43 items, global 42; Podcasts 30 items and 23 on continuation (server-dependent).
 Live Gemini probe: 8 structured suggestions in 17.59 s, 7 verified catalog matches.
 
+Delivery: Apple distribution signatures/profiles verified for CarPlay Audio, Siri
+and the shared app/widget App Group. App and extensions match 0.10.0 (29).
+Internal TestFlight upload succeeded on 26 October 2026 at 08:19 Europe/Rome;
+Apple reported package processing, export exited 0. Release source `4357622a`
+is on both personal GitHub branches. Tester assignment remains manual.
+
 Also corrects the Apple ITMS-90626 Siri vocabulary warning reported for build 25:
 Base/Italian/English example phrases for every declared media intent in the main
 app bundle; exported-IPA validation covers the locale/intent matrix.
