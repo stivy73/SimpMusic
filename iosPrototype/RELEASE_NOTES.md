@@ -8,12 +8,22 @@ Removes Show video from the iOS player and song-options sheet.
 Save settings returns to the main Home after successful persistence and resets
 any Home navigation history while retaining the music session. A persistence
 error keeps Settings open with its existing error message.
-All app/extension targets use 0.12.3 (34). Direct development delivery;
-latest internal TestFlight upload remains 0.12.1 (32).
+All app/extension targets use 0.12.3 (34). Direct development delivery completed;
+the same Release source has also been uploaded to internal TestFlight.
 Signed build installed and version confirmed on the physical Duo. Functional
 checks passed for direct options, account-like placement, no video, Close/Back/
 swipe and Save returning Home with existing settings. Targeted simulator cases
 passed on Duo and iPhone 18 Pro; see IPHONE_DUO.md for logs and test-runner limits.
+
+Release archive and exported IPA verified: Apple distribution signing, CarPlay
+Audio, Siri and example phrases, Widgets/Share App Groups. Matching source
+`69e6b283` verified on personal `dev` and `feature/youtube-library-albums`.
+IPA: `deliveries/NoteNarrate-iOS-0.12.3-build34-DuoMenuSettings.ipa`.
+SHA256: `a190c050b99eba9d949e2dc2c4c3c65a00b3cccf1ba1794f38f3e8817d2af6d4`.
+Internal TestFlight upload succeeded on 26 October 2026 at 16:30 (Europe/Rome):
+`Upload succeeded`, `EXPORT SUCCEEDED`, exit 0. App Store Connect independently
+shows version 0.12.3 build 34 processing. Test availability is not yet verified;
+tester assignment remains manual.
 
 ---
 

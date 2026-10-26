@@ -9,6 +9,10 @@
 - Verified on the physical Duo: direct menu/Close/Back/swipe with playback state
   retained, and Save returning Home without editing existing settings. Targeted
   Duo/iPhone simulator cases also passed; evidence and limits in IPHONE_DUO.md.
+- Release archive and distribution IPA verified, including CarPlay/Siri/App Groups.
+  Upload to internal TestFlight succeeded on 26 October 2026 at 16:30 Europe/Rome;
+  build 34 processing confirmed in App Store Connect. Source `69e6b283` on both
+  personal branches. Tester assignment remains manual.
 
 ---
 

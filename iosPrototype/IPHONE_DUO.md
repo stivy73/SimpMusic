@@ -36,7 +36,9 @@ Physical result bundles: `/tmp/notenarrate34-physical-menu-settings.xcresult`
 and `/tmp/notenarrate34-iphone-menu-settings.log`.
 Signed app: `/tmp/NoteNarrate34-Duo/Build/Products/Debug-iphoneos/StivySimpMusic.app`.
 These are UI/navigation checks; live Premium CDN continuity and CarPlay audibility
-remain separate. This delivery does not upload a new TestFlight build.
+remain separate. A Release archive and distribution-signed IPA have also been
+verified for the subsequent internal TestFlight delivery; its upload status is
+recorded in README.md and RELEASE_NOTES.md.
 
 ## 0.12.2 (33) — native controls, Back and edge swipe
 
