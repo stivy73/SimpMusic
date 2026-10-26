@@ -24,7 +24,12 @@ Il layout sul display reale CarPlay e l’audio finale in auto richiedono ancora
 collaudo; la build finale non è stata installata direttamente sul Duo.
 IPA: `deliveries/NoteNarrate-iOS-0.12.4-build35-CarPlayTiming.ipa`;
 SHA256 `1f5b683d36966031689371ac37eda6ef61be19a21dddd25a68cb7295789bc827`.
-Caricamento TestFlight in preparazione; assegnazione ai tester manuale.
+Sorgenti `ad52e20a` pubblicati e verificati su `stivy73/SimpMusic`, branch
+`dev` e `feature/youtube-library-albums`. Caricamento TestFlight interno riuscito
+il 26 ottobre 2026 alle 20:37 Europe/Rome: `Upload succeeded`,
+`EXPORT SUCCEEDED`, esito 0. App Store Connect ha completato l’elaborazione:
+**Versione 0.12.4, build 35, Pronta per il test**. Nessun gruppo assegnato alla
+verifica; assegnazione ai tester manuale.
 [Diagnosi, prove e limiti](CARPLAY.md).
 
 **0.12.3 (34), menu e impostazioni:** i tre puntini aprono direttamente

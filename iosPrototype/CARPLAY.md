@@ -42,8 +42,13 @@ Log: `/tmp/notenarrate35-core-tests.log`, `/tmp/notenarrate35-final-ui.log`;
 risultati: `/tmp/notenarrate35-final-ui.xcresult`;
 diagnostica numerica reale: `/tmp/notenarrate35-device-timing.json`.
 IPA Release 0.12.4 (35) esportata e verificata da `CheckCarPlayIPA.py`, inclusi
-firma, profili CarPlay, Siri e App Group delle estensioni. Caricamento interno
-TestFlight in preparazione; assegnazione ai tester manuale.
+firma, profili CarPlay, Siri e App Group delle estensioni. Sorgenti `ad52e20a`
+verificati sui due branch personali. Caricamento interno TestFlight riuscito
+il 26 ottobre 2026 alle 20:37 Europe/Rome (`Upload succeeded`,
+`EXPORT SUCCEEDED`, esito 0). App Store Connect ha completato l’elaborazione:
+versione 0.12.4, build 35, **Pronta per il test**. Nessun gruppo assegnato alla
+verifica; assegnazione ai tester manuale. Prova visiva locale:
+`/tmp/NoteNarrate35-TestFlight-ready.png`.
 
 **Limiti:** il rendering finale sul display esterno CarPlay e il termine dei
 brani reali in auto richiedono collaudo. La build finale non è stata reinstallata

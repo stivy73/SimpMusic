@@ -10,7 +10,9 @@
 - 236 core tests and two Duo simulator UI scenarios passed, including actual native
   queue advance before a 120-second fixture tail and clock restoration after voice.
 - Release archive/IPA signing and CarPlay/Siri/Widget/Share checks passed.
-  Internal TestFlight upload pending. Testers manual; final vehicle test pending.
+  Internal TestFlight upload succeeded on 26 October 2026 at 20:37 Europe/Rome;
+  build 35 Ready to Test confirmed in App Store Connect. Source `ad52e20a` verified
+  on both personal branches. No group assigned; testers manual, vehicle test pending.
   See CARPLAY.md for evidence and physical-device limits.
 
 ---

@@ -19,7 +19,11 @@ restoration after narration and queue advance without waiting for a 120-second
 silent tail in a controlled native audio fixture. Release archive and distribution
 IPA verified, including CarPlay, Siri, Widgets and Share. All targets use 0.12.4 (35).
 Final physical CarPlay rendering/audibility and phone playback remain to be tested.
-Internal TestFlight upload pending; tester assignment remains manual.
+Source `ad52e20a` pushed and verified on both personal GitHub branches.
+Internal TestFlight upload succeeded on 26 October 2026 at 20:37 Europe/Rome:
+`Upload succeeded`, `EXPORT SUCCEEDED`, exit 0. App Store Connect independently
+completed processing and shows version 0.12.4 build 35 Ready to Test. No group
+assigned at verification; tester assignment remains manual.
 
 IPA: `deliveries/NoteNarrate-iOS-0.12.4-build35-CarPlayTiming.ipa`.
 SHA256: `1f5b683d36966031689371ac37eda6ef61be19a21dddd25a68cb7295789bc827`.
