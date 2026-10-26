@@ -19,7 +19,11 @@ passed (list/index/relaunch, actual text share/cold launch/search, actual URL
 share/exact-track player, offline/verse-image regression). YouTube metadata HTTP
 200 verified live. Release archive and shared Mac build succeeded.
 Apple distribution signing verified, including CarPlay Audio, Siri, WidgetKit and
-the Share extension with its App Group. Internal TestFlight upload pending.
+the Share extension with its App Group. Internal TestFlight upload succeeded on
+26 October 2026 at 09:14 Europe/Rome: Upload succeeded, package processing,
+EXPORT SUCCEEDED, exit 0. Source a50a3e51 pushed/verified on both personal branches.
+Tester assignment manual. No public App Store submission.
+Exported IPA SHA256: 852eb6cd9b70e47dc1b5d5436d25ce1c1bafbb72d071ee26e78bf08486919823.
 
 ---
 

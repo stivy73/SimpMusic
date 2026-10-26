@@ -27,7 +27,10 @@ riavvio dell’app, link YouTube diretto, indice/lista e preferenze persistenti,
 raccolta offline. Titolo e copertina di un link YouTube verificati anche online.
 Archivio Release, compilazione Mac condivisa e firma Apple riusciti; verificati
 CarPlay Audio, Siri, WidgetKit e nuova estensione Condividi con il relativo App Group.
-Build 30 non ancora caricata. L’assegnazione ai tester resta manuale.
+**Consegna 26 ottobre 2026, ore 09:14 Europe/Rome:** build 0.11.0 (30) caricata
+su TestFlight interno (`Upload succeeded`, pacchetto in elaborazione, comando con
+esito 0). Sorgenti `a50a3e51` pubblicati e verificati sui branch personali `dev` e
+`feature/youtube-library-albums`. L’assegnazione ai tester resta manuale.
 
 **0.10.0 (29), punti 20, 22, 23 e 25:** widget iOS Player, Playlist e Ascolti;
 Classifiche per paese, Podcast e Mix dedicati; segui/non seguire gli artisti su

@@ -18,7 +18,10 @@ runs; the confirmation run passed both collection/relaunch and actual text share
 with cold launch. Direct URL share and offline regression also passed. An initial
 UI selector failure was corrected to use share-sheet cells/menu labels; the index
 retry exposes off-screen letters before querying hittability.
-Release archive and shared Mac compilation succeeded. Build/upload status is in README.
+Release archive and shared Mac compilation succeeded. Distribution signatures,
+CarPlay/Siri/WidgetKit and Share App Group profiles verified. Internal TestFlight
+upload succeeded on 26 October 2026 at 09:14 Europe/Rome; Apple reported package
+processing, export exited 0. Source `a50a3e51` on both personal branches; testers manual.
 
 ---
 
