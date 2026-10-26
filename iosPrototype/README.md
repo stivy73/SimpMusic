@@ -32,9 +32,11 @@ Siri/frasi, WidgetKit e Condividi/App Group. Sorgenti `bfea9a9e` pubblicati e
 verificati sui branch personali `dev` e `feature/youtube-library-albums`.
 IPA locale: `deliveries/NoteNarrate-iOS-0.12.1-build32-KaraokeAudio.ipa`;
 SHA256 `70e1ec9938f5e38e36df18942cbbcf02a936be98593f1328451477b0c9138775`.
-**Caricamento TestFlight ancora da completare:** il tentativo del 26 ottobre 2026
-richiede il rinnovo dell’accesso App Store Connect in Xcode. Non è una build già
-consegnata ad Apple. Assegnazione ai tester manuale, nessuna pubblicazione App Store.
+**Caricamento TestFlight interno riuscito:** il 26 ottobre 2026 alle 13:57
+(Europe/Rome), Xcode ha confermato `Upload succeeded` e `EXPORT SUCCEEDED` per il
+Team Archetipi Digitali. Apple ha avviato l’elaborazione del pacchetto; la
+disponibilità ai tester non è ancora verificata. Assegnazione ai tester manuale,
+nessuna pubblicazione App Store.
 
 **0.12.0 (31), player e album:** il pulsante con i tre puntini apre una
 scheda con copertina, titolo e icone per Piaciuti, playlist, riproduci successivo,

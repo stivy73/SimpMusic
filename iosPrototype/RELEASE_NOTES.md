@@ -33,8 +33,11 @@ Release archive and exported IPA verified: distribution signatures/profiles,
 CarPlay Audio, Siri/vocabulary, Widgets and Share App Groups. Source `bfea9a9e`
 pushed and verified on both personal branches. IPA SHA256:
 `70e1ec9938f5e38e36df18942cbbcf02a936be98593f1328451477b0c9138775`.
-TestFlight upload remains pending: Xcode rejected App Store Connect account access
-on 26 October 2026. Export success does not establish upload or tester readiness.
+Internal TestFlight upload succeeded on 26 October 2026 at 13:57 (Europe/Rome)
+using the Archetipi Digitali team. Xcode confirmed `Upload succeeded` and
+`EXPORT SUCCEEDED`; Apple reported that the uploaded package was processing.
+Tester availability is not yet verified; group assignment remains manual and
+no public App Store submission was performed.
 
 ---
 

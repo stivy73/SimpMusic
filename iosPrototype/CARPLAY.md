@@ -35,8 +35,10 @@ il normale percorso dell’app: nessuna estrazione di sessione in probe esterne.
 
 **Pacchetto verificato:** IPA 0.12.1 (32), firma/profili CarPlay, Siri e App Group
 superati da `CheckCarPlayIPA.py`. Sorgenti `bfea9a9e` verificati sui due branch
-personali. Caricamento TestFlight in attesa del rinnovo login Xcode; nessuna prova
-di disponibilità ai tester finché Apple non accetta il pacchetto.
+personali. Caricamento TestFlight interno riuscito il 26 ottobre 2026 alle 13:57
+(Europe/Rome): `Upload succeeded`, `EXPORT SUCCEEDED` e avvio dell’elaborazione
+Apple confermati. Disponibilità ai tester non ancora verificata; assegnazione
+manuale. Questo esito non certifica la continuità audio Premium sul dispositivo.
 
 ## Controllo del 26 ottobre 2026 — 0.12.0 (31)
 
