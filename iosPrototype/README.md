@@ -29,7 +29,13 @@ album/preferiti/riavvio, profilo artista/casuale, scelta di tutti gli artisti).
 Verificato anche il catalogo reale: Tracy Chapman (1988), 11 tracce, 2175 secondi,
 copertina disponibile. [Controllo CarPlay e limiti delle prove](CARPLAY.md).
 Le prove fisiche di voce in auto e continuità Premium oltre un minuto restano aperte.
-Build candidata firmata; stato della consegna registrato dopo la verifica dell’IPA.
+Archivio Release e IPA con firma Apple verificati: CarPlay Audio, Siri e frasi
+d’esempio, WidgetKit e Condividi con App Group. **Consegna 26 ottobre 2026, ore
+10:09 Europe/Rome:** caricamento su TestFlight interno riuscito (`Upload succeeded`,
+pacchetto in elaborazione, `EXPORT SUCCEEDED`, esito 0). Sorgenti `ac7fe9ff`
+pubblicati e verificati sui branch personali `dev` e `feature/youtube-library-albums`.
+IPA locale: `deliveries/NoteNarrate-iOS-0.12.0-build31-PlayerAlbums.ipa`; SHA256
+`90b0033d9972645e42b857762ff3043e0fbd0cccc506f4aa0d0d87a77633633f`.
 Assegnazione ai tester manuale, nessuna pubblicazione App Store.
 
 **0.11.0 (30), punti 27 e 35:** ricezione dei link YouTube Music/YouTube e dei

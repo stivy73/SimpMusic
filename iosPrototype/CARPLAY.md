@@ -1,6 +1,6 @@
 # NoteNarrate iOS — audio in background e CarPlay
 
-## Controllo del 26 ottobre 2026 — candidata 0.12.0 (31)
+## Controllo del 26 ottobre 2026 — 0.12.0 (31)
 
 - Configurazione firmata della precedente IPA 0.11.0 (30) verificata: entitlement
   CarPlay Audio nella firma e nel profilo, scena CarPlay conservata, audio in
@@ -38,6 +38,12 @@ YouTube Premium oltre un minuto/CDN 403. Questi risultati non certificano quei d
 Log locali: `/tmp/notenarrate-carplay-audit-core.log`,
 `/tmp/notenarrate-carplay-audit-ui.xcresult`, `/tmp/notenarrate31-core-final.log`,
 `/tmp/notenarrate31-player-album-ui.xcresult`, `/tmp/notenarrate31-final-ui.xcresult`.
+
+**Consegna:** IPA finale 0.12.0 (31) verificata da `CheckCarPlayIPA.py`, inclusi
+CarPlay/Siri nella firma e nel profilo, manifest, versioni ed estensioni.
+Caricamento TestFlight interno riuscito il 26 ottobre alle 10:09 Europe/Rome,
+Apple in elaborazione; comando terminato con esito 0. Sorgenti `ac7fe9ff`
+pubblicati sui due branch personali. Assegnazione ai tester manuale.
 
 ## Riferimenti e cronologia delle implementazioni precedenti
 

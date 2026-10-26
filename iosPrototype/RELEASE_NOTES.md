@@ -21,7 +21,12 @@ regression checks. Public catalogue proof: Tracy Chapman (1988), 11 tracks,
 2175 seconds and artwork. Vehicle audibility and Premium playback beyond a minute
 remain separate physical tests; no claim of resolution. Template UI source review
 is distinguished from iPhone simulator tests in CARPLAY.md.
-All targets use 0.12.0 (31). Tester assignment stays manual; no public App Store submission.
+All targets use 0.12.0 (31). Apple distribution signatures/profiles verified:
+CarPlay Audio, Siri/vocabulary, Widgets and Share App Group. Internal TestFlight
+upload succeeded on 26 October 2026 at 10:09 Europe/Rome (package processing,
+EXPORT SUCCEEDED, exit 0). Matching source `ac7fe9ff` pushed and verified on both
+personal branches. Tester assignment manual; no public App Store submission.
+Local IPA SHA256: 90b0033d9972645e42b857762ff3043e0fbd0cccc506f4aa0d0d87a77633633f.
 
 ---
 

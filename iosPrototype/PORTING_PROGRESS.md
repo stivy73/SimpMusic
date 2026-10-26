@@ -15,7 +15,11 @@ YouTube startup timeout occurred before the rejected-presentation test reached
 CarPlay; that cancellation scenario was confirmed with a validated local file.
 Physical narration audibility and Premium CDN continuity remain deferred.
 No new backend, login, provider key, entitlement or external dependency.
-All app/extension targets use 0.12.0 (31). Delivery status is recorded after export.
+All app/extension targets use 0.12.0 (31). Apple distribution IPA gate passed,
+including CarPlay/Siri and app/extension App Groups. Internal TestFlight upload
+succeeded on 26 October 2026 at 10:09 Europe/Rome; Apple reported package
+processing, export exited 0. Source `ac7fe9ff` verified on both personal branches.
+Tester assignment manual; no public App Store submission.
 
 ---
 
