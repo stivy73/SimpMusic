@@ -25,7 +25,8 @@ Podcast episode continuation verified. Live Gemini: 8 structured suggestions,
 7 verified catalog matches; unresolved candidates remain excluded from playback.
 Release archive and shared Mac compilation succeeded. Distribution signing is
 pending specific authorization to register/associate the widget App Group; build 29
-not uploaded. Internal TestFlight only, manual testers, no public submission.
+not uploaded. Source 0d743682 pushed and verified on both personal branches.
+Internal TestFlight only, manual testers, no public submission.
 
 ---
 

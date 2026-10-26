@@ -21,7 +21,8 @@ La build include anche le frasi Siri per ricerca/riproduzione in Base, italiano 
 inglese, correggendo la configurazione segnalata da Apple con ITMS-90626 sulla build 25.
 Archivio Release e compilazione Mac condivisa verificati. Firma Apple in attesa
 dell’autorizzazione specifica al nuovo App Group; build 29 non ancora caricata.
-L’assegnazione ai tester resta manuale.
+Sorgenti build 29: `0d743682`, pubblicati e verificati sui branch personali `dev` e
+`feature/youtube-library-albums`. L’assegnazione ai tester resta manuale.
 
 **Consegna 0.9.0 (28), 25 ottobre 2026 ore 22:35 Europe/Rome:** caricamento
 Apple riuscito per TestFlight interno (`Upload succeeded`, pacchetto in elaborazione,
