@@ -21,8 +21,9 @@ IPA locale: `deliveries/NoteNarrate-iOS-0.12.3-build34-DuoMenuSettings.ipa`;
 SHA256 `a190c050b99eba9d949e2dc2c4c3c65a00b3cccf1ba1794f38f3e8817d2af6d4`.
 **Caricamento TestFlight interno riuscito:** il 26 ottobre 2026 alle 16:30
 (Europe/Rome), Xcode ha confermato `Upload succeeded` e `EXPORT SUCCEEDED`, esito 0.
-App Store Connect mostra **Versione 0.12.3, Build (34)** in **Elaborazione in corso**.
-L’assegnazione ai tester resta manuale; disponibilità al test non ancora verificata.
+App Store Connect ha completato l’elaborazione e mostra **Versione 0.12.3,
+Build (34), Pronta per il test**. L’assegnazione al gruppo **Team interno** resta
+manuale; al momento della verifica la build non ha gruppi assegnati.
 
 **0.12.2 (33), controlli iPhone Duo:** eliminate le maschere che ritagliavano
 le barre native nella fascia laterale. Il player espone Indietro, Libreria,

@@ -22,8 +22,8 @@ IPA: `deliveries/NoteNarrate-iOS-0.12.3-build34-DuoMenuSettings.ipa`.
 SHA256: `a190c050b99eba9d949e2dc2c4c3c65a00b3cccf1ba1794f38f3e8817d2af6d4`.
 Internal TestFlight upload succeeded on 26 October 2026 at 16:30 (Europe/Rome):
 `Upload succeeded`, `EXPORT SUCCEEDED`, exit 0. App Store Connect independently
-shows version 0.12.3 build 34 processing. Test availability is not yet verified;
-tester assignment remains manual.
+completed processing and shows version 0.12.3 build 34 Ready to Test. No group
+is assigned at verification; assignment to Team interno remains manual.
 
 ---
 
