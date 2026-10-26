@@ -83,7 +83,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 }
 
 public enum AppRoute: Equatable, Identifiable, Sendable {
-  case player, statistics, library
+  case player, statistics, library, received
   case playlist(String)
   case album(String)
   public var id: String { url.absoluteString }
@@ -94,6 +94,7 @@ public enum AppRoute: Equatable, Identifiable, Sendable {
     case .player: value.host = "player"
     case .statistics: value.host = "statistics"
     case .library: value.host = "library"
+    case .received: value.host = "received"
     case .playlist(let id):
       value.host = "playlist"
       value.queryItems = [URLQueryItem(name: "id", value: id)]
@@ -113,6 +114,7 @@ public enum AppRoute: Equatable, Identifiable, Sendable {
     case "player" where value.queryItems == nil: self = .player
     case "statistics" where value.queryItems == nil: self = .statistics
     case "library" where value.queryItems == nil: self = .library
+    case "received" where value.queryItems == nil: self = .received
     case "playlist", "album":
       guard ids.count == 1, value.queryItems?.count == 1, let id = ids.first?.value,
         id.range(of: #"^[A-Za-z0-9_-]{2,180}$"#, options: .regularExpression) != nil

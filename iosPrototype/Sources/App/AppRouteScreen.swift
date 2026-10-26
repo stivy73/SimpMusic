@@ -7,6 +7,7 @@ struct AppRouteScreen: View {
   @ViewBuilder var body: some View {
     switch route {
     case .statistics: ListeningScreen()
+    case .received: SharedMusicInboxScreen()
     case .library, .player: LibraryView(library: library)
     case .playlist(let id):
       if library.session == nil {

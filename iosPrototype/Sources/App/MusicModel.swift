@@ -314,6 +314,15 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   @Published var current: Song?
   @Published var showPlayer = false
   @Published var externalRoute: AppRoute?
+  @Published var sharedRequest: SharedMusicRequest?
+  func receiveSharedMusic() {
+    guard sharedRequest == nil, externalRoute == nil, !showMeaning, !reading, !busyMeaning,
+      let request = SharedMusicInbox.shared()?.pending().last
+    else { return }
+    externalRoute = nil
+    showPlayer = false
+    sharedRequest = request
+  }
   let releases = MusicModel.makeArtistReleases()
   @Published var showMeaning = false
   private(set) var meaningPresentationOnPhone = true

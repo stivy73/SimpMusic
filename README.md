@@ -21,7 +21,10 @@ La generazione del significato usa il provider IA selezionato e richiede la rela
 ## NoteNarrate per iOS
 
 Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
-rispetto ad Android. La **0.10.0 (29)** aggiunge widget iOS Player/Playlist/Ascolti, sezioni
+rispetto ad Android. La **0.11.0 (30)** integra l’estensione Condividi per brani e
+link YouTube Music/YouTube, una raccolta Ricevuti e lista/griglia, ordinamenti e
+indice alfabetico persistenti per le raccolte. La **0.10.0 (29)** ha aggiunto
+widget iOS Player/Playlist/Ascolti, sezioni
 Classifiche/Podcast/Mix, artisti seguiti con avvisi facoltativi sulle nuove uscite
 e consigli musicali Gemini verificati nel catalogo. Restano disponibili download/offline,
 testi sincronizzati, timer, ripristino della coda, qualità audio, effetti, crossfade,

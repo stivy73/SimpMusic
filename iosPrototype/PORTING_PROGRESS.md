@@ -1,3 +1,27 @@
+# iOS parity: points 27 and 35 — 0.11.0 (30)
+
+| Point | Implementation | Validation |
+|---|---|---|
+| 27 | iOS Share extension: YouTube/Music video and playlist links; editable title/artist search text including Now Playing; bounded shared inbox, cold launch receipt, exact video metadata/play/queue | Parser, malformed URL, atomic persistence/bounds tests; actual share sheet and extension UI scenarios |
+| 35 | Per-collection list/grid; natural title/artist/reverse/original sorting; accented/numeric/non-Latin alphabet index; persistent choices; offline status/actions preserved | Sorting/index/preference tests; actual alphabet jump and relaunch, collection isolation, offline regression |
+
+Use Condividi → NoteNarrate → Aggiungi a NoteNarrate, then open the app. Pending
+items are also under Library → Ricevuti. Only sanitized catalogue IDs/search text
+enter the existing App Group, without source tracking URLs or credentials.
+Unsupported service links need title/artist text or manual editing. A Share extension
+cannot guarantee launching its containing app; no unsupported launch API is used.
+
+Display controls are in the collection toolbar; the alphabet uses the current title
+or artist sort. It does not reorder server data or album tracks. Physical CarPlay
+narration/Premium CDN tests remain separate. 189 core tests passed. Four unique UI scenarios passed across final/confirmation
+runs; the confirmation run passed both collection/relaunch and actual text share
+with cold launch. Direct URL share and offline regression also passed. An initial
+UI selector failure was corrected to use share-sheet cells/menu labels; the index
+retry exposes off-screen letters before querying hittability.
+Release archive and shared Mac compilation succeeded. Build/upload status is in README.
+
+---
+
 # iOS parity: points 20, 22, 23, 25 — 0.10.0 (29)
 
 | Point | Implementation | Validation |

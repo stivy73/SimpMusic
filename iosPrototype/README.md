@@ -1,8 +1,33 @@
-# NoteNarrate iOS — 0.10.0 (29)
+# NoteNarrate iOS — 0.11.0 (30)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
 
+
+**0.11.0 (30), punti 27 e 35:** ricezione dei link YouTube Music/YouTube e dei
+brani condivisi come testo, compreso il formato Now Playing/Ambient Music Mod;
+lista/griglia, ordinamento per titolo/artista e indice alfabetico per album, brani,
+Mi piace, playlist, artisti, preferiti locali e download. Ogni raccolta conserva
+le proprie preferenze. L’ordine delle tracce dentro un album resta quello originale.
+
+Usa **Condividi → NoteNarrate → Aggiungi a NoteNarrate**, poi apri l’app: trovi
+l’anteprima pronta per riprodurre, accodare o cercare. I contenuti in attesa sono
+anche in **Libreria → Ricevuti**. Il testo è modificabile prima di inviarlo;
+i link di altri servizi richiedono titolo/artista nel testo o l’inserimento manuale.
+L’estensione non copia credenziali e conserva solo ricerche o ID di catalogo.
+iOS non consente a un’estensione Share di garantire l’avvio dell’app contenitore:
+[limiti documentati da Apple](https://developer.apple.com/documentation/foundation/nsextensioncontext/open(_:completionhandler:)).
+
+La visualizzazione delle raccolte si cambia dal pulsante **Visualizzazione e ordine**.
+L’indice mostra le iniziali disponibili e sposta alla prima corrispondenza;
+con l’ordine originale, attivarlo seleziona l’ordinamento per titolo.
+La modifica riguarda solo la presentazione e non riordina le playlist su YouTube Music.
+Verificati **189 test core** e **quattro scenari UI**: condivisione testuale con
+riavvio dell’app, link YouTube diretto, indice/lista e preferenze persistenti,
+raccolta offline. Titolo e copertina di un link YouTube verificati anche online.
+Archivio Release, compilazione Mac condivisa e firma Apple riusciti; verificati
+CarPlay Audio, Siri, WidgetKit e nuova estensione Condividi con il relativo App Group.
+Build 30 non ancora caricata. L’assegnazione ai tester resta manuale.
 
 **0.10.0 (29), punti 20, 22, 23 e 25:** widget iOS Player, Playlist e Ascolti;
 Classifiche per paese, Podcast e Mix dedicati; segui/non seguire gli artisti su

@@ -1261,4 +1261,106 @@ final class PrototypeUITests: XCTestCase {
       app.staticTexts["native-audio-status"].label)
   }
 
+  @MainActor
+  func testCollectionListIndexJumpAndPreferencesSurviveRelaunch() {
+    let app = XCUIApplication()
+    app.launchArguments = [
+      "--test-remote-library", "--test-collection-presentation",
+      "--test-reset-collection-preferences",
+    ]
+    app.launch()
+    app.tabBars.buttons["Libreria"].tap()
+    XCTAssertTrue(
+      app.scrollViews["collection-grid"].waitForExistence(timeout: 12), app.debugDescription)
+    app.buttons["collection-options"].tap()
+    app.buttons["Lista"].tap()
+    XCTAssertTrue(app.scrollViews["collection-list"].waitForExistence(timeout: 5))
+    app.buttons["collection-options"].tap()
+    app.buttons["collection-toggle-index"].tap()
+    let index = app.scrollViews["collection-alphabet"]
+    XCTAssertTrue(index.waitForExistence(timeout: 5))
+    let z = app.buttons["collection-index-Z"]
+    // Off-screen SwiftUI buttons can have no activation point; expose the end first.
+    for _ in 0..<6 { index.swipeLeft() }
+    XCTAssertTrue(z.isHittable, app.debugDescription)
+    z.tap()
+    XCTAssertTrue(app.buttons["album-MPREcollection-25"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["album-MPREcollection-25"].isHittable)
+    app.terminate()
+    app.launchArguments.removeAll { $0 == "--test-reset-collection-preferences" }
+    app.launch()
+    app.tabBars.buttons["Libreria"].tap()
+    XCTAssertTrue(app.scrollViews["collection-list"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.scrollViews["collection-alphabet"].exists)
+    let proof = XCTAttachment(screenshot: app.screenshot())
+    proof.name = "Library list and alphabet"
+    proof.lifetime = .keepAlways
+    add(proof)
+    app.buttons["library-section-menu"].tap()
+    app.buttons["library-menu-songs"].tap()
+    XCTAssertTrue(app.buttons["song-saved-fixture"].waitForExistence(timeout: 10))
+    XCTAssertFalse(app.scrollViews["collection-alphabet"].exists)
+  }
+
+  @MainActor
+  func testRealShareExtensionReceivesNowPlayingThenSearchesInApp() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-shared-music", "--test-full-search"]
+    app.launch()
+    let share = app.buttons["test-share-sheet"]
+    XCTAssertTrue(share.waitForExistence(timeout: 10))
+    share.tap()
+    let activity = app.cells.matching(NSPredicate(format: "label == %@", "NoteNarrate")).firstMatch
+    if !activity.waitForExistence(timeout: 8) {
+      let more = app.buttons["More"]
+      if more.exists { more.tap() }
+      let altro = app.buttons["Altro"]
+      if altro.exists { altro.tap() }
+    }
+    XCTAssertTrue(activity.waitForExistence(timeout: 8), app.debugDescription)
+    activity.tap()
+    let save = app.buttons["share-save"]
+    XCTAssertTrue(save.waitForExistence(timeout: 12), app.debugDescription)
+    save.tap()
+    let done = app.buttons["share-done"]
+    XCTAssertTrue(done.waitForExistence(timeout: 5), app.debugDescription)
+    done.tap()
+    app.terminate()
+    app.launch()
+    let search = app.buttons["shared-search"]
+    XCTAssertTrue(search.waitForExistence(timeout: 12), app.debugDescription)
+    XCTAssertEqual(app.textFields["shared-search-query"].value as? String, "Heroes David Bowie")
+    let proof = XCTAttachment(screenshot: app.screenshot())
+    proof.name = "Received Now Playing song"
+    proof.lifetime = .keepAlways
+    add(proof)
+    search.tap()
+    let result = app.buttons.matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "search-result-songs-")
+    ).firstMatch
+    XCTAssertTrue(result.waitForExistence(timeout: 10), app.debugDescription)
+    result.tap()
+    XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 8), app.debugDescription)
+  }
+
+  @MainActor
+  func testRealShareExtensionReceivesYouTubeURLAndOpensExactTrack() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-shared-music", "--test-shared-link", "--test-full-search"]
+    app.launch()
+    app.buttons["test-share-sheet"].tap()
+    let activity = app.cells.matching(NSPredicate(format: "label == %@", "NoteNarrate")).firstMatch
+    XCTAssertTrue(activity.waitForExistence(timeout: 10), app.debugDescription)
+    activity.tap()
+    XCTAssertTrue(app.buttons["share-save"].waitForExistence(timeout: 10))
+    app.buttons["share-save"].tap()
+    XCTAssertTrue(app.buttons["share-done"].waitForExistence(timeout: 5))
+    app.buttons["share-done"].tap()
+    let play = app.buttons["shared-play"]
+    XCTAssertTrue(play.waitForExistence(timeout: 10), app.debugDescription)
+    play.tap()
+    XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 8))
+    XCTAssertTrue(app.staticTexts["Heroes"].exists)
+  }
+
 }

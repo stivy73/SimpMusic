@@ -1,3 +1,28 @@
+# NoteNarrate iOS 0.11.0 (30)
+
+Ports parity points 27 and 35. A native iOS Share extension accepts YouTube/YouTube
+Music links and song search text, including Android-compatible Now Playing formats.
+Preview/edit before saving; validated requests are stored atomically in a bounded
+App Group inbox. Opening NoteNarrate presents the newest pending item; Library →
+Received keeps the other requests available. Video links resolve exact catalogue
+IDs with title/artwork, and can be played or queued; text opens typed song search.
+Share extensions cannot guarantee launching the containing app, so the UI explains
+the explicit open-app step. No responder-chain/private-API launch workaround.
+
+Library albums, saved/liked songs, playlists, followed artists, local favourites
+and offline downloads support per-collection list/grid, natural title/artist order,
+reverse order and an alphabet jump bar. Choices persist locally. Remote collections
+and album track order are not mutated. Existing download states/actions are retained.
+
+All iOS targets use 0.11.0 (30). 189 core tests passed; four unique UI scenarios
+passed (list/index/relaunch, actual text share/cold launch/search, actual URL
+share/exact-track player, offline/verse-image regression). YouTube metadata HTTP
+200 verified live. Release archive and shared Mac build succeeded.
+Apple distribution signing verified, including CarPlay Audio, Siri, WidgetKit and
+the Share extension with its App Group. Internal TestFlight upload pending.
+
+---
+
 # NoteNarrate iOS 0.10.0 (29)
 
 Implements parity points 20, 22, 23 and 25: three WidgetKit widgets (interactive

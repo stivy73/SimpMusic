@@ -42,6 +42,7 @@ struct RootView: View {
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var tab = 0
+  @State private var testShareSheet = false
   var body: some View {
     GeometryReader { geometry in
       ZStack(alignment: .top) {
@@ -73,11 +74,31 @@ struct RootView: View {
         #if os(iOS)
           AppleAppSession.shared.widgets.publish()
           if phase == .active {
+            model.receiveSharedMusic()
             Task { await AppleAppSession.shared.releaseNotifications.refresh() }
           } else {
             AppleAppSession.shared.releaseNotifications.schedule()
           }
         #endif
+      }
+      .task { model.receiveSharedMusic() }
+      .onChange(of: model.showPlayer) { _, showing in
+        if showing, let request = model.sharedRequest {
+          try? SharedMusicInbox.shared()?.remove(request.id)
+          model.sharedRequest = nil
+        }
+      }
+      .onChange(of: model.reading) { _, reading in if !reading { model.receiveSharedMusic() } }
+      .sheet(item: $model.sharedRequest) { request in
+        NavigationStack {
+          SharedMusicScreen(request: request)
+            .toolbar {
+              Button("Chiudi") {
+                try? SharedMusicInbox.shared()?.remove(request.id)
+                model.sharedRequest = nil
+              }.accessibilityIdentifier("shared-close")
+            }
+        }.interactiveDismissDisabled()
       }
       .onOpenURL { url in
         guard let route = AppRoute(url: url) else { return }
@@ -97,6 +118,15 @@ struct RootView: View {
       .modifier(RadioFeedback())
       #if DEBUG
         .overlay(alignment: .topLeading) {
+          if ProcessInfo.processInfo.arguments.contains("--test-shared-music") {
+            Button("Condividi brano di prova") { testShareSheet = true }
+            .accessibilityIdentifier("test-share-sheet")
+            .sheet(isPresented: $testShareSheet, onDismiss: { model.receiveSharedMusic() }) {
+              #if os(iOS)
+                MusicShareTestActivity { testShareSheet = false }
+              #endif
+            }
+          }
           if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
             VStack(alignment: .leading) {
               Text(model.current?.id ?? "preparing").accessibilityIdentifier("test-current-id")
@@ -1222,3 +1252,19 @@ extension View {
     #endif
   }
 }
+
+#if DEBUG && os(iOS)
+  struct MusicShareTestActivity: UIViewControllerRepresentable {
+    let complete: () -> Void
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+      let controller = UIActivityViewController(
+        activityItems: ProcessInfo.processInfo.arguments.contains("--test-shared-link")
+          ? [URL(string: "https://music.youtube.com/watch?v=dQw4w9WgXcQ&si=discard")!]
+          : ["\"Heroes\" di David Bowie\nhttps://www.google.com/search?q=Heroes"],
+        applicationActivities: nil)
+      controller.completionWithItemsHandler = { _, _, _, _ in complete() }
+      return controller
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+  }
+#endif

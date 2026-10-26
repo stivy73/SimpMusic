@@ -73,7 +73,7 @@ def verify(ipa):
             require(profile["Entitlements"].get("com.apple.developer.siri") is True, "Siri missing from app profile")
             extensions = list((app / "PlugIns").glob("*.appex"))
             by_id = {plistlib.loads((value / "Info.plist").read_bytes())["CFBundleIdentifier"]: value for value in extensions}
-            require(set(by_id) == {bundle + ".MediaIntents", bundle + ".Widgets"}, "Expected Siri and WidgetKit extensions")
+            require(set(by_id) == {bundle + ".MediaIntents", bundle + ".Widgets", bundle + ".Share"}, "Expected Siri, WidgetKit and Share extensions")
             extension = by_id[bundle + ".MediaIntents"]
             extension_info = plistlib.loads((extension / "Info.plist").read_bytes())
             require(extension_info["CFBundleIdentifier"] == bundle + ".MediaIntents", "Unexpected extension ID")
@@ -104,6 +104,24 @@ def verify(ipa):
             require(widget_profile["TeamIdentifier"] == [team], "Unexpected Widget Team")
             require(widget_entitlements.get("application-identifier") == f"{team}.{bundle}.Widgets", "Unexpected Widget app identifier")
             require(widget_entitlements.get("get-task-allow") is False, "Widget must use distribution signing")
+            share = by_id[bundle + ".Share"]
+            share_info = plistlib.loads((share / "Info.plist").read_bytes())
+            share_extension = share_info["NSExtension"]
+            require(share_extension["NSExtensionPointIdentifier"] == "com.apple.share-services", "Share extension type mismatch")
+            activation = share_extension["NSExtensionAttributes"]["NSExtensionActivationRule"]
+            require(activation.get("NSExtensionActivationSupportsText") is True, "Share must accept text")
+            require(activation.get("NSExtensionActivationSupportsWebURLWithMaxCount") == 1, "Share must accept a web URL")
+            require("UIBackgroundModes" not in share_info, "Share must not declare background playback")
+            share_profile = plistlib.loads(subprocess.check_output(["security", "cms", "-D", "-i", str(share / "embedded.mobileprovision")]))
+            share_sign = subprocess.run(["codesign", "-d", "--entitlements", ":-", str(share)], capture_output=True, check=True).stdout
+            share_entitlements = plistlib.loads(share_sign[share_sign.find(b"<?xml"):])
+            for name, value in (("share signature", share_entitlements), ("share profile", share_profile["Entitlements"])):
+                require(group in value.get("com.apple.security.application-groups", []), "App Group missing from " + name)
+                require(value.get("application-identifier") == f"{team}.{bundle}.Share", "Unexpected Share identifier")
+                require(value.get("get-task-allow") is False, "Share must use distribution signing")
+            require(share_profile["TeamIdentifier"] == [team], "Unexpected Share Team")
+            for field in ("CFBundleShortVersionString", "CFBundleVersion"):
+                require(share_info[field] == info[field], "Share version/build mismatch")
             required_intents = set(attributes["IntentsSupported"])
             for locale in ("Base", "it", "en"):
                 vocabulary = app / (locale + ".lproj") / "AppIntentVocabulary.plist"
@@ -136,6 +154,7 @@ def verify(ipa):
             "siri_media_extension_verified": voice,
             "widget_app_group_verified": voice,
             "siri_example_phrases_verified": voice,
+            "share_extension_verified": voice,
             "sha256": hashlib.sha256(ipa.read_bytes()).hexdigest(),
         }
 

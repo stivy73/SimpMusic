@@ -5,13 +5,25 @@ import YouTubeSDK
 extension LibraryModel {
   convenience init() {
     #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-reset-collection-preferences") {
+        for key in ["albums", "artists", "playlists", "songs", "likes", "local", "offline"] {
+          UserDefaults.standard.removeObject(forKey: "collectionPresentation." + key)
+        }
+      }
       if ProcessInfo.processInfo.arguments.contains("--test-remote-library") {
         self.init(
           session: YouTubeSession(
             cookies: "SAPISID=fixture", identity: "library-test", clientVersion: "test"),
           save: { _ in },
           fetch: { _ in
-            [
+            if ProcessInfo.processInfo.arguments.contains("--test-collection-presentation") {
+              return (0..<26).reversed().map { n in
+                LibraryAlbum(
+                  id: "MPREcollection-\(n)", title: String(UnicodeScalar(65 + n)!) + " raccolta",
+                  artist: "Artista \(25-n)", artwork: nil)
+              }
+            }
+            return [
               LibraryAlbum(
                 id: "MPREfixture", title: "Album di prova", artist: "Artista di prova", artwork: nil
               )
@@ -100,7 +112,7 @@ struct LibraryView: View {
         if model.favorites.isEmpty {
           ContentUnavailableView("Nessun preferito locale", systemImage: "heart")
         } else {
-          SongList(songs: model.favorites)
+          LibrarySongCollection(songs: model.favorites, key: "local")
         }
       } else if library.session == nil {
         ContentUnavailableView {
@@ -119,6 +131,11 @@ struct LibraryView: View {
     }.navigationTitle("Libreria")
       .sheet(isPresented: $createPlaylist) { CreatePlaylistSheet() }
       .toolbar {
+        Button {
+          model.externalRoute = .received
+        } label: {
+          Label("Ricevuti", systemImage: "tray.and.arrow.down")
+        }.accessibilityIdentifier("library-received")
         Menu {
           ForEach(LibrarySection.allCases) { value in
             Button(value.rawValue) { section = value }.accessibilityIdentifier(
@@ -168,27 +185,22 @@ struct LibraryView: View {
         Button("Accedi nuovamente") { library.showLogin = true }
       }
     } else {
-      ScrollView {
+      VStack(spacing: 0) {
         if library.albums.isEmpty {
           ContentUnavailableView("Nessun album salvato", systemImage: "opticaldisc")
         } else {
           Text("\(library.albums.count) album").font(.caption).foregroundStyle(.secondary)
             .accessibilityIdentifier("library-album-count")
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 16)], spacing: 22) {
-            ForEach(library.albums) { album in
-              NavigationLink {
-                AlbumView(album: album, identity: library.session?.identity)
-                  .id(library.session?.identity)
-              } label: {
-                VStack(alignment: .leading, spacing: 8) {
-                  Artwork(url: album.artwork).aspectRatio(1, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                  Text(album.title).fontWeight(.semibold).lineLimit(2)
-                  Text(album.artist).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                }.foregroundStyle(.primary)
-              }.accessibilityIdentifier("album-\(album.id)")
-            }
-          }.padding()
+          LibraryCollection(items: library.albums, key: "albums", title: \.title, artist: \.artist)
+          { album, layout, _ in
+            NavigationLink {
+              AlbumView(album: album, identity: library.session?.identity).id(
+                library.session?.identity)
+            } label: {
+              LibraryItemLabel(
+                title: album.title, subtitle: album.artist, artwork: album.artwork, layout: layout)
+            }.buttonStyle(.plain).accessibilityIdentifier("album-" + album.id)
+          }
         }
       }.refreshable { await library.reload() }
     }
@@ -224,29 +236,24 @@ private struct RemoteLibraryView: View {
       if state.items.isEmpty && state.loaded && !state.loading && state.error == nil {
         ContentUnavailableView("Nessun elemento nella raccolta", systemImage: "music.note.list")
       } else if kind == .songs || kind == .likes {
-        SongList(songs: state.items.map(Song.init))
+        LibrarySongCollection(songs: state.items.map(Song.init), key: kind.rawValue)
       } else {
-        ScrollView {
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 16)], spacing: 22) {
-            ForEach(state.items) { item in
-              if let target = item.target {
-                NavigationLink {
-                  if kind == .playlists {
-                    RemotePlaylistView(playlist: item)
-                  } else {
-                    HomeBrowseView(title: item.title, target: target)
-                  }
-                } label: {
-                  VStack(alignment: .leading, spacing: 8) {
-                    Artwork(url: item.artwork).aspectRatio(1, contentMode: .fit)
-                      .clipShape(RoundedRectangle(cornerRadius: kind == .artists ? 90 : 14))
-                    Text(item.title).fontWeight(.semibold).lineLimit(2)
-                    Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                  }.foregroundStyle(.primary)
-                }.accessibilityIdentifier("library-item-" + item.mediaId)
+        LibraryCollection(
+          items: state.items, key: kind.rawValue, title: \.title, artist: \.subtitle
+        ) { item, layout, _ in
+          if let target = item.target {
+            NavigationLink {
+              if kind == .playlists {
+                RemotePlaylistView(playlist: item)
+              } else {
+                HomeBrowseView(title: item.title, target: target)
               }
-            }
-          }.padding()
+            } label: {
+              LibraryItemLabel(
+                title: item.title, subtitle: item.subtitle, artwork: item.artwork, layout: layout,
+                circular: kind == .artists)
+            }.buttonStyle(.plain).accessibilityIdentifier("library-item-" + item.mediaId)
+          }
         }
       }
     }.frame(maxWidth: .infinity, maxHeight: .infinity)

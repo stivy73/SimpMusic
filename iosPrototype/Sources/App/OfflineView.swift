@@ -20,42 +20,38 @@ struct OfflineScreen: View {
   @EnvironmentObject private var model: MusicModel
   @ObservedObject var downloads: MusicDownloads
   var body: some View {
-    List {
-      Section {
+    VStack(spacing: 0) {
+      DisclosureGroup("Impostazioni download") {
         Toggle("Scarica solo con Wi-Fi", isOn: $downloads.wifiOnly)
         Picker("Spazio massimo", selection: $downloads.limitGB) {
           ForEach([1, 5, 10, 20], id: \.self) { Text("\($0) GB").tag($0) }
         }
-        Text(
-          ByteCountFormatter.string(fromByteCount: downloads.library.totalBytes, countStyle: .file)
-            + " · \(downloads.library.ready.count) brani completi"
-        )
-        .font(.caption).accessibilityIdentifier("offline-count")
-        if let error = downloads.library.persistenceError { Text(error).foregroundStyle(.orange) }
-      }
+      }.padding(.horizontal).padding(.vertical, 8)
+      Text(
+        ByteCountFormatter.string(fromByteCount: downloads.library.totalBytes, countStyle: .file)
+          + " · \(downloads.library.ready.count) brani completi"
+      )
+      .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("offline-count")
+      if let error = downloads.library.persistenceError { Text(error).foregroundStyle(.orange) }
       if downloads.library.records.isEmpty {
         Text(
           "Usa Scarica dal menu di un brano. Qui troverai i file completi disponibili senza connessione."
         )
         .foregroundStyle(.secondary)
       }
-      ForEach(downloads.library.records.sorted { $0.added > $1.added }) { record in
+      LibraryCollection(
+        items: downloads.library.records.sorted { $0.added > $1.added }, key: "offline",
+        defaultLayout: .list, title: { $0.track.title }, artist: { $0.track.artist }
+      ) { record, layout, ordered in
         VStack(alignment: .leading, spacing: 8) {
           Button {
             if record.state == .ready {
-              model.play(record.track, queue: downloads.library.ready.map(\.track))
+              model.play(record.track, queue: ordered.filter { $0.state == .ready }.map(\.track))
             }
           } label: {
-            HStack {
-              Image(
-                systemName: record.state == .ready ? "arrow.down.circle.fill" : "arrow.down.circle")
-              VStack(alignment: .leading) {
-                Text(record.track.title).fontWeight(.semibold)
-                Text(record.track.artist).font(.caption).foregroundStyle(.secondary)
-              }
-              Spacer()
-              if record.state == .ready { Image(systemName: "play.fill") }
-            }
+            LibraryItemLabel(
+              title: record.track.title, subtitle: record.track.artist,
+              artwork: record.track.artwork, layout: layout, playable: record.state == .ready)
           }.disabled(record.state != .ready).accessibilityIdentifier("offline-" + record.id)
           switch record.state {
           case .preparing: ProgressView("In attesa / preparazione…")
@@ -71,9 +67,6 @@ struct OfflineScreen: View {
           case .ready: EmptyView()
           }
         }.padding(.vertical, 4)
-          .swipeActions {
-            Button("Elimina", role: .destructive) { model.removeDownload(record.id) }
-          }
           .contextMenu {
             Button("Elimina download", role: .destructive) { model.removeDownload(record.id) }
           }
