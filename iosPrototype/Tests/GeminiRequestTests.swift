@@ -53,6 +53,8 @@ final class GeminiRequestTests: XCTestCase {
       let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
       let text = try XCTUnwrap(parts.first?["text"] as? String)
       let context = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+      let instruction = try XCTUnwrap(body["systemInstruction"] as? [String: Any])
+      XCTAssertTrue(String(describing: instruction).contains("50 canzoni"))
       XCTAssertEqual(context["richiesta_radio"] as? String, "fresh-request-id")
       let excluded = try XCTUnwrap(context["esclusi"] as? [[String: String]])
       XCTAssertEqual(excluded, [["title": "Already played", "artist": "Artist"]])
@@ -64,7 +66,7 @@ final class GeminiRequestTests: XCTestCase {
     }
     _ = try await service.suggestMusic(key: "fixture", model: "gemini-3.8-flash", request: "Radio",
       seeds: [], excluding: [PlaybackTrack(id: "private-video-id", title: "Already played", artist: "Artist", artwork: nil)],
-      requestID: "fresh-request-id")
+      requestID: "fresh-request-id", count: 50)
   }
   private func service(_ handler: @escaping (URLRequest) throws -> (Int, Data)) -> GeminiService {
     GeminiStub.handler = handler

@@ -735,7 +735,9 @@ final class MusicModel: NSObject, ObservableObject {
         var cursor = RadioCursor(endpoint: endpoint)
         let items = try cursor.accept(page, excluding: [])
         guard !items.isEmpty else { throw RadioError.unavailable }
-        let songs = (artistID == nil ? song.map { [$0] } ?? [] : []) + items.map(Song.init)
+        let songs = artistID == nil
+          ? Array(((song.map { [$0] } ?? []) + items.map(Song.init)).prefix(50))
+          : items.map(Song.init)
         let selected = song.flatMap { seed in songs.firstIndex { $0.id == seed.id } } ?? 0
         play(songs[selected], queue: songs, selectedIndex: selected, preserveRadio: true)
         radioCursor = cursor

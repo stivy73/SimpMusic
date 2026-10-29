@@ -302,10 +302,39 @@ final class GeminiSongRadioTests: XCTestCase {
     let excluded = [PlaybackTrack(id: "old", title: "Recent", artist: "Artist", artwork: nil)]
     let first = try await radio.songs(seed: seed, excluding: excluded, key: "fixture", model: "fixture", session: nil)
     let second = try await radio.songs(seed: seed, excluding: excluded + first.map(PlaybackTrack.init), key: "fixture", model: "fixture", session: nil)
-    XCTAssertEqual(first.map(\.title), ["Fresh 1"])
-    XCTAssertEqual(second.map(\.title), ["Fresh 2"])
+    XCTAssertEqual(first.map(\.title), ["Fresh 1", "Fresh 2", "Fresh 3"])
+    XCTAssertEqual(second.map(\.title), ["Fresh 4", "Fresh 5", "Fresh 6"])
     let count = await calls.count
-    XCTAssertEqual(count, 2)
+    XCTAssertEqual(count, 6)
+  }
+  func testRadioPayloadAccepts50SongsWithoutExpandingDefaultSuggestions() throws {
+    let songs = (0..<50).map { MusicSuggestion(title: "Song \($0)", artist: "Artist", reason: "") }
+    let data = try JSONSerialization.data(withJSONObject: ["songs": songs.map {
+      ["title": $0.title, "artist": $0.artist, "reason": $0.reason]
+    }])
+    XCTAssertEqual(try MusicSuggestion.decode(data, maximumCount: 50).count, 50)
+    XCTAssertThrowsError(try MusicSuggestion.decode(data))
+  }
+  func testRadioReplenishesRejectedCandidatesAndStopsAt50VerifiedSongs() async throws {
+    actor Generation {
+      var count = 0
+      func next() -> Int { count += 1; return count }
+    }
+    let generation = Generation()
+    let radio = GeminiSongRadio(generate: { _, _, _, _ in
+      let round = await generation.next()
+      return (0..<50).map { MusicSuggestion(title: "Song \(round)-\($0)", artist: "Artist", reason: "") }
+    }, search: { _, query in
+      if query.hasPrefix("Song 1-0 ") { return [] }
+      let title = String(query.dropLast(" Artist".count))
+      return [DiscoveryItem(kind: .song, mediaId: title, title: title, subtitle: "Artist", artwork: nil)]
+    })
+    let result = try await radio.songs(seed: seed, excluding: [], key: "fixture", model: "fixture", session: nil)
+    XCTAssertEqual(result.count, 50)
+    XCTAssertEqual(Set(result.map(\.mediaId)).count, 50)
+    XCTAssertEqual(result.last?.title, "Song 2-0")
+    let rounds = await generation.count
+    XCTAssertEqual(rounds, 2)
   }
   func testNoVerifiedNewSongFailsInsteadOfFallingBackToRepeatedYouTubeRadio() async {
     let radio = GeminiSongRadio(generate: { _, _, _, _ in
