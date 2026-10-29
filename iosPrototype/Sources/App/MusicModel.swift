@@ -300,6 +300,8 @@ final class MusicModel: NSObject, ObservableObject {
   private var radioRevision = UUID()
   private var radioCursor: RadioCursor?
   private var radioBuffer: [DiscoveryItem] = []
+  private var radioPublishedRevision: UUID?
+  private var radioPublishedIDs = Set<String>()
   private var aiRadioSeed: Song?
   private var artistRadio = false
   private var radioHistory = UserDefaults.standard.data(forKey: "geminiRadioHistory")
@@ -683,6 +685,8 @@ final class MusicModel: NSObject, ObservableObject {
     radioTask?.cancel()
     radioTask = nil
     radioRevision = UUID()
+    radioPublishedRevision = nil
+    radioPublishedIDs = []
     waitingForRadio = nil
     loadingRadio = false
     endRadioBackgroundTask()
@@ -722,11 +726,21 @@ final class MusicModel: NSObject, ObservableObject {
         }
         let page: RadioPage
         if let song, artistID == nil {
-          page = try await fetchGeminiRadio(seed: song)
+          page = try await fetchGeminiRadio(seed: song) { [weak self] items in
+            self?.publishGeminiRadio(items, seed: song, title: title, token: token, load: load, control: control)
+          }
         } else {
           page = try await fetchRadio(service: service, endpoint: endpoint, continuation: nil)
         }
         try Task.checkCancellation()
+        if radioPublishedRevision == token {
+          guard radioRevision == token else { return }
+          loadingRadio = false
+          radioTask = nil
+          endRadioBackgroundTask()
+          prepareRadio()
+          return
+        }
         guard radioRevision == token, player.loadID == load, player.controlRevision == control
         else {
           if radioRevision == token { invalidateRadioRequest() }
@@ -815,16 +829,64 @@ final class MusicModel: NSObject, ObservableObject {
     return try await service.page(endpoint: endpoint, continuation: continuation)
   }
 
-  private func fetchGeminiRadio(seed: Song) async throws -> RadioPage {
+  /// Append verified proposals without replacing manual queue changes or restarting playback.
+  private func publishGeminiRadio(_ items: [DiscoveryItem], seed: Song, title: String?,
+    token: UUID, load: UUID, control: UUID) {
+    guard radioRevision == token, !Task.isCancelled, !items.isEmpty else { return }
+    if radioPublishedRevision != token {
+      guard player.loadID == load, player.controlRevision == control else {
+        invalidateRadioRequest()
+        return
+      }
+      let initial = Array(items.prefix(49))
+      let songs = [seed] + initial.map(Song.init)
+      play(seed, queue: songs, selectedIndex: 0, preserveRadio: true,
+        reusePlayback: current?.id == seed.id)
+      radioPublishedRevision = token
+      radioPublishedIDs = Set(songs.map(\.id))
+      radioCursor = RadioCursor(endpoint: .song(seed.id))
+      artistRadio = false
+      aiRadioSeed = seed
+      radioBuffer = []
+      radioTitle = "Radio · " + (title ?? seed.title)
+      radioRetryAction = nil
+      loadingRadio = false
+      rememberRadio(initial)
+    } else {
+      var added: [DiscoveryItem] = []
+      for item in items {
+        // A removed item stays published so a later update cannot restore it.
+        guard radioPublishedIDs.count < 50,
+          radioPublishedIDs.insert(item.mediaId).inserted else { continue }
+        guard !queue.contains(where: { $0.id == item.mediaId }) else { continue }
+        queue.append(Song(item))
+        queueIDs.append(UUID())
+        sequence.append()
+        added.append(item)
+      }
+      if !added.isEmpty { rememberRadio(added) }
+    }
+  }
+
+  private func fetchGeminiRadio(seed: Song, onUpdate: GeminiSongRadio.Progress? = nil) async throws -> RadioPage {
     #if DEBUG
       if ProcessInfo.processInfo.arguments.contains("--test-radio") {
+        if ProcessInfo.processInfo.arguments.contains("--test-radio-progress"), let onUpdate {
+          let items = (1...50).map { DiscoveryItem(kind: .song, mediaId: "progress-\($0)",
+            title: "Radio progressiva \($0)", subtitle: "Artista", artwork: nil) }
+          await onUpdate(Array(items.prefix(6)))
+          try await Task.sleep(for: .seconds(4))
+          try Task.checkCancellation()
+          await onUpdate(items)
+          return RadioPage(items: items, endpoint: .song(seed.id), continuation: nil, automix: nil)
+        }
         return try await fetchRadio(service: MusicRadio(session: radioAccount),
           endpoint: .song(seed.id), continuation: nil)
       }
     #endif
     let items = try await GeminiSongRadio().songs(seed: seed,
       excluding: radioHistory.tracks + queue, key: apiKey, model: textModel,
-      session: radioAccount)
+      session: radioAccount, onUpdate: onUpdate)
     return RadioPage(items: items, endpoint: .song(seed.id), continuation: nil, automix: nil)
   }
   private func rememberRadio(_ items: [DiscoveryItem]) {

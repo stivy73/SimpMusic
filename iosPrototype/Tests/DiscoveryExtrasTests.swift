@@ -307,6 +307,56 @@ final class GeminiSongRadioTests: XCTestCase {
     let count = await calls.count
     XCTAssertEqual(count, 6)
   }
+  func testProgressiveRadioPublishesFirstEightBeforeRequestingRemainingSongs() async throws {
+    actor State {
+      var counts: [Int] = []
+      var updates: [Int] = []
+      func request(_ count: Int) -> (Int, Bool) {
+        counts.append(count)
+        return (counts.count, !updates.isEmpty)
+      }
+      func publish(_ count: Int) { updates.append(count) }
+    }
+    let state = State()
+    let radio = GeminiSongRadio(generateBatch: { _, _, _, excluded, count in
+      let (round, published) = await state.request(count)
+      if round > 1 {
+        XCTAssertTrue(published, "The initial queue must be available before filling it")
+        XCTAssertTrue(excluded.contains { $0.title == "Song 1-0" })
+      }
+      return (0..<count).map { MusicSuggestion(title: "Song \(round)-\($0)", artist: "Artist", reason: "") }
+    }, search: { _, query in
+      let title = String(query.dropLast(" Artist".count))
+      return [DiscoveryItem(kind: .song, mediaId: title, title: title, subtitle: "Artist", artwork: nil)]
+    })
+    let result = try await radio.songs(seed: seed, excluding: [], key: "fixture", model: "fixture", session: nil,
+      onUpdate: { items in await state.publish(items.count) })
+    XCTAssertEqual(result.count, 50)
+    let counts = await state.counts
+    let updates = await state.updates
+    XCTAssertEqual(counts, [8, 42])
+    XCTAssertEqual(updates.first, 6)
+    XCTAssertEqual(updates.last, 50)
+  }
+
+  func testBackgroundGenerationFailureKeepsAlreadyPublishedRadio() async throws {
+    actor State {
+      var calls = 0
+      func next() -> Int { calls += 1; return calls }
+    }
+    let state = State()
+    let radio = GeminiSongRadio(generateBatch: { _, _, _, _, count in
+      if await state.next() > 1 { throw RadioError.unavailable }
+      return (0..<count).map { MusicSuggestion(title: "Song \($0)", artist: "Artist", reason: "") }
+    }, search: { _, query in
+      let title = String(query.dropLast(" Artist".count))
+      return [DiscoveryItem(kind: .song, mediaId: title, title: title, subtitle: "Artist", artwork: nil)]
+    })
+    let result = try await radio.songs(seed: seed, excluding: [], key: "fixture", model: "fixture", session: nil,
+      onUpdate: { _ in })
+    XCTAssertEqual(result.count, 8)
+  }
+
   func testRadioPayloadAccepts50SongsWithoutExpandingDefaultSuggestions() throws {
     let songs = (0..<50).map { MusicSuggestion(title: "Song \($0)", artist: "Artist", reason: "") }
     let data = try JSONSerialization.data(withJSONObject: ["songs": songs.map {

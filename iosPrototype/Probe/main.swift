@@ -38,7 +38,7 @@ do {
     else { throw LibraryError.malformed }
     exit(0)
   }
-  if args.first == "--song-radio-key-file", args.count == 2 {
+  if ["--song-radio-key-file", "--song-radio-progress-key-file"].contains(args.first ?? ""), args.count == 2 {
     let source = try String(contentsOfFile: args[1], encoding: .utf8)
     let pattern = try NSRegularExpression(pattern: #"AIza[A-Za-z0-9_-]{30,80}"#)
     guard let match = pattern.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
@@ -46,10 +46,13 @@ do {
     let key = String(source[range])
     let seed = PlaybackTrack(id: "reference-only", title: "La preda", artist: "Franco Battiato", artwork: nil)
     var history = SongRadioHistory()
-    for request in 1...2 {
+    let progressive = args.first == "--song-radio-progress-key-file"
+    for request in 1...(progressive ? 1 : 2) {
       let start = Date()
       let songs = try await GeminiSongRadio().songs(seed: seed, excluding: history.tracks,
-        key: key, model: "gemini-3.8-flash", session: nil)
+        key: key, model: "gemini-3.8-flash", session: nil, onUpdate: progressive ? { @MainActor @Sendable songs in
+          print("Radio available: \(songs.count) verified songs after \(String(format: "%.2f", Date().timeIntervalSince(start))) seconds")
+        } : nil)
       print("Gemini radio request \(request): \(songs.count) verified new tracks, \(String(format: "%.2f", Date().timeIntervalSince(start))) seconds")
       let previous = Set(history.tracks.map { SongRadioHistory.identity(title: $0.title, artist: $0.artist) })
       guard songs.allSatisfy({ !previous.contains(SongRadioHistory.identity(title: $0.title, artist: $0.subtitle)) }) else {
@@ -57,7 +60,7 @@ do {
       }
       history.remember(songs.map(PlaybackTrack.init))
     }
-    print("Gemini radio: zero repeats across both real requests; no account credentials used")
+    print("Gemini radio: no repeats; no account credentials used")
     exit(0)
   }
   if args.first == "--music-suggestions-key-file", args.count == 2 {

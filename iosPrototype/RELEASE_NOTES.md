@@ -1,3 +1,22 @@
+# NoteNarrate iOS 0.13.2 (38)
+
+Radio progressiva: prima generazione di 8 proposte, pubblicazione dei primi risultati
+verificati e completamento in background fino a 50 brani complessivi con il riferimento.
+Nessuna motivazione non visualizzata richiesta a Gemini. I brani si aggiungono senza
+riavviare il player; nuove radio o cambi di account annullano il lavoro precedente.
+Le rimozioni manuali non vengono annullate dagli aggiornamenti successivi. In caso di
+fallimento della generazione successiva, i brani già disponibili restano utilizzabili.
+Restano deduplicazione e verifica di titolo/artista nel catalogo, senza ID inventati.
+
+Validation: 19 focused core/request tests and 2 simulator UI tests passed. The UI
+fixture proves an initial 7-song queue before delayed completion to 50, preserving
+the current track; the failure fixture preserves the original queue.
+A real anonymous catalogue/Gemini probe produced 4 playable new songs at 10.41 s,
+48 total at 61.13 s, without duplicate identities. Results/time vary by model/network;
+this is not a device or CarPlay vehicle measurement. The queue can remain shorter
+when no more verified candidates are found. SDK 27.2 / Xcode 27.2 RC (27B48), iOS 17.
+Release signing and TestFlight delivery pending.
+
 # NoteNarrate iOS 0.13.1 (37)
 
 La radio Gemini prepara una coda iniziale di 50 brani, incluso il brano di riferimento.

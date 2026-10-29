@@ -787,6 +787,26 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
+  func testProgressiveRadioStartsBeforeBackgroundQueueCompletion() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-remote-library", "--test-radio", "--test-radio-progress"]
+    app.launch()
+    openPlayerOptions(app)
+    let radio = app.buttons["song-option-radio"]
+    if !radio.isHittable { app.swipeUp() }
+    radio.tap()
+    app.buttons["show-queue"].tap()
+    XCTAssertTrue(app.buttons["queue-progress-1"].waitForExistence(timeout: 3))
+    XCTAssertEqual(app.buttons["queue-order-1"].value as? String, "Brano corrente")
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "7 brani")
+    let complete = NSPredicate(format: "label == '50 brani'")
+    expectation(for: complete, evaluatedWith: app.staticTexts["queue-count"])
+    waitForExpectations(timeout: 12)
+    XCTAssertEqual(app.buttons["queue-order-1"].value as? String, "Brano corrente")
+    XCTAssertFalse(app.buttons["queue-order-2"].exists)
+  }
+
+  @MainActor
   func testRadioFailureKeepsExistingQueue() {
     let app = XCUIApplication()
     app.launchArguments = [
