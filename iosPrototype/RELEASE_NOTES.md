@@ -15,7 +15,10 @@ A real anonymous catalogue/Gemini probe produced 4 playable new songs at 10.41 s
 48 total at 61.13 s, without duplicate identities. Results/time vary by model/network;
 this is not a device or CarPlay vehicle measurement. The queue can remain shorter
 when no more verified candidates are found. SDK 27.2 / Xcode 27.2 RC (27B48), iOS 17.
-Release signing and TestFlight delivery pending.
+Release archive and IPA signature/profile checks passed, including CarPlay and all
+extensions. Upload succeeded on 29 October 2026 at 22:48 Europe/Rome. Apple
+processing completed; build 38 is Testing in Stivy73 (2 testers: Gmail and company
+account). No physical Duo/vehicle test for this build. Source commit d00254bb.
 
 # NoteNarrate iOS 0.13.1 (37)
 
