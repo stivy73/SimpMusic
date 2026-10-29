@@ -10,7 +10,8 @@ Validation: 17 focused Gemini request/radio tests passed. Full core suite encoun
 local audio fixture errors and a PCM test process crash; not reported as passing.
 App-side MusicModel syntax check passed. Release archive and final IPA passed
 CheckCarPlayIPA.py: all bundles 0.13.1 (37), distribution signature, CarPlay,
-Siri, Widgets/App Group and Share extension verified. TestFlight upload in progress.
+Siri, Widgets/App Group and Share extension verified. Apple TestFlight upload succeeded on 29 October 2026 at 22:16 Europe/Rome;
+processing and group assignment are checked separately.
 SDK 27.2, Xcode 27.2 RC (27B48), minimum iOS 17 unchanged.
 
 # NoteNarrate iOS 0.13.0 (36)
