@@ -1,3 +1,16 @@
+# NoteNarrate iOS 0.13.1 (37)
+
+La radio Gemini prepara una coda iniziale di 50 brani, incluso il brano di riferimento.
+Richiede fino a 50 proposte per generazione, verifica i risultati reali su YouTube Music,
+esclude duplicati e ascolti recenti e tenta fino a tre generazioni per sostituire brani
+non disponibili. Le ricerche nel catalogo sono limitate a sei in parallelo. Se il
+catalogo non offre abbastanza risultati verificabili, la coda può essere più corta.
+
+Validation: 17 focused Gemini request/radio tests passed. Full core suite encountered
+local audio fixture errors and a PCM test process crash; not reported as passing.
+App-side MusicModel syntax check passed. Release archive/signing/upload pending.
+SDK 27.2, Xcode 27.2 RC (27B48), minimum iOS 17 unchanged.
+
 # NoteNarrate iOS 0.13.0 (36)
 
 - CarPlay album pages have in-list Next/Previous items; root tabs no longer rely
