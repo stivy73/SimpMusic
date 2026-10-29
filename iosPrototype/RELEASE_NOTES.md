@@ -8,7 +8,9 @@ catalogo non offre abbastanza risultati verificabili, la coda può essere più c
 
 Validation: 17 focused Gemini request/radio tests passed. Full core suite encountered
 local audio fixture errors and a PCM test process crash; not reported as passing.
-App-side MusicModel syntax check passed. Release archive/signing/upload pending.
+App-side MusicModel syntax check passed. Release archive and final IPA passed
+CheckCarPlayIPA.py: all bundles 0.13.1 (37), distribution signature, CarPlay,
+Siri, Widgets/App Group and Share extension verified. TestFlight upload in progress.
 SDK 27.2, Xcode 27.2 RC (27B48), minimum iOS 17 unchanged.
 
 # NoteNarrate iOS 0.13.0 (36)
