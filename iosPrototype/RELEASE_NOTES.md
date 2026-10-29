@@ -11,7 +11,9 @@ local audio fixture errors and a PCM test process crash; not reported as passing
 App-side MusicModel syntax check passed. Release archive and final IPA passed
 CheckCarPlayIPA.py: all bundles 0.13.1 (37), distribution signature, CarPlay,
 Siri, Widgets/App Group and Share extension verified. Apple TestFlight upload succeeded on 29 October 2026 at 22:16 Europe/Rome;
-processing and group assignment are checked separately.
+processing completed and the build is Testing in internal group Stivy73 (2 testers:
+stivy73@gmail.com and michele.stival@archetipi-digitali.it). Device installation
+and actual vehicle behavior remain unverified for this build.
 SDK 27.2, Xcode 27.2 RC (27B48), minimum iOS 17 unchanged.
 
 # NoteNarrate iOS 0.13.0 (36)
