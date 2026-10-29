@@ -13,8 +13,10 @@ public final class PCMStreamPlayer {
   private var playbackFailure: Error?
   private var lastPlaybackProgress = ContinuousClock.now
   private var observer: AudioConfigurationObservation?
+  private let gain: Float
 
-  public init() {
+  public init(gain: Float = 1) {
+    self.gain = gain.isFinite ? min(2, max(0, gain)) : 1
     engine.attach(node)
     engine.connect(node, to: engine.mainMixerNode, format: format)
     observer = AudioConfigurationObservation(
@@ -62,7 +64,8 @@ public final class PCMStreamPlayer {
       for index in 0..<frames {
         let low = UInt16(bytes[offset + index * 2])
         let high = UInt16(bytes[offset + index * 2 + 1]) << 8
-        samples[index] = Float(Int16(bitPattern: low | high)) / 32768
+        samples[index] = NarrationLevel.sample(Float(Int16(bitPattern: low | high)) / 32768,
+          gain: gain)
       }
       if !started {
         try engine.start()
@@ -117,6 +120,108 @@ public final class PCMStreamPlayer {
     engine.stop()
     pendingFrames = 0
     observer = nil
+  }
+}
+
+/// Gain applies at playback, so old cached PCM receives the same narration level.
+public enum NarrationLevel {
+  public static let gain: Float = 1.3
+  public static func sample(_ value: Float, gain: Float = gain) -> Float {
+    max(-1, min(1, value * gain))
+  }
+}
+
+/// Synthesizes native speech into the same amplified PCM output as Gemini.
+@MainActor public final class SystemSpeechStream {
+  private let synthesizer = AVSpeechSynthesizer()
+  private var continuation: AsyncThrowingStream<Data, Error>.Continuation?
+  private var timeout: Task<Void, Never>?
+  public init() {}
+  public func audio(_ text: String) -> AsyncThrowingStream<Data, Error> {
+    let converter = SpeechPCMConverter()
+    let utterance = AVSpeechUtterance(string: text)
+    utterance.voice = AVSpeechSynthesisVoice(language: "it-IT")
+    utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+    return AsyncThrowingStream { continuation in
+      self.continuation = continuation
+      continuation.onTermination = { [weak self] _ in
+        Task { @MainActor [weak self] in self?.stop() }
+      }
+      timeout = Task { [weak self] in
+        do { try await Task.sleep(for: .seconds(8)) } catch { return }
+        self?.continuation?.finish(throwing: SpeechStreamError.playbackStopped)
+      }
+      synthesizer.write(utterance) { [weak self] buffer in
+        guard let pcm = buffer as? AVAudioPCMBuffer else {
+          continuation.finish(throwing: PrototypeError.invalidResponse)
+          return
+        }
+        Task { @MainActor [weak self] in self?.timeout?.cancel() }
+        do {
+          if pcm.frameLength == 0 {
+            let tail = try converter.finish()
+            if !tail.isEmpty { continuation.yield(tail) }
+            continuation.finish()
+          } else {
+            let data = try converter.convert(pcm)
+            if !data.isEmpty { continuation.yield(data) }
+          }
+        } catch { continuation.finish(throwing: error) }
+      }
+    }
+  }
+  public func stop() {
+    timeout?.cancel()
+    timeout = nil
+    synthesizer.stopSpeaking(at: .immediate)
+    continuation?.finish(throwing: CancellationError())
+    continuation = nil
+  }
+}
+
+/// AVSpeech callbacks may arrive off the main actor. Only the converter is shared,
+/// serialized by this lock; mutable AVAudioBuffers never cross to an actor.
+public final class SpeechPCMConverter: @unchecked Sendable {
+  private let lock = NSLock()
+  private let target = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1)!
+  private var converter: AVAudioConverter?
+  public init() {}
+  public func convert(_ input: AVAudioPCMBuffer) throws -> Data {
+    lock.lock(); defer { lock.unlock() }
+    if converter?.inputFormat != input.format {
+      converter = AVAudioConverter(from: input.format, to: target)
+    }
+    guard let converter else { throw PrototypeError.invalidResponse }
+    let capacity = AVAudioFrameCount(ceil(Double(input.frameLength) * 24_000 / input.format.sampleRate)) + 256
+    return try render(converter, capacity: capacity, input: input)
+  }
+  public func finish() throws -> Data {
+    lock.lock(); defer { lock.unlock() }
+    guard let converter else { return Data() }
+    return try render(converter, capacity: 1024, input: nil)
+  }
+  private func render(_ converter: AVAudioConverter, capacity: AVAudioFrameCount,
+    input: AVAudioPCMBuffer?) throws -> Data {
+    guard let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else {
+      throw PrototypeError.invalidResponse
+    }
+    var sent = false
+    var error: NSError?
+    let status = converter.convert(to: output, error: &error) { _, flag in
+      if let input, !sent { sent = true; flag.pointee = .haveData; return input }
+      flag.pointee = input == nil ? .endOfStream : .noDataNow
+      return nil
+    }
+    if status == .error { throw error ?? PrototypeError.invalidResponse as NSError }
+    guard let samples = output.floatChannelData?[0] else { throw PrototypeError.invalidResponse }
+    var result = Data(capacity: Int(output.frameLength) * 2)
+    for index in 0..<Int(output.frameLength) {
+      let value = Int16(max(-32768, min(32767, samples[index] * 32768)))
+      let bits = UInt16(bitPattern: value)
+      result.append(UInt8(truncatingIfNeeded: bits))
+      result.append(UInt8(truncatingIfNeeded: bits >> 8))
+    }
+    return result
   }
 }
 

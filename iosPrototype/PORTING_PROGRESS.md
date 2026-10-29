@@ -1,3 +1,21 @@
+# iOS CarPlay pagination, unified likes, Gemini radio and narration gain — 0.13.0 (36)
+
+- In-list CarPlay album paging survives hidden root navigation controls.
+- One remote liked-song collection; legacy songs/all tracks from favourite albums
+  migrate with acknowledged, idempotent account-bound writes and persistent retries.
+- Fresh Gemini song radio/autoplay; verified catalogue results, persistent recent
+  exclusions, no repetitive fallback. Artist radio retains its existing service.
+- +30% narration PCM gain for streaming, cache and system speech, independent of music.
+- Xcode 27.2 RC (27B48), SDK 27.2, minimum iOS 17. 245 core tests passed;
+  two real radio requests: 5 + 4 verified tracks, zero overlap.
+- Nine unique Duo UI scenarios passed, including native CPListItem page handlers;
+  initial obsolete-menu test fixed and confirmed. Final Release archive and Apple
+  distribution IPA verified, including CarPlay/Siri and all extensions.
+  Internal TestFlight upload pending. Testers manual;
+  actual vehicle loudness/rendering and user-account migration are separate checks.
+
+---
+
 # iOS CarPlay covers, clock and source end — 0.12.4 (35)
 
 - Native square album rows replace portrait cards; aspect-fit image rendering

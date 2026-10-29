@@ -46,6 +46,26 @@ final class GeminiRequestTests: XCTestCase {
       seeds: [PlaybackTrack(id: "seed", title: "Reference", artist: "Artist", artwork: nil)])
     XCTAssertEqual(values.count, 1)
   }
+  func testRadioRequestIncludesExclusionsAndUniqueRequestIdentifierAsData() async throws {
+    let service = service { request in
+      let body = try self.body(request)
+      let contents = try XCTUnwrap(body["contents"] as? [[String: Any]])
+      let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
+      let text = try XCTUnwrap(parts.first?["text"] as? String)
+      let context = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+      XCTAssertEqual(context["richiesta_radio"] as? String, "fresh-request-id")
+      let excluded = try XCTUnwrap(context["esclusi"] as? [[String: String]])
+      XCTAssertEqual(excluded, [["title": "Already played", "artist": "Artist"]])
+      XCTAssertFalse(text.contains("private-video-id"))
+      let response = #"{"songs":[{"title":"New","artist":"Artist","reason":"Affinity"}]}"#
+      return (200, try JSONSerialization.data(withJSONObject: [
+        "candidates": [["content": ["parts": [["text": response]]]]]
+      ]))
+    }
+    _ = try await service.suggestMusic(key: "fixture", model: "gemini-3.8-flash", request: "Radio",
+      seeds: [], excluding: [PlaybackTrack(id: "private-video-id", title: "Already played", artist: "Artist", artwork: nil)],
+      requestID: "fresh-request-id")
+  }
   private func service(_ handler: @escaping (URLRequest) throws -> (Int, Data)) -> GeminiService {
     GeminiStub.handler = handler
     let configuration = URLSessionConfiguration.ephemeral

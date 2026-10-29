@@ -15,14 +15,23 @@
     private(set) var releaseNotifications: ReleaseNotifications!
     private var media: AppleMediaSession!
     private var radioSubscription: AnyCancellable?
+    private var favoritesMigration: Task<Void, Never>?
     private init() {
       music.player.accountProvider = { [weak library] in library?.session }
       media = AppleMediaSession(model: music)
       widgets = WidgetBridge(music: music, library: library)
       releaseNotifications = ReleaseNotifications(music: music, library: library)
-      radioSubscription = library.$session.sink { [weak music] session in
-        music?.configureRadio(session: session)
-        music?.searchResults.configure(session: session)
+      radioSubscription = library.$session.sink { [weak self] session in
+        guard let self else { return }
+        self.music.configureRadio(session: session)
+        self.music.searchResults.configure(session: session)
+        self.favoritesMigration?.cancel()
+        if let session {
+          self.favoritesMigration = Task { [weak self] in
+            guard let self else { return }
+            await self.music.migrateFavorites(to: self.library, account: session)
+          }
+        }
       }
       #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--diagnose-audio-timing") {

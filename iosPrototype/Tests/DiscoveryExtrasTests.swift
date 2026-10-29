@@ -273,3 +273,59 @@ import XCTest
     XCTAssertFalse(model.busy)
   }
 }
+
+
+final class GeminiSongRadioTests: XCTestCase {
+  private let seed = PlaybackTrack(id: "seed", title: "Seed", artist: "Original", artwork: nil)
+  func testFreshGenerationEveryTimeAndRejectsRecentAlternateIDsAndUnverifiedSongs() async throws {
+    actor Calls {
+      var count = 0
+      func next(_ excluded: [PlaybackTrack]) -> Int { count += 1; return count }
+    }
+    let calls = Calls()
+    let radio = GeminiSongRadio(generate: { _, _, _, excluded in
+      let number = await calls.next(excluded)
+      return [
+        MusicSuggestion(title: "Recent", artist: "Artist", reason: ""),
+        MusicSuggestion(title: "Fresh \(number)", artist: "Artist", reason: ""),
+        MusicSuggestion(title: "Fake", artist: "Wrong", reason: "")]
+    }, search: { _, query in
+      if query.hasPrefix("Recent") {
+        return [DiscoveryItem(kind: .song, mediaId: "alternate-video", title: "Recent (2024 Remastered)", subtitle: "Artist", artwork: nil)]
+      }
+      if query.hasPrefix("Fresh") {
+        let title = String(query.dropLast(" Artist".count))
+        return [DiscoveryItem(kind: .song, mediaId: title, title: title, subtitle: "Artist", artwork: nil)]
+      }
+      return []
+    })
+    let excluded = [PlaybackTrack(id: "old", title: "Recent", artist: "Artist", artwork: nil)]
+    let first = try await radio.songs(seed: seed, excluding: excluded, key: "fixture", model: "fixture", session: nil)
+    let second = try await radio.songs(seed: seed, excluding: excluded + first.map(PlaybackTrack.init), key: "fixture", model: "fixture", session: nil)
+    XCTAssertEqual(first.map(\.title), ["Fresh 1"])
+    XCTAssertEqual(second.map(\.title), ["Fresh 2"])
+    let count = await calls.count
+    XCTAssertEqual(count, 2)
+  }
+  func testNoVerifiedNewSongFailsInsteadOfFallingBackToRepeatedYouTubeRadio() async {
+    let radio = GeminiSongRadio(generate: { _, _, _, _ in
+      [MusicSuggestion(title: "Seed", artist: "Original", reason: "")]
+    }, search: { _, _ in
+      [DiscoveryItem(kind: .song, mediaId: "other-id", title: "Seed", subtitle: "Original", artwork: nil)]
+    })
+    do {
+      _ = try await radio.songs(seed: seed, excluding: [], key: "fixture", model: "fixture", session: nil)
+      XCTFail("A repeated seed was accepted")
+    } catch RadioError.unavailable {} catch { XCTFail("Unexpected error: \(error)") }
+  }
+  func testHistoryIsBoundedDeduplicatesAndSurvivesRelaunch() throws {
+    var history = SongRadioHistory()
+    history.remember((0..<240).map { PlaybackTrack(id: String($0), title: "Song \($0)", artist: "Artist", artwork: nil) })
+    history.remember([PlaybackTrack(id: "new-video", title: "Song 239 (2020 Remaster)", artist: "Artist", artwork: nil)])
+    let restored = try JSONDecoder().decode(SongRadioHistory.self, from: JSONEncoder().encode(history))
+    XCTAssertEqual(restored.tracks.count, 200)
+    XCTAssertEqual(restored.tracks.last?.id, "new-video")
+    XCTAssertFalse(restored.tracks.contains { $0.id == "239" })
+    XCTAssertEqual(SongRadioHistory.identity(title: "Recent (2024 Remastered)", artist: "ARTIST"), "recent|artist")
+  }
+}

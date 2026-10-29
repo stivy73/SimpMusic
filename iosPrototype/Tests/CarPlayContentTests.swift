@@ -4,6 +4,14 @@ import XCTest
 @testable import PrototypeCore
 
 final class CarPlayContentTests: XCTestCase {
+  func testAlbumPageCapacitySurvivesLastPartialPageAndBackNavigation() {
+    let last = CarPlayPage(count: 25, offset: 24, capacity: 12)
+    XCTAssertEqual(last.range, 24..<25)
+    let previous = CarPlayPage(count: 25, offset: last.previous!, capacity: last.capacity)
+    XCTAssertEqual(previous.range, 12..<24)
+    XCTAssertEqual(previous.next, 24)
+    XCTAssertEqual(previous.previous, 0)
+  }
   func testAlbumArtistContextDoesNotIncludeTypeAndYear() {
     XCTAssertEqual(AlbumTrackMetadata.artist(from: "Album • Eddie Vedder • 2007"), "Eddie Vedder")
     XCTAssertEqual(AlbumTrackMetadata.artist(from: "Bartek Dabrowski · 2020"), "Bartek Dabrowski")

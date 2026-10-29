@@ -263,38 +263,65 @@ public final class LibraryModel: ObservableObject {
   }
 
   public func toggleLike(_ item: DiscoveryItem) async {
-    guard item.kind == .song else { return }
+    _ = await updateLike(item, desired: nil)
+  }
+
+  /// Explicit, idempotent writes are required when importing old local favourites.
+  @discardableResult
+  public func setLike(_ item: DiscoveryItem, liked: Bool) async -> Bool {
+    await updateLike(item, desired: liked)
+  }
+
+  public func importLikes(
+    _ items: [DiscoveryItem], confirmed: @MainActor (DiscoveryItem) -> Void
+  ) async {
+    guard let account = session else { return }
+    var seen = Set<String>()
+    for item in items where item.kind == .song && seen.insert(item.mediaId).inserted {
+      guard !Task.isCancelled, session == account else { return }
+      let success = await setLike(item, liked: true)
+      guard !Task.isCancelled, session == account else { return }
+      if success { confirmed(item) } else { return }
+    }
+  }
+
+  private func updateLike(_ item: DiscoveryItem, desired: Bool?) async -> Bool {
+    guard item.kind == .song, !Task.isCancelled else { return false }
     guard let session else {
       showLogin = true
-      return
+      return false
     }
     let accountRevision = self.accountRevision
-    guard !pendingLikes.contains(item.mediaId) else { return }
+    guard !pendingLikes.contains(item.mediaId) else { return false }
     await load(.likes)
-    guard self.accountRevision == accountRevision else { return }
+    guard self.accountRevision == accountRevision, !Task.isCancelled else { return false }
     guard self.session == session, state(.likes).loaded, state(.likes).error == nil else {
       syncError = "Non posso verificare i Mi piace. Aggiorna la raccolta e riprova."
-      return
+      return false
     }
     // Recheck after the awaited fetch: two taps may both have been waiting for it.
-    guard !pendingLikes.contains(item.mediaId) else { return }
+    guard !pendingLikes.contains(item.mediaId) else { return false }
+    let liked = desired ?? !isLiked(item.mediaId)
+    if liked == isLiked(item.mediaId) { return true }
     pendingLikes.insert(item.mediaId)
-    let liked = !isLiked(item.mediaId)
     syncError = nil
     do {
       try await rateSong(session, item.mediaId, liked)
-      guard self.accountRevision == accountRevision else { return }
+      guard self.accountRevision == accountRevision else { return false }
       if liked {
         collections[.likes]?.items.insert(item, at: 0)
       } else {
         collections[.likes]?.items.removeAll { $0.mediaId == item.mediaId }
       }
     } catch {
-      guard self.accountRevision == accountRevision else { return }
+      guard self.accountRevision == accountRevision else { return false }
       syncError =
         "Mi piace non sincronizzato. Controlla la connessione o accedi nuovamente e riprova."
+      pendingLikes.remove(item.mediaId)
+      return false
     }
-    guard self.accountRevision == accountRevision else { return }
+    guard self.accountRevision == accountRevision else { return false }
     pendingLikes.remove(item.mediaId)
+    return true
   }
 }

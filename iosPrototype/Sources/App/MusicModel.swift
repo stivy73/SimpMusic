@@ -91,7 +91,7 @@ struct QueueRow: Identifiable {
 }
 
 @MainActor
-final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
+final class MusicModel: NSObject, ObservableObject {
   let player = PlaybackPlayer()
   let downloads = MusicDownloads()
   let listening = ListeningHistory(
@@ -227,12 +227,11 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   }
 
   private let lyricsResolver = LyricsResolver()
-  private let synthesizer = AVSpeechSynthesizer()
+  private var systemSpeech: SystemSpeechStream?
+  @Published private(set) var migratingFavorites = false
   private var streamingAudio: PCMStreamPlayer?
-  private var activeUtterance: AVSpeechUtterance?
   private var explanationTask: Task<Void, Never>?
   private var preparationTimeout: Task<Void, Never>?
-  private var voiceStartTimeout: Task<Void, Never>?
   var meaningRequestID: UUID { generation }
   @Published var narrationDiagnostic =
     UserDefaults.standard.string(forKey: "lastNarrationDiagnostic") ?? "Nessuna richiesta"
@@ -301,6 +300,10 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   private var radioRevision = UUID()
   private var radioCursor: RadioCursor?
   private var radioBuffer: [DiscoveryItem] = []
+  private var aiRadioSeed: Song?
+  private var artistRadio = false
+  private var radioHistory = UserDefaults.standard.data(forKey: "geminiRadioHistory")
+    .flatMap { try? JSONDecoder().decode(SongRadioHistory.self, from: $0) } ?? SongRadioHistory()
   private var waitingForRadio: (load: UUID, control: UUID)?
 
   @Published var lyrics = ""
@@ -382,14 +385,10 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
 
   override init() {
     super.init()
-    synthesizer.delegate = self
     player.localFileProvider = { [weak downloads] id in downloads?.library.url(for: id) }
     downloadSubscription = downloads.objectWillChange.sink { [weak self] _ in
       self?.objectWillChange.send()
     }
-    #if os(iOS)
-      synthesizer.usesApplicationAudioSession = true
-    #endif
     player.onEnded = { [weak self] in self?.nextSong(automatic: true) }
     player.beforePlay = { [weak self] in !(self?.checkSleepTimer() ?? false) }
     if sessionEnabled, let saved = sessionStore.load() {
@@ -436,6 +435,11 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       favoriteAlbums = stored
     }
     #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-favorites-migration") {
+        UserDefaults.standard.removeObject(forKey: "favoriteMigrationAccount")
+        favorites = [Song(id: "legacy-song", title: "Vecchio preferito", artist: "Prova", artwork: nil)]
+        favoriteAlbums = [LibraryAlbum(id: "MPRElegacy", title: "Vecchio album", artist: "Prova", artwork: nil)]
+      }
       if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
         autoplayEnabled = false
         Task { await installLocalPlaybackFixture() }
@@ -686,6 +690,8 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
   private func resetRadio() {
     invalidateRadioRequest()
     radioCursor = nil
+    aiRadioSeed = nil
+    artistRadio = false
     radioBuffer = []
     radioTitle = nil
     radioError = nil
@@ -714,7 +720,12 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         } else {
           endpoint = .song(song!.id)
         }
-        let page = try await fetchRadio(service: service, endpoint: endpoint, continuation: nil)
+        let page: RadioPage
+        if let song, artistID == nil {
+          page = try await fetchGeminiRadio(seed: song)
+        } else {
+          page = try await fetchRadio(service: service, endpoint: endpoint, continuation: nil)
+        }
         try Task.checkCancellation()
         guard radioRevision == token, player.loadID == load, player.controlRevision == control
         else {
@@ -724,10 +735,13 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         var cursor = RadioCursor(endpoint: endpoint)
         let items = try cursor.accept(page, excluding: [])
         guard !items.isEmpty else { throw RadioError.unavailable }
-        let songs = items.map(Song.init)
+        let songs = (artistID == nil ? song.map { [$0] } ?? [] : []) + items.map(Song.init)
         let selected = song.flatMap { seed in songs.firstIndex { $0.id == seed.id } } ?? 0
         play(songs[selected], queue: songs, selectedIndex: selected, preserveRadio: true)
         radioCursor = cursor
+        artistRadio = artistID != nil
+        aiRadioSeed = artistID == nil ? song : nil
+        if aiRadioSeed != nil { rememberRadio(items) }
         radioBuffer = []
         radioTitle = "Radio · " + (title ?? song?.title ?? "Artista")
         radioRetryAction = nil
@@ -799,6 +813,25 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     return try await service.page(endpoint: endpoint, continuation: continuation)
   }
 
+  private func fetchGeminiRadio(seed: Song) async throws -> RadioPage {
+    #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--test-radio") {
+        return try await fetchRadio(service: MusicRadio(session: radioAccount),
+          endpoint: .song(seed.id), continuation: nil)
+      }
+    #endif
+    let items = try await GeminiSongRadio().songs(seed: seed,
+      excluding: radioHistory.tracks + queue, key: apiKey, model: textModel,
+      session: radioAccount)
+    return RadioPage(items: items, endpoint: .song(seed.id), continuation: nil, automix: nil)
+  }
+  private func rememberRadio(_ items: [DiscoveryItem]) {
+    radioHistory.remember(items.map(Song.init))
+    if let data = try? JSONEncoder().encode(radioHistory) {
+      UserDefaults.standard.set(data, forKey: "geminiRadioHistory")
+    }
+  }
+
   /// Prefetch only at the tail. Suggestions stay buffered until the manual queue is consumed.
   private func prepareRadio() {
     guard autoplayEnabled, let current, sequence.next(repeatMode: .off) == nil,
@@ -808,6 +841,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     let service = MusicRadio(session: radioAccount)
     var cursor = radioCursor ?? RadioCursor(endpoint: .song(current.id))
     if cursor.exhausted { cursor = RadioCursor(endpoint: .song(current.id)) }
+    let aiSeed = artistRadio ? nil : (aiRadioSeed ?? current)
     let excluded = Set(queue.map(\.id))
     loadingRadio = true
     radioError = nil
@@ -817,8 +851,12 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         var items: [DiscoveryItem] = []
         // Skip repeated/removed/seed tracks without looping indefinitely on duplicate-only pages.
         for _ in 0..<4 {
-          let page = try await fetchRadio(
-            service: service, endpoint: cursor.endpoint, continuation: cursor.continuation)
+          let page: RadioPage
+          if let aiSeed { page = try await fetchGeminiRadio(seed: aiSeed) }
+          else {
+            page = try await fetchRadio(
+              service: service, endpoint: cursor.endpoint, continuation: cursor.continuation)
+          }
           try Task.checkCancellation()
           items = try cursor.accept(page, excluding: excluded)
           if !items.isEmpty || cursor.exhausted { break }
@@ -827,6 +865,7 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         guard !items.isEmpty else { throw RadioError.unavailable }
         radioCursor = cursor
         radioBuffer = items
+        if aiSeed != nil { rememberRadio(items) }
         loadingRadio = false
         radioTask = nil
         endRadioBackgroundTask()
@@ -991,27 +1030,60 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     showPlayer = false
   }
 
-  func toggleFavorite(_ song: Song) {
-    if favorites.contains(where: { $0.id == song.id }) {
-      favorites.removeAll { $0.id == song.id }
-    } else {
-      favorites.append(song)
+  /// Old local selections are only a durable import queue, never a second favourite collection.
+  func migrateFavorites(to library: LibraryModel, account: YouTubeSession) async {
+    guard !migratingFavorites, library.session == account, !favorites.isEmpty || !favoriteAlbums.isEmpty else { return }
+    migratingFavorites = true
+    defer { migratingFavorites = false }
+    let defaults = UserDefaults.standard
+    let ownerKey = "favoriteMigrationAccount"
+    if let owner = defaults.string(forKey: ownerKey), owner != account.identity {
+      library.syncError = "I vecchi preferiti attendono la sincronizzazione con l’account YouTube Music usato per iniziare l’importazione."
+      return
     }
-    if let data = try? JSONEncoder().encode(favorites) {
-      UserDefaults.standard.set(data, forKey: "favorites")
+    defaults.set(account.identity, forKey: ownerKey)
+    await library.importLikes(favorites.map(\.discoveryItem)) { [weak self] item in
+      guard let self else { return }
+      self.favorites.removeAll { $0.id == item.mediaId }
+      self.persistLegacyFavorites()
+    }
+    guard !Task.isCancelled, library.session == account, favorites.isEmpty else { return }
+    for album in favoriteAlbums {
+      do {
+        let detail: AlbumDetail
+        #if DEBUG
+          if ProcessInfo.processInfo.arguments.contains("--test-favorites-migration") {
+            detail = AlbumDetail(album: album, songs: (1...3).map {
+              Song(id: "legacy-album-\($0)", title: "Traccia importata \($0)", artist: "Prova", artwork: nil)
+            })
+          } else { detail = try await AlbumDetail.load(album: album, session: account) }
+        #else
+          detail = try await AlbumDetail.load(album: album, session: account)
+        #endif
+        try Task.checkCancellation()
+        guard library.session == account else { return }
+        guard !detail.songs.isEmpty else { throw LibraryError.malformed }
+        await library.importLikes(detail.songs.map(\.discoveryItem)) { _ in }
+        guard !Task.isCancelled, library.session == account,
+          detail.songs.allSatisfy({ library.isLiked($0.id) }) else { return }
+        favoriteAlbums.removeAll { $0.id == album.id }
+        persistLegacyFavorites()
+      } catch is CancellationError { return } catch {
+        library.syncError = "Importazione dei vecchi album preferiti non completata. Le selezioni sono conservate; riprova dalla Libreria."
+        return
+      }
     }
   }
 
-  func toggleFavoriteAlbum(_ album: LibraryAlbum) {
-    if favoriteAlbums.contains(where: { $0.id == album.id }) {
-      favoriteAlbums.removeAll { $0.id == album.id }
-    } else {
-      favoriteAlbums.append(album)
+  private func persistLegacyFavorites() {
+    if let data = try? JSONEncoder().encode(favorites) {
+      UserDefaults.standard.set(data, forKey: "favorites")
     }
     if let data = try? JSONEncoder().encode(favoriteAlbums) {
       UserDefaults.standard.set(data, forKey: "favoriteAlbums")
     }
   }
+
 
   @discardableResult
   func explain(force: Bool = false, presentOnPhone: Bool = true) -> Bool {
@@ -1147,13 +1219,13 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     narrationDiagnostic =
       cloudVoice ? "Gemini TTS: attendo audio" : "Voce di sistema: attendo avvio"
     if cloudVoice {
-      let output = PCMStreamPlayer()
+      let output = PCMStreamPlayer(gain: NarrationLevel.gain)
       streamingAudio = output
       let cache = SpeechAudioCache.shared
       let cacheKey = SpeechAudioCache.key(text: text, voice: voice, style: style)
       let started: @MainActor @Sendable () -> Void = { [weak self] in
         guard let self, self.generation == token else { return }
-        self.narrationDiagnostic = "Gemini TTS: lettura avviata"
+        self.narrationDiagnostic = "Gemini TTS: lettura avviata (+30%)"
         self.reading = true
         self.busyMeaning = false
         self.endMeaningPreparation()
@@ -1207,23 +1279,35 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       resumeMusic()
       return
     } else {
-      let utterance = AVSpeechUtterance(string: text)
-      utterance.voice = AVSpeechSynthesisVoice(language: "it-IT")
-      utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-      activeUtterance = utterance
-      try pauseForNarration(token: token)
-      synthesizer.speak(utterance)
-      voiceStartTimeout?.cancel()
-      voiceStartTimeout = Task { [weak self] in
-        do { try await Task.sleep(for: .seconds(8)) } catch { return }
-        guard let self, self.generation == token, self.activeUtterance === utterance,
-          !self.reading
-        else { return }
-        self.stopMeaning(resume: true)
-        self.meaningError =
-          "La voce di sistema non è partita. Riprova o scegli Gemini TTS nelle impostazioni."
-        self.narrationDiagnostic = "Voce di sistema: nessun avvio entro 8 secondi"
+      let output = PCMStreamPlayer(gain: NarrationLevel.gain)
+      let speech = SystemSpeechStream()
+      streamingAudio = output
+      systemSpeech = speech
+      defer { speech.stop(); output.stop() }
+      for try await chunk in speech.audio(text) {
+        try pauseForNarration(token: token)
+        try await output.enqueue(chunk) { [weak self] in
+          guard let self, self.generation == token else { return }
+          self.reading = true
+          self.busyMeaning = false
+          self.endMeaningPreparation()
+          self.narrationDiagnostic = "Voce di sistema: lettura avviata (+30%)"
+          #if DEBUG
+            self.narrationStarts += 1
+          #endif
+        }
       }
+      try await output.finish()
+      guard generation == token else { return }
+      systemSpeech = nil
+      streamingAudio = nil
+      reading = false
+      busyMeaning = false
+      narrationDiagnostic = "Voce di sistema: lettura completata"
+      #if DEBUG
+        narrationFinishes += 1
+      #endif
+      resumeMusic()
     }
   }
 
@@ -1239,13 +1323,11 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     generation = UUID()
     explanationTask?.cancel()
     explanationTask = nil
-    voiceStartTimeout?.cancel()
-    voiceStartTimeout = nil
     endMeaningPreparation()
+    systemSpeech?.stop()
+    systemSpeech = nil
     streamingAudio?.stop()
     streamingAudio = nil
-    activeUtterance = nil
-    synthesizer.stopSpeaking(at: .immediate)
     reading = false
     busyMeaning = false
     if resume { resumeMusic() } else { resumeSongID = nil }
@@ -1291,57 +1373,6 @@ final class MusicModel: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
       UIApplication.shared.endBackgroundTask(meaningBackgroundTask)
       meaningBackgroundTask = .invalid
     #endif
-  }
-
-  nonisolated func speechSynthesizer(
-    _ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance
-  ) {
-    let startedID = ObjectIdentifier(utterance)
-    Task { @MainActor [weak self] in
-      guard let self, self.activeUtterance.map(ObjectIdentifier.init) == startedID else { return }
-      self.voiceStartTimeout?.cancel()
-      self.voiceStartTimeout = nil
-      self.reading = true
-      self.busyMeaning = false
-      self.narrationDiagnostic = "Voce di sistema: lettura avviata"
-      self.endMeaningPreparation()
-      #if DEBUG
-        self.narrationStarts += 1
-      #endif
-    }
-  }
-
-  nonisolated func speechSynthesizer(
-    _ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance
-  ) {
-    let finishedID = ObjectIdentifier(utterance)
-    Task { @MainActor [weak self] in
-      guard let self, self.reading, self.activeUtterance.map(ObjectIdentifier.init) == finishedID
-      else { return }
-      self.activeUtterance = nil
-      self.narrationDiagnostic = "Voce di sistema: lettura completata"
-      self.reading = false
-      #if DEBUG
-        self.narrationFinishes += 1
-      #endif
-      self.resumeMusic()
-    }
-  }
-
-  nonisolated func speechSynthesizer(
-    _ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance
-  ) {
-    let cancelledID = ObjectIdentifier(utterance)
-    Task { @MainActor [weak self] in
-      guard let self, self.activeUtterance.map(ObjectIdentifier.init) == cancelledID else { return }
-      self.activeUtterance = nil
-      self.reading = false
-      self.busyMeaning = false
-      self.endMeaningPreparation()
-      self.meaningError = "Lettura interrotta dal sistema. Riprova."
-      self.narrationDiagnostic = "Voce di sistema: lettura annullata dal sistema"
-      self.resumeMusic()
-    }
   }
 
 }

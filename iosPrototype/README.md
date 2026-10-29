@@ -1,7 +1,45 @@
-# NoteNarrate iOS — 0.12.4 (35)
+# NoteNarrate iOS — 0.13.0 (36)
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
+
+**0.13.0 (36), CarPlay, Mi piace, radio e voce:** le pagine di album hanno
+comandi **Altri album** e **Pagina precedente** dentro la lista, utilizzabili
+anche quando la scheda principale nasconde i pulsanti della barra di navigazione.
+Le immagini restano quadrate; le tracce sono sempre una lista numerata.
+
+Tutti i cuori dei brani operano sui **Mi piace YouTube Music** dell’account
+confermato. Scompaiono le raccolte separate Preferiti locali/NoteNarrate e Album
+preferiti. I vecchi brani vengono importati automaticamente; per gli album,
+come richiesto, vengono aggiunti i like a tutte le tracce. Le selezioni locali
+sono conservate finché il server non conferma ogni importazione. Un errore o
+un cambio account interrompe l’importazione; la Libreria consente di riprovarla.
+Il primo account di importazione resta associato ai dati pendenti. Il cuore album
+aggiunge i like a tutte le tracce; la rimozione resta disponibile per singolo brano.
+
+La radio del brano e i suoi nuovi blocchi di riproduzione automatica richiedono
+Gemini a ogni generazione. L’IA propone titoli/artisti, verificati nel catalogo;
+nessun ID inventato entra nella coda. Vengono esclusi brano iniziale, coda corrente
+e fino a 200 proposte recenti persistenti, anche con video ID diversi/remaster.
+Un errore non sostituisce la coda con suggerimenti ripetuti YouTube. La radio
+esplicita dell’artista conserva il servizio YouTube Music esistente.
+
+La voce passa per un’unica uscita PCM con **guadagno 1,3 (+30%)**, limitato al
+range dei campioni. Vale per Gemini streaming, cache già esistente e voce nativa;
+non modifica volume musicale o volume di sistema. La sintesi nativa produce
+buffer audio, convertiti allo stesso formato PCM prima della riproduzione.
+
+Toolchain: **Xcode 27.2 RC (27B48), SDK 27.2**; minimo iOS 17 conservato.
+**245 test core superati.** Prova radio reale su due richieste consecutive:
+5 e 4 canzoni verificate, zero ripetizioni, rispettivamente 14,62 e 19,68 secondi.
+Superati 9 scenari UI sul simulatore Duo: migrazione brani/album, Mi piace,
+menu/coda, like di tutte le tracce album, pagine CarPlay reali e ritorno indietro,
+radio riuscita/fallita e voce cloud/nativa con ripresa. Il test radio che cercava
+il vecchio menu è stato aggiornato e confermato nel run finale (4/4).
+Archivio finale e IPA verificati per firma Apple, CarPlay, Siri, Widget e Condividi.
+IPA: `deliveries/NoteNarrate-iOS-0.13.0-build36-CarPlayLikesRadio.ipa`;
+SHA256 `259134aa2998bdaa8bf1a19cf56f718b4038d4d14bc5e32477ebcc7b0b8e83af`.
+La consegna TestFlight è in preparazione; il collaudo finale in auto resta separato. [Dettagli e prove](CARPLAY.md).
 
 **0.12.4 (35), copertine e tempi CarPlay:** il catalogo usa gli elementi nativi
 per copertine quadrate al posto delle schede verticali, sfruttando la larghezza

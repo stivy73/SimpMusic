@@ -167,10 +167,7 @@ struct LibrarySongCollection: View {
           QueueActions(song: song)
           YouTubeLikeButton(song: song)
           Button("Aggiungi a playlist") { playlistSong = song }
-          Button(
-            model.favorites.contains(where: { $0.id == song.id })
-              ? "Rimuovi dai preferiti locali" : "Salva nei preferiti locali"
-          ) { model.toggleFavorite(song) }
+
         }
     }.sheet(item: $playlistSong) { AddToPlaylistSheet(song: $0) }
   }

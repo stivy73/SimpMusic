@@ -44,6 +44,9 @@ struct RootView: View {
   @Environment(\.layoutDirection) private var layoutDirection
   @GestureState private var playerBackDrag: CGFloat = 0
   @State private var tab = 0
+  #if DEBUG
+    @State private var qaAlbumPaging = "pending"
+  #endif
   @State private var homeNavigationID = UUID()
   @State private var testShareSheet = false
   var body: some View {
@@ -147,6 +150,12 @@ struct RootView: View {
               #endif
             }
           }
+          #if os(iOS)
+            if ProcessInfo.processInfo.arguments.contains("--test-carplay-album-pages") {
+              Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("carplay-album-page-qa")
+                .task { qaAlbumPaging = CarPlayScene().verifyAlbumPageHandlers() }
+            }
+          #endif
           if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {
             VStack(alignment: .leading) {
               Text(model.current?.id ?? "preparing").accessibilityIdentifier("test-current-id")
@@ -355,14 +364,7 @@ struct SongList: View {
           QueueActions(song: song)
           YouTubeLikeButton(song: song)
           Button("Aggiungi a playlist") { playlistSong = song }
-          Button {
-            model.toggleFavorite(song)
-          } label: {
-            Label(
-              model.favorites.contains(where: { $0.id == song.id })
-                ? "Rimuovi dai preferiti locali" : "Salva nei preferiti locali",
-              systemImage: "heart")
-          }
+
         }
     }.listStyle(.plain)
       .sheet(item: $playlistSong) { song in AddToPlaylistSheet(song: song) }
@@ -374,7 +376,7 @@ struct RadioFeedback: ViewModifier {
   @EnvironmentObject var model: MusicModel
   func body(content: Content) -> some View {
     content.alert(
-      "Radio YouTube Music",
+      "Radio musicale",
       isPresented: Binding(
         get: { model.radioActionError != nil }, set: { if !$0 { model.radioActionError = nil } }
       )
@@ -489,11 +491,12 @@ struct QueueScreen: View {
   }
 }
 
-/// Account likes and local favorites are independent. No optimistic success on network failure.
+/// Every favourite action uses the confirmed YouTube Music account. No optimistic success.
 struct YouTubeLikeButton: View {
   @EnvironmentObject var library: LibraryModel
   let song: Song
   var iconOnly = false
+  var identifier: String? = nil
   private var pending: Bool { library.pendingLikes.contains(song.id) }
   private var label: String {
     if library.session == nil { return "Accedi per mettere Mi piace" }
@@ -508,13 +511,13 @@ struct YouTubeLikeButton: View {
       if pending {
         ProgressView().accessibilityLabel("Sincronizzazione Mi piace")
       } else if iconOnly {
-        Image(systemName: library.isLiked(song.id) ? "hand.thumbsup.fill" : "hand.thumbsup")
+        Image(systemName: library.isLiked(song.id) ? "heart.fill" : "heart")
           .frame(width: 44, height: 44)
       } else {
-        Label(label, systemImage: library.isLiked(song.id) ? "hand.thumbsup.fill" : "hand.thumbsup")
+        Label(label, systemImage: library.isLiked(song.id) ? "heart.fill" : "heart")
       }
     }.disabled(pending || library.state(.likes).loading)
-      .accessibilityLabel(label).accessibilityIdentifier("youtube-like-" + song.id)
+      .accessibilityLabel(label).accessibilityIdentifier(identifier ?? "youtube-like-" + song.id)
       .accessibilityValue(
         library.state(.likes).loaded
           ? (library.isLiked(song.id) ? "Attivo" : "Non attivo") : "Da verificare")

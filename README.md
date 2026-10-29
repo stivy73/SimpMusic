@@ -21,7 +21,12 @@ La generazione del significato usa il provider IA selezionato e richiede la rela
 ## NoteNarrate per iOS
 
 Il prototipo SwiftUI [NoteNarrate iOS](iosPrototype/README.md) prosegue separatamente
-rispetto ad Android. La **0.12.4 (35)** sostituisce le schede verticali CarPlay
+rispetto ad Android. La **0.13.0 (36)** aggiunge la navigazione tra pagine album
+dentro le liste CarPlay, unifica i preferiti nei like YouTube Music (importando
+anche tutte le tracce degli album preferiti precedenti), genera la radio del brano
+con Gemini a ogni richiesta ed esclude proposte recenti verificate nel catalogo.
+La narrazione, anche dalla cache o dalla voce di sistema, ha guadagno audio +30%.
+La **0.12.4 (35)** sostituisce le schede verticali CarPlay
 con copertine quadrate proporzionate, ripristina un unico orologio musicale dopo
 la narrazione e limita la riproduzione alla durata della sorgente quando il
 contenitore audio dichiara una coda aggiuntiva. Superati 236 test core e due

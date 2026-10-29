@@ -253,15 +253,7 @@
           in: albums
         ) { [weak self] in self?.app.library.refresh() }
       }
-      var preferred = [
-        Tile(
-          id: "local-favorites", title: "Preferiti NoteNarrate",
-          artwork: app.music.favorites.first?.artwork, symbol: "heart.fill"
-        ) { [weak self] in
-          guard let self else { return }
-          self.displaySongs(self.app.music.favorites, title: "Preferiti NoteNarrate")
-        }
-      ]
+      var preferred: [Tile] = []
       if app.library.session != nil {
         preferred.insert(
           Tile(
@@ -402,7 +394,40 @@
         })
     }
 
-    private func sections(_ state: ContentState) -> [CPListSection] {
+    #if DEBUG
+      /// Exercises real CPListItem page handlers without needing a connected car display.
+      func verifyAlbumPageHandlers() -> String {
+        let entries = (0..<25).map { n in
+          Tile(id: "qa-\(n)", title: "Album \(n)", artwork: URL(string: "file:///qa-cover")) {}
+        }
+        setTiles(entries, in: albums)
+        var visited: [Int] = []
+        var pages = 0
+        var completed = true
+        while let state = grids.object(forKey: albums), pages < 10 {
+          pages += 1
+          visited += state.page.range
+          guard state.page.next != nil else { break }
+          guard let next = albums.sections.flatMap(\.items).compactMap({ $0 as? CPListItem })
+            .first(where: { $0.text == "Altri album" }), let handler = next.handler else {
+            return "missing-footer"
+          }
+          var done = false
+          handler(next) { done = true }
+          completed = completed && done
+        }
+        guard let back = albums.sections.flatMap(\.items).compactMap({ $0 as? CPListItem })
+          .first(where: { $0.text == "Pagina precedente" }), let handler = back.handler else {
+          return "missing-back"
+        }
+        handler(back) {}
+        let previous = grids.object(forKey: albums)?.page.range == 12..<24
+        return "\(visited == Array(0..<25)):\(pages):\(previous):\(completed)"
+      }
+    #endif
+
+    private func sections(_ state: ContentState, in grid: CPListTemplate,
+      leadingButtons: [CPBarButton]) -> [CPListSection] {
       var rows: [CPListTemplateItem] = []
       var index = 0
       let count = state.page.range.count
@@ -473,6 +498,26 @@
         }
         rows.append(row)
       }
+      // Root tabs hide navigation-bar page controls. Keep navigation in the list
+      // itself so the twelfth album can never become an inaccessible dead end.
+      for (offset, title, symbol) in [
+        (state.page.previous, "Pagina precedente", "chevron.up"),
+        (state.page.next, grid === albums ? "Altri album" : "Altri elementi", "chevron.down")
+      ] {
+        guard let offset else { continue }
+        let destination = CarPlayPage(count: state.tiles.count, offset: offset,
+          capacity: state.page.capacity)
+        let row = CPListItem(text: title,
+          detailText: "\(destination.range.lowerBound + 1)–\(destination.range.upperBound) di \(state.tiles.count)",
+          image: UIImage(systemName: symbol))
+        row.handler = { [weak self, weak grid, weak state] _, done in
+          done()
+          guard let self, let grid, let state else { return }
+          self.setTiles(state.tiles, in: grid, offset: offset, layout: state.layout,
+            leadingButtons: leadingButtons, refresh: state.refresh)
+        }
+        rows.append(row)
+      }
       return [CPListSection(items: rows)]
     }
 
@@ -496,7 +541,7 @@
       for load in previous?.loads ?? [] { load.cancel() }
       let state = ContentState(tiles: tiles, page: page, layout: layout, refresh: refresh)
       grids.setObject(state, forKey: grid)
-      grid.updateSections(sections(state))
+      grid.updateSections(sections(state, in: grid, leadingButtons: leadingButtons))
       grid.leadingNavigationBarButtons =
         refresh.map { action in
           [CPBarButton(image: UIImage(systemName: "arrow.clockwise")!) { _ in action() }]

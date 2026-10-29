@@ -14,7 +14,8 @@ struct AlbumView: View {
   @State private var optionsSong: Song?
   private var shown: LibraryAlbum { detail?.album ?? album }
   private var songs: [Song] { detail?.songs ?? [] }
-  private var liked: Bool { model.favoriteAlbums.contains { $0.id == album.id } }
+  @State private var likingAlbum = false
+  private var liked: Bool { !songs.isEmpty && songs.allSatisfy { library.isLiked($0.id) } }
   private var playingAlbum: Bool {
     model.current?.albumBrowseID == album.id && model.player.playing
   }
@@ -101,14 +102,21 @@ struct AlbumView: View {
         }.padding(.bottom, 32).frame(maxWidth: 1100).frame(maxWidth: .infinity)
       }.background(.black).accessibilityIdentifier("album-scroll")
     }.navigationTitle(shown.title).inlineNavigationTitle()
+      .task(id: library.session) { await library.load(.likes) }
       .toolbar {
         ToolbarItem(placement: .platformTrailing) {
           Button {
-            model.toggleFavoriteAlbum(shown)
+            guard library.session != nil else { library.showLogin = true; return }
+            likingAlbum = true
+            Task {
+              await library.importLikes(songs.map(\.discoveryItem)) { _ in }
+              likingAlbum = false
+            }
           } label: {
             Image(systemName: liked ? "heart.fill" : "heart").foregroundStyle(
               liked ? .red : .primary)
-          }.accessibilityLabel(liked ? "Rimuovi album dai preferiti" : "Salva album nei preferiti")
+          }.disabled(likingAlbum || songs.isEmpty || liked)
+            .accessibilityLabel(liked ? "Tutte le tracce hanno Mi piace su YouTube Music" : "Mi piace a tutte le tracce su YouTube Music")
             .accessibilityIdentifier("album-favorite").accessibilityValue(
               liked ? "Attivo" : "Non attivo")
         }

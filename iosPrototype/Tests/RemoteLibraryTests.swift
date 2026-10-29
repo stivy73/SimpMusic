@@ -19,6 +19,52 @@ final class RemoteLibraryTests: XCTestCase {
       session: account, save: { _ in }, fetch: { _ in [] }, fetchCollection: fetch, rateSong: rate)
   }
 
+  func testImportLikesIsIdempotentAndConfirmsOnlyAcknowledgedItems() async {
+    actor Writes {
+      var ids: [String] = []
+      func write(_ id: String, liked: Bool) throws {
+        if id == "failure" { throw LibraryError.http(403) }
+        if liked { ids.append(id) }
+      }
+    }
+    let writes = Writes()
+    let library = model(fetch: { _, _ in [DiscoveryItem(kind: .song, mediaId: "existing", title: "existing", subtitle: "Artist", artwork: nil)] },
+      rate: { _, id, liked in try await writes.write(id, liked: liked) })
+    var confirmed: [String] = []
+    await library.importLikes([song("existing"), song("new"), song("new"), song("failure"), song("later")]) {
+      confirmed.append($0.mediaId)
+    }
+    XCTAssertEqual(confirmed, ["existing", "new"])
+    let ids = await writes.ids
+    XCTAssertEqual(ids, ["new"])
+    XCTAssertTrue(library.isLiked("existing"))
+    XCTAssertTrue(library.isLiked("new"))
+    XCTAssertFalse(library.isLiked("failure"))
+    XCTAssertFalse(library.isLiked("later"))
+    XCTAssertTrue(library.pendingLikes.isEmpty)
+    XCTAssertNotNil(library.syncError)
+    let success = await library.setLike(song("new"), liked: true)
+    XCTAssertTrue(success)
+    let repeated = await writes.ids
+    XCTAssertEqual(repeated, ["new"])
+  }
+
+  func testAccountChangeDuringImportDoesNotAcknowledgeOrTouchNewAccount() async {
+    let library = model(fetch: { _, _ in [] }, rate: { _, _, _ in
+      try await Task.sleep(for: .milliseconds(80))
+    })
+    var confirmed = 0
+    let task = Task {
+      await library.importLikes([song("new"), song("later")]) { _ in confirmed += 1 }
+    }
+    while !library.pendingLikes.contains("new") { await Task.yield() }
+    library.connect(YouTubeSession(cookies: "SAPISID=other", identity: "B", clientVersion: "test"))
+    await task.value
+    XCTAssertEqual(confirmed, 0)
+    XCTAssertFalse(library.isLiked("new"))
+    XCTAssertTrue(library.pendingLikes.isEmpty)
+  }
+
   func testCollectionsUseDifferentAccountEndpoints() {
     XCTAssertEqual(RemoteLibraryKind.songs.browseID, "FEmusic_liked_videos")
     XCTAssertEqual(RemoteLibraryKind.likes.browseID, "VLLM")

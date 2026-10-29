@@ -17,7 +17,6 @@ struct SongOptionsSheet: View {
   @EnvironmentObject private var library: LibraryModel
   @Environment(\.dismiss) private var dismiss
   @State private var playlist = false
-  private var liked: Bool { model.favorites.contains { $0.id == song.id } }
 
   var body: some View {
     NavigationStack {
@@ -33,14 +32,7 @@ struct SongOptionsSheet: View {
             Spacer(minLength: 0)
           }.padding(.vertical, 16)
           Divider().padding(.bottom, 10)
-          Button {
-            model.toggleFavorite(song)
-          } label: {
-            option(liked ? "Piaciuti" : "Mi piace", icon: liked ? "heart.fill" : "heart")
-              .foregroundStyle(liked ? .red : .primary)
-          }.accessibilityIdentifier("song-option-like")
-            .accessibilityValue(liked ? "Attivo" : "Non attivo")
-          YouTubeLikeButton(song: song).padding(.vertical, 14)
+          YouTubeLikeButton(song: song, identifier: "song-option-like").padding(.vertical, 14)
           Button {
             playlist = true
           } label: {

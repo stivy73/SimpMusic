@@ -1,5 +1,64 @@
 # NoteNarrate iOS — audio in background e CarPlay
 
+## Album oltre la seconda riga, like, radio e volume — 0.13.0 (36), 29 ottobre 2026
+
+La pagina album conteneva 12 elementi e affidava le pagine successive alla barra
+superiore, nascosta nelle schede root CarPlay. Ora **Altri album** e **Pagina
+precedente** sono `CPListItem` nella stessa lista; riportano l’intervallo e il
+totale. La capacità resta stabile anche tornando indietro dall’ultima pagina
+parziale. Copertine quadrate e tracce numerate non cambiano.
+
+**Preferiti:** CarPlay mostra i Mi piace YouTube Music e l’offline, senza una
+seconda raccolta NoteNarrate. Nell’app ogni cuore dei brani usa `LibraryModel`;
+non è più presente un percorso che aggiunge nuovi preferiti locali. I dati vecchi
+servono solo come coda di importazione: i brani e tutte le tracce degli album
+preferiti (scelta esplicita dell’utente) sono marcati liked con richieste idempotenti,
+mai toggle. Si rimuove una selezione locale solo dopo conferma; interruzioni/403
+conservano il lavoro residuo. L’account iniziale è vincolato all’importazione.
+
+**Radio del brano:** Gemini genera sempre una nuova proposta; coda, riferimento e
+storia recente sono esclusi. Il servizio cerca ogni suggerimento nel catalogo,
+confrontando titolo e artista; solo corrispondenze reali e non ripetute entrano
+nella coda. Anche l’autoplay basato sul brano usa Gemini. La radio esplicita
+dell’artista conserva il percorso YouTube. Mancanza della chiave, errori o nessun
+nuovo risultato verificato non attivano una radio YouTube di ripiego. Storia
+locale limitata a 200 proposte, conservata al riavvio. Il prompt dell’interpretazione
+non viene modificato. Nessuna sessione o chiave è inviata alla ricerca pubblica.
+
+**Volume:** l’uscita PCM applica guadagno 1,3 (+30% di ampiezza) e limita i picchi
+al range dei campioni. Si applica a Gemini streaming/cache e alla voce nativa
+convertita in PCM 24 kHz, senza cambiare cache, volume musica o volume sistema.
+La fine della sintesi non anticipa la fine dell’audio: si attende l’ultimo buffer
+riprodotto prima di riprendere la canzone.
+
+**Prove finora:** 245 test core superati. Importazione e cambi account, duplicati
+radio, richiesta Gemini con esclusioni, conversione PCM e gain hanno test mirati.
+Due generazioni Gemini reali su La preda / Franco Battiato hanno dato 5 e 4 brani
+verificati nel catalogo pubblico, senza duplicati tra le richieste; 14,62 e 19,68 s.
+La prova usa la chiave già autorizzata senza mostrarla nei log, e nessun cookie.
+Sul simulatore Duo sono già passati importazione brani/album, like unificati,
+menu/coda e lettura cloud/nativa con ripresa. Il primo test radio cercava il vecchio
+menu rimosso: corretto per l’attuale scheda Opzioni brano e confermato. Run finale
+4/4 superato: like di tutto l’album, veri handler CPListItem per tre pagine/25 album
+con ritorno dall’ultima parziale, radio riuscita e fallita con coda preservata.
+Totale 9 scenari UI distinti superati nei due run. La prova dei template esercita
+l’SDK CarPlay nel simulatore iPhone, non un display fisico dell’auto.
+
+Archivio finale e IPA 0.13.0 (36) verificati: firma distribuzione, CarPlay nel
+profilo e nella firma, Siri/frasi e App Group Widget/Condividi. Il primo archivio
+candidato aveva il target principale ancora alla vecchia versione (due valori
+quotati non sostituiti); il controllo lo ha respinto prima dell’upload. L’archivio
+finale è stato rigenerato e tutti e quattro i bundle hanno 0.13.0 (36), SDK 27.2.
+IPA SHA256: `259134aa2998bdaa8bf1a19cf56f718b4038d4d14bc5e32477ebcc7b0b8e83af`.
+Consegna interna TestFlight in preparazione; assegnazione ai tester manuale.
+
+Toolchain verificata: `/Applications/Xcode-27.2.app/Contents/Developer`, Xcode
+27.2 RC (27B48), SDK iOS 27.2. Xcode 27.1 e deployment target iOS 17 preservati.
+Log: `/tmp/notenarrate36-core-final.log`, `/tmp/notenarrate36-radio-live.log`,
+`/tmp/notenarrate36-ui.log`, `/tmp/notenarrate36-ui-confirm.log`.
+L’aspetto e il livello sonoro sull’auto reale e la migrazione dell’account utente
+restano da verificare dopo installazione; i test usano server fittizi per i like.
+
 ## Copertine, orologio e fine audio del 26 ottobre 2026 — 0.12.4 (35)
 
 Le fotografie delle build precedenti mostrano immagini ritagliate come schede

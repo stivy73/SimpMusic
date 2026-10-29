@@ -72,8 +72,6 @@ private enum LibrarySection: String, CaseIterable, Identifiable {
   case likes = "Mi piace"
   case playlists = "Playlist"
   case artists = "Artisti seguiti"
-  case local = "Preferiti locali"
-  case favoriteAlbums = "Album preferiti"
   case offline = "Download e offline"
   var id: String { rawValue }
   var remote: RemoteLibraryKind? {
@@ -109,30 +107,20 @@ struct LibraryView: View {
           }
         }.padding()
       }
+      if !model.favorites.isEmpty || !model.favoriteAlbums.isEmpty {
+        HStack {
+          Text("Importazione nei Mi piace: \(model.favorites.count) brani, \(model.favoriteAlbums.count) album")
+            .font(.caption)
+          Spacer()
+          Button(model.migratingFavorites ? "Sincronizzo…" : "Riprova sincronizzazione") {
+            guard let session = library.session else { library.showLogin = true; return }
+            Task { await model.migrateFavorites(to: library, account: session) }
+          }.disabled(model.migratingFavorites)
+            .accessibilityIdentifier("retry-favorites-migration")
+        }.padding(.horizontal)
+      }
       if section == .offline {
         OfflineScreen(downloads: model.downloads)
-      } else if section == .favoriteAlbums {
-        if model.favoriteAlbums.isEmpty {
-          ContentUnavailableView("Nessun album preferito", systemImage: "heart")
-        } else {
-          LibraryCollection(
-            items: model.favoriteAlbums, key: "favoriteAlbums", title: \.title, artist: \.artist
-          ) {
-            album, layout, _ in
-            NavigationLink {
-              AlbumView(album: album, identity: library.session?.identity)
-            } label: {
-              LibraryItemLabel(
-                title: album.title, subtitle: album.artist, artwork: album.artwork, layout: layout)
-            }.buttonStyle(.plain).accessibilityIdentifier("favorite-album-" + album.id)
-          }
-        }
-      } else if section == .local {
-        if model.favorites.isEmpty {
-          ContentUnavailableView("Nessun preferito locale", systemImage: "heart")
-        } else {
-          LibrarySongCollection(songs: model.favorites, key: "local")
-        }
       } else if library.session == nil {
         ContentUnavailableView {
           Label("La tua libreria YouTube Music", systemImage: "person.crop.circle")
@@ -148,6 +136,9 @@ struct LibraryView: View {
         albumContent
       }
     }.navigationTitle("Libreria")
+      .task(id: library.session) {
+        if let session = library.session { await model.migrateFavorites(to: library, account: session) }
+      }
       .sheet(isPresented: $createPlaylist) { CreatePlaylistSheet() }
       .toolbar {
         Button {
@@ -171,8 +162,7 @@ struct LibraryView: View {
             Label("Nuova playlist", systemImage: "plus")
           }
         }
-        if library.session != nil && section != .local && section != .offline
-          && section != .favoriteAlbums
+        if library.session != nil && section != .offline
         {
           Button {
             if let remote = section.remote {
@@ -233,7 +223,7 @@ extension LibrarySection {
     remote?.rawValue
       ?? (self == .albums
         ? "albums"
-        : self == .offline ? "offline" : self == .favoriteAlbums ? "favoriteAlbums" : "local")
+        : "offline")
   }
 }
 

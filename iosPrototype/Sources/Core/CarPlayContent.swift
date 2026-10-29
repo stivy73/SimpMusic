@@ -5,9 +5,11 @@ public struct CarPlayPage: Equatable, Sendable {
   public let range: Range<Int>
   public let previous: Int?
   public let next: Int?
+  public let capacity: Int
   public init(count: Int, offset: Int, capacity: Int) {
     let count = max(0, count)
     let size = max(1, capacity)
+    self.capacity = size
     let last = count == 0 ? 0 : ((count - 1) / size) * size
     let start = min(last, max(0, offset) / size * size)
     let end = min(count, start + size)

@@ -1,3 +1,37 @@
+# NoteNarrate iOS 0.13.0 (36)
+
+- CarPlay album pages have in-list Next/Previous items; root tabs no longer rely
+  on hidden navigation-bar buttons to reach albums after the twelfth item.
+- A single YouTube Music liked-song collection replaces local favourites. All
+  song hearts write confirmed account likes; album hearts like all album tracks.
+  Legacy songs and all tracks from legacy favourite albums import idempotently.
+  Pending local selections survive errors/cancellation and bind to the first
+  importing account. Library exposes a retry; no unlike is sent by migration.
+- Song radio and song-based autoplay use a fresh Gemini generation every time,
+  with current-queue/recent-proposal exclusions and real catalogue verification.
+  A bounded 200-track history persists across relaunches; alternate IDs/remasters
+  are deduplicated. Errors preserve the current queue; no repetitive fallback.
+  Explicit artist radio retains its existing YouTube Music path.
+- Narration playback gain is 1.3 with sample peak bounds, for cloud streaming,
+  existing cached PCM and native system speech. Music/system volume is untouched.
+  Native speech now renders through the same PCM output and completion lifecycle.
+
+All app/extension targets: 0.13.0 (36), SDK 27.2 via Xcode 27.2 RC (27B48);
+minimum iOS 17 retained. 245 core tests passed. Two real Gemini radio generations
+returned 5 and 4 catalogue-verified new tracks, with no cross-request duplicates
+(14.62 s and 19.68 s). Nine unique UI scenarios passed on the Duo simulator,
+including real CPListItem paging handlers and back from the final partial page,
+legacy import, unified likes, album bulk likes, successful/failed radio and both
+narration outputs. An old radio test used a removed menu; updated and passed in
+the final four-case confirmation run. Final archive and distribution IPA checks
+passed for version/build, CarPlay/Siri, Widgets/Share and signatures.
+IPA SHA256: `259134aa2998bdaa8bf1a19cf56f718b4038d4d14bc5e32477ebcc7b0b8e83af`.
+Internal TestFlight upload pending.
+Vehicle rendering/loudness and actual user-account migration remain device checks.
+Internal TestFlight delivery only; tester assignment manual.
+
+---
+
 # NoteNarrate iOS 0.12.4 (35)
 
 Replaces full-height portrait CarPlay cards with native album row elements and

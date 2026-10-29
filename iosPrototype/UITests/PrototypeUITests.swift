@@ -48,8 +48,8 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertFalse(app.buttons["youtube-like-local-1-80"].isHittable)
     openPlayerOptions(app)
     XCTAssertTrue(app.buttons["song-option-like"].exists)
-    XCTAssertTrue(app.buttons["youtube-like-local-1-80"].exists)
-    XCTAssertTrue(app.buttons["youtube-like-local-1-80"].label.contains("YouTube Music"))
+    XCTAssertFalse(app.buttons["youtube-like-local-1-80"].exists)
+    XCTAssertTrue(app.buttons["song-option-like"].label.contains("YouTube Music"))
     XCTAssertFalse(app.buttons["Mostra video"].exists)
     XCTAssertFalse(app.buttons["toggle-video"].exists)
     app.buttons["song-options-close"].tap()
@@ -327,7 +327,8 @@ final class PrototypeUITests: XCTestCase {
     screenshot.lifetime = .keepAlways
     add(screenshot)
     like.tap()
-    XCTAssertNotEqual(like.value as? String, before)
+    let liked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", before ?? ""), object: like)
+    XCTAssertEqual(XCTWaiter.wait(for: [liked], timeout: 10), .completed)
     for action in ["playlist", "next", "queue", "artists", "album", "radio", "share"] {
       XCTAssertTrue(app.buttons["song-option-" + action].exists, action)
     }
@@ -356,8 +357,9 @@ final class PrototypeUITests: XCTestCase {
     let favorite = app.buttons["album-favorite"]
     let wasLiked = favorite.value as? String
     favorite.tap()
+    let albumLiked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Attivo"), object: favorite)
+    XCTAssertEqual(XCTWaiter.wait(for: [albumLiked], timeout: 10), .completed)
     XCTAssertNotEqual(favorite.value as? String, wasLiked)
-    if favorite.value as? String != "Attivo" { favorite.tap() }
     let scroll = app.scrollViews["album-scroll"]
     scroll.swipeUp()
     XCTAssertEqual(app.staticTexts["album-track-summary"].label, "3 tracce, 2 minuti")
@@ -378,8 +380,8 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertTrue(app.buttons["return-to-library"].waitForExistence(timeout: 15))
     app.buttons["return-to-library"].tap()
     app.buttons["library-section-menu"].tap()
-    app.buttons["library-menu-favoriteAlbums"].tap()
-    XCTAssertTrue(app.buttons["favorite-album-MPREfixture"].waitForExistence(timeout: 10))
+    XCTAssertFalse(app.buttons["library-menu-favoriteAlbums"].exists)
+    app.buttons["library-menu-likes"].tap()
   }
 
   @MainActor
@@ -726,13 +728,15 @@ final class PrototypeUITests: XCTestCase {
     let app = XCUIApplication()
     app.launchArguments = ["--test-playback-order", "--test-remote-library", "--test-radio"]
     app.launch()
-    app.buttons["Altre opzioni"].tap()
-    app.buttons["Avvia radio"].tap()
+    openPlayerOptions(app)
+    let radio = app.buttons["song-option-radio"]
+    if !radio.isHittable { app.swipeUp() }
+    radio.tap()
     app.buttons["show-queue"].tap()
     XCTAssertTrue(app.buttons["queue-radio-1"].waitForExistence(timeout: 10))
-    XCTAssertEqual(app.buttons["queue-radio-1"].value as? String, "Brano corrente")
-    XCTAssertFalse(app.buttons["queue-order-1"].exists)
-    XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
+    XCTAssertEqual(app.buttons["queue-order-1"].value as? String, "Brano corrente")
+    XCTAssertFalse(app.buttons["queue-order-2"].exists)
+    XCTAssertEqual(app.staticTexts["queue-count"].label, "4 brani")
   }
 
   @MainActor
@@ -789,9 +793,11 @@ final class PrototypeUITests: XCTestCase {
       "--test-playback-order", "--test-remote-library", "--test-radio", "--test-radio-failure",
     ]
     app.launch()
-    app.buttons["Altre opzioni"].tap()
-    app.buttons["Avvia radio"].tap()
-    XCTAssertTrue(app.alerts["Radio YouTube Music"].waitForExistence(timeout: 10))
+    openPlayerOptions(app)
+    let radio = app.buttons["song-option-radio"]
+    if !radio.isHittable { app.swipeUp() }
+    radio.tap()
+    XCTAssertTrue(app.alerts["Radio musicale"].waitForExistence(timeout: 10))
     app.alerts.buttons["OK"].tap()
     app.buttons["show-queue"].tap()
     XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
@@ -799,7 +805,34 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
-  func testRemoteLibrarySectionsAndAccountLikeStaySeparateFromLocalFavorites() {
+  func testCarPlayAlbumFooterTraversesEveryPageAndReturnsFromPartialLastPage() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library", "--test-carplay-album-pages"]
+    app.launch()
+    let result = app.staticTexts["carplay-album-page-qa"]
+    XCTAssertTrue(result.waitForExistence(timeout: 15))
+    let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "true:3:true:true"), object: result)
+    XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 10), .completed)
+  }
+
+  @MainActor
+  func testOldFavouriteSongsAndEveryAlbumTrackMigrateIntoYouTubeLikes() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library", "--test-favorites-migration"]
+    app.launch()
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
+    app.buttons["library-section-likes"].tap()
+    XCTAssertTrue(app.buttons["song-legacy-song"].waitForExistence(timeout: 15))
+    for number in 1...3 {
+      XCTAssertTrue(app.buttons["song-legacy-album-\(number)"].waitForExistence(timeout: 10))
+    }
+    XCTAssertFalse(app.buttons["retry-favorites-migration"].exists)
+    XCTAssertFalse(app.buttons["library-section-local"].exists)
+    XCTAssertFalse(app.buttons["library-section-favoriteAlbums"].exists)
+  }
+
+  @MainActor
+  func testRemoteLibraryUsesOnlyYouTubeMusicLikes() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-remote-library"]
     app.launch()
@@ -823,10 +856,10 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Playlist di prova"].waitForExistence(timeout: 10))
     app.buttons["library-section-artists"].tap()
     XCTAssertTrue(app.staticTexts["Artista seguito di prova"].waitForExistence(timeout: 10))
-    app.buttons["library-section-local"].tap()
-    XCTAssertFalse(app.buttons["song-saved-fixture"].exists)
+    XCTAssertFalse(app.buttons["library-section-local"].exists)
+    XCTAssertFalse(app.buttons["library-section-favoriteAlbums"].exists)
     let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-    screenshot.name = "Preferiti locali separati dai Mi piace remoti"
+    screenshot.name = "Unica raccolta Mi piace YouTube Music"
     screenshot.lifetime = .keepAlways
     add(screenshot)
   }
@@ -1673,7 +1706,7 @@ final class PrototypeUITests: XCTestCase {
   @MainActor
   func testSystemNowPlayingRemainsActiveDuringCarPlayVoice() {
     let app = XCUIApplication()
-    app.launchArguments = ["--test-native-audio", "--test-carplay-meaning", "--test-meaning"]
+    app.launchArguments = ["--test-local-playback", "--test-carplay-meaning", "--test-meaning"]
     app.launch()
     let toggle = app.buttons["playback-toggle"]
     XCTAssertTrue(toggle.waitForExistence(timeout: 20))
