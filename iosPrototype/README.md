@@ -39,7 +39,11 @@ il vecchio menu è stato aggiornato e confermato nel run finale (4/4).
 Archivio finale e IPA verificati per firma Apple, CarPlay, Siri, Widget e Condividi.
 IPA: `deliveries/NoteNarrate-iOS-0.13.0-build36-CarPlayLikesRadio.ipa`;
 SHA256 `259134aa2998bdaa8bf1a19cf56f718b4038d4d14bc5e32477ebcc7b0b8e83af`.
-La consegna TestFlight è in preparazione; il collaudo finale in auto resta separato. [Dettagli e prove](CARPLAY.md).
+Sorgenti `04c871ad` pubblicati e verificati sui due branch personali GitHub.
+Caricamento TestFlight interno riuscito il 29 ottobre 2026 alle 20:55 Europe/Rome:
+`Upload succeeded`, `EXPORT SUCCEEDED`, esito 0. App Store Connect ha completato
+l’elaborazione e mostra **0.13.0 (36), Pronta per il test**. Nessun gruppo
+assegnato alla verifica; assegnazione ai tester manuale. Il collaudo finale in auto resta separato. [Dettagli e prove](CARPLAY.md).
 
 **0.12.4 (35), copertine e tempi CarPlay:** il catalogo usa gli elementi nativi
 per copertine quadrate al posto delle schede verticali, sfruttando la larghezza

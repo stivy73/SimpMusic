@@ -11,7 +11,9 @@
 - Nine unique Duo UI scenarios passed, including native CPListItem page handlers;
   initial obsolete-menu test fixed and confirmed. Final Release archive and Apple
   distribution IPA verified, including CarPlay/Siri and all extensions.
-  Internal TestFlight upload pending. Testers manual;
+  Source `04c871ad` verified on both personal branches. Internal TestFlight upload
+  succeeded on 29 October 2026 at 20:55 Europe/Rome. App Store Connect confirms
+  0.13.0 (36) Ready to Test, no assigned group. Testers manual;
   actual vehicle loudness/rendering and user-account migration are separate checks.
 
 ---

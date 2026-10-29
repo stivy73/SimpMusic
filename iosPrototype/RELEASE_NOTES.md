@@ -26,7 +26,11 @@ narration outputs. An old radio test used a removed menu; updated and passed in
 the final four-case confirmation run. Final archive and distribution IPA checks
 passed for version/build, CarPlay/Siri, Widgets/Share and signatures.
 IPA SHA256: `259134aa2998bdaa8bf1a19cf56f718b4038d4d14bc5e32477ebcc7b0b8e83af`.
-Internal TestFlight upload pending.
+Matching source `04c871ad` verified on personal dev/feature branches.
+Internal TestFlight upload succeeded on 29 October 2026 at 20:55 Europe/Rome,
+`Upload succeeded`, `EXPORT SUCCEEDED`, exit 0. App Store Connect independently
+completed processing and shows 0.13.0 (36) Ready to Test. No group assigned at
+verification; assignment remains manual.
 Vehicle rendering/loudness and actual user-account migration remain device checks.
 Internal TestFlight delivery only; tester assignment manual.
 

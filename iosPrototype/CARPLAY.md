@@ -50,7 +50,11 @@ candidato aveva il target principale ancora alla vecchia versione (due valori
 quotati non sostituiti); il controllo lo ha respinto prima dell’upload. L’archivio
 finale è stato rigenerato e tutti e quattro i bundle hanno 0.13.0 (36), SDK 27.2.
 IPA SHA256: `259134aa2998bdaa8bf1a19cf56f718b4038d4d14bc5e32477ebcc7b0b8e83af`.
-Consegna interna TestFlight in preparazione; assegnazione ai tester manuale.
+Sorgenti `04c871ad` verificati su `dev` e `feature/youtube-library-albums` personali.
+Caricamento interno TestFlight riuscito il 29 ottobre 2026 alle 20:55 Europe/Rome,
+`Upload succeeded`, `EXPORT SUCCEEDED`, esito 0. App Store Connect conferma
+**0.13.0 (36), Pronta per il test**, con nessun gruppo assegnato. Assegnazione ai
+tester manuale. Prova visiva locale: `/tmp/NoteNarrate36-TestFlight-ready.png`.
 
 Toolchain verificata: `/Applications/Xcode-27.2.app/Contents/Developer`, Xcode
 27.2 RC (27B48), SDK iOS 27.2. Xcode 27.1 e deployment target iOS 17 preservati.
