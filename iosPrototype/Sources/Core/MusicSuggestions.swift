@@ -34,6 +34,10 @@ public struct MusicSuggestion: Codable, Hashable, Identifiable, Sendable {
   }
   /// Remove catalogue version labels, keeping semantic subtitles and live performances distinct.
   static func catalogueTitle(_ text: String) -> String {
+    if text.range(of: #"[\(\[][^)\]]*\blive\b[^)\]]*[\)\]]"#,
+      options: [.regularExpression, .caseInsensitive]) != nil {
+      return normalize(text)
+    }
     var title = text
     let version = #"\s*[\(\[][^()\[\]]*\b(?:mix|remix|version|edit|dub|remastered|remaster)\b[^()\[\]]*[\)\]]\s*$"#
     let credit = #"\s*[\(\[]\s*(?:feat\.?|featuring|ft\.?|con)\s+[^()\[\]]+[\)\]]\s*$"#

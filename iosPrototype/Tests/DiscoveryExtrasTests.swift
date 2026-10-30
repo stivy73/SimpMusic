@@ -239,6 +239,8 @@ import XCTest
     XCTAssertEqual(song.match(in: [mix, exact])?.mediaId, "exact")
     let live = DiscoveryItem(kind: .song, mediaId: "live", title: "French Kiss (Live)", subtitle: "Lil Louis", artwork: nil)
     XCTAssertNil(song.match(in: [cover, live]))
+    let liveVersion = DiscoveryItem(kind: .song, mediaId: "live-version", title: "French Kiss (Live Version)", subtitle: "Lil Louis", artwork: nil)
+    XCTAssertNil(song.match(in: [liveVersion]))
     let different = MusicSuggestion(title: "Gypsy Woman (She's Homeless)", artist: "Crystal Waters", reason: "")
     XCTAssertNil(different.match(in: [DiscoveryItem(kind: .song, mediaId: "other", title: "Gypsy Woman (Other Song)", subtitle: "Crystal Waters", artwork: nil)]))
     XCTAssertEqual(SongRadioHistory.identity(title: mix.title, artist: "Lil Louis"),
