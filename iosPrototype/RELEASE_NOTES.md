@@ -20,7 +20,10 @@ Apple API access and Team Admin key creation were explicitly authorized. The key
 was saved in the owner-only Downloads/api.txt, preserving its existing content.
 Scripts/AppleAPI.py reads only the marked Apple section and supplies a temporary
 private-key file to Xcode; no credentials or identifiers are committed to Git.
-API cloud signing and TestFlight distribution validation are in progress.
+API cloud signing passed for archives 39 and 40 without an Xcode account session.
+Build 40 upload succeeded via API on 30 October 2026 at 14:33 Europe/Rome.
+The API workflow also reads TestFlight state without browser login; build 38 was
+verified VALID / IN_BETA_TESTING in Stivy73. Build 40 processing/assignment pending.
 
 # NoteNarrate iOS 0.13.3 (39)
 

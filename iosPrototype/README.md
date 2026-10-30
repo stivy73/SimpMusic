@@ -799,3 +799,16 @@ rimosso alla fine del comando. La chiave e il file sorgente non devono entrare n
 repository, nei log o nell'app. Lo script usa Xcode 27.2 e l'autenticazione API;
 non richiede di mantenere aperta una sessione Apple nelle impostazioni di Xcode.
 Accordi, certificati/profili e stato di elaborazione Apple vanno verificati separatamente.
+
+Il controllo e l'assegnazione dei gruppi interni possono avvenire senza browser:
+
+    python3 Scripts/AppleAPI.py --testflight-status APP_ID BUILD
+    python3 Scripts/AppleAPI.py --testflight-assign APP_ID BUILD 'NOME_GRUPPO_INTERNO'
+
+La firma dei JWT usa CryptoKit di Apple; i token vengono mantenuti in memoria e
+non registrati. Le richieste mantengono la verifica TLS, usando il bundle CA già
+installato tramite certifi se il Python di sistema non ha un archivio CA predefinito.
+L'assegnazione accetta solo un gruppo interno già esistente della stessa app;
+non crea tester, non abilita distribuzione automatica e non invia release allo store.
+Gli endpoint sono quelli pubblici Apple: [elenco build](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-builds)
+e [aggiunta build a un gruppo](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-betagroups-_id_-relationships-builds).

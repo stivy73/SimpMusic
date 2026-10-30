@@ -8,12 +8,101 @@ materialized in a mode-600 temporary file for Xcode and removed when it exits.
 """
 
 import argparse
+import json
 import os
 from pathlib import Path
 import re
+import ssl
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+
+
+def testflight(key_path, key_id, issuer, app_id, version, group_name=None):
+    if not app_id.isdigit() or not version.isdigit():
+        raise ValueError("Invalid app or build identifier")
+    environment = os.environ.copy()
+    environment["DEVELOPER_DIR"] = "/Applications/Xcode-27.2.app/Contents/Developer"
+    environment["CLANG_MODULE_CACHE_PATH"] = "/tmp/notenarrate-apple-token-cache"
+    signer = Path(__file__).with_name("AppleAPIToken.swift")
+    signed = subprocess.run(["/usr/bin/xcrun", "swift", str(signer), str(key_path), key_id, issuer],
+                            capture_output=True, text=True, env=environment)
+    if signed.returncode or len(signed.stdout.strip().split(".")) != 3:
+        raise ValueError("Token signing failed")
+    token = signed.stdout.strip()
+    # python.org builds on macOS may have no default CA file. Use the installed
+    # standard CA bundle while keeping certificate and hostname verification on.
+    try:
+        import certifi
+        context = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        context = ssl.create_default_context()
+
+    def request(path, payload=None):
+        url = "https://api.appstoreconnect.apple.com/v1/" + path
+        body = None if payload is None else json.dumps(payload).encode()
+        req = urllib.request.Request(url, data=body, headers={
+            "Authorization": "Bearer " + token, "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=45, context=context) as response:
+                data = response.read()
+                return json.loads(data) if data else {}
+        except urllib.error.HTTPError as error:
+            # Provider bodies/headers and bearer tokens must not enter diagnostics.
+            code = "NON_JSON_RESPONSE"
+            parameter = "UNKNOWN"
+            try:
+                errors = json.loads(error.read(65536)).get("errors", [])
+                codes = [item.get("code", "") for item in errors]
+                code = ",".join(value for value in codes if re.fullmatch(r"[A-Z0-9_.]+", value)) or "NO_ERROR_CODE"
+                for item in errors:
+                    value = item.get("source", {}).get("parameter")
+                    if value in ("include", "filter[builds]", "filter[app]", "limit", "filter[version]"):
+                        parameter = value
+            except (ValueError, AttributeError):
+                pass
+            resource = path.split("?", 1)[0].split("/", 1)[0]
+            raise ValueError("Apple API HTTP " + str(error.code) + " " + code + " " + resource + " " + parameter) from None
+
+    query = urllib.parse.urlencode({"filter[app]": app_id, "filter[version]": version,
+        "include": "preReleaseVersion,buildBetaDetail", "limit": "20"})
+    response = request("builds?" + query)
+    builds = response.get("data", [])
+    if not builds:
+        return {"app": app_id, "build": version, "processingState": "NOT_YET_VISIBLE"}
+    if len(builds) != 1:
+        raise ValueError("Build number is ambiguous")
+    build = builds[0]
+    attributes = build["attributes"]
+    included = response.get("included", [])
+    prerelease = next((x for x in included if x["type"] == "preReleaseVersions"), {})
+    detail = next((x for x in included if x["type"] == "buildBetaDetails"), {})
+    result = {"app": app_id, "build": version, "build_id": build["id"],
+        "version": prerelease.get("attributes", {}).get("version"),
+        "processingState": attributes.get("processingState"),
+        "internalBuildState": detail.get("attributes", {}).get("internalBuildState")}
+    groups = request("apps/" + app_id + "/betaGroups?limit=200").get("data", [])
+    if group_name:
+        if result["processingState"] != "VALID":
+            raise ValueError("Build is not ready for assignment")
+        selected = [x for x in groups if x["attributes"].get("name") == group_name]
+        if len(selected) != 1 or selected[0]["attributes"].get("isInternalGroup") is not True:
+            raise ValueError("Expected one existing internal group for this app")
+        group_id = selected[0]["id"]
+        request("betaGroups/" + group_id + "/relationships/builds",
+                {"data": [{"type": "builds", "id": build["id"]}]})
+    result["groups"] = []
+    for group in groups:
+        members = request("betaGroups/" + group["id"] + "/builds?limit=200").get("data", [])
+        if any(item["id"] == build["id"] for item in members):
+            result["groups"].append({"id": group["id"], "name": group["attributes"].get("name"),
+                "internal": group["attributes"].get("isInternalGroup")})
+    if group_name and not any(x["name"] == group_name and x["internal"] for x in result["groups"]):
+        raise ValueError("Assignment not verified")
+    return result
 
 
 def credentials(path):
@@ -38,6 +127,8 @@ def main():
     parser.add_argument("--credentials-file", type=Path,
                         default=Path(os.environ.get("ASC_CREDENTIALS_FILE", Path.home() / "Downloads/api.txt")))
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--testflight-status", nargs=2, metavar=("APP_ID", "BUILD"))
+    parser.add_argument("--testflight-assign", nargs=3, metavar=("APP_ID", "BUILD", "INTERNAL_GROUP"))
     parser.add_argument("xcode_arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
@@ -54,6 +145,10 @@ def main():
             if args.check:
                 print("Apple API credentials loaded and validated; no secret values displayed")
                 return 0
+            if args.testflight_status or args.testflight_assign:
+                values = args.testflight_assign or args.testflight_status
+                print(json.dumps(testflight(key_path, key_id, issuer, *values), indent=2))
+                return 0
             command = args.xcode_arguments
             if command and command[0] == "--":
                 command = command[1:]
@@ -67,9 +162,18 @@ def main():
                 authentication.append("-allowProvisioningUpdates")
             return subprocess.run(["/usr/bin/xcrun", "xcodebuild", *command, *authentication],
                                   env=environment).returncode
-    except (ValueError, OSError):
+    except (ValueError, OSError) as error:
         # Do not echo exceptions, file contents, headers, tokens or private key data.
-        print("Apple API setup failed: check the local marked section, file permissions and arguments", file=sys.stderr)
+        message = str(error)
+        safe = (message if re.fullmatch(r"Apple API HTTP [0-9]{3} [A-Z0-9_.,]+ (?:apps|builds|betaGroups) [A-Za-z\[\]]+", message)
+                or message in ("Token signing failed", "Build is not ready for assignment",
+                              "Build number is ambiguous", "Assignment not verified",
+                              "Expected one existing internal group for this app")
+                else "check the local marked section, file permissions and arguments")
+        category = type(error).__name__
+        if isinstance(error, urllib.error.URLError):
+            category += "/" + type(error.reason).__name__
+        print("Apple API setup failed (" + category + "): " + safe, file=sys.stderr)
         return 1
 
 
