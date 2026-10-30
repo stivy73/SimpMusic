@@ -24,7 +24,7 @@ API cloud signing passed for archives 39 and 40 without an Xcode account session
 Build 40 upload succeeded via API on 30 October 2026 at 14:33 Europe/Rome.
 The API workflow also reads TestFlight state without browser login; build 38 was
 verified VALID / IN_BETA_TESTING in Stivy73. Build 40 is now VALID /
-IN_BETA_TESTING, assigned via API to the same internal Stivy73 group. Existing
+IN_BETA_TESTING, assigned via API to both Team interno and Stivy73. Existing
 Gmail and company testers retained; no new users or automatic distribution added.
 No physical Duo or vehicle test is claimed for build 40.
 

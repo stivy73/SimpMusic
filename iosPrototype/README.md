@@ -1,7 +1,7 @@
 # NoteNarrate iOS — 0.13.4 (40)
 
 Ultima beta interna: 0.13.4 (40), caricata, elaborata e assegnata via API al gruppo
-Stivy73, con gli account Gmail e aziendale già presenti. Avvio audio con blocco da
+Team interno e Stivy73, preservando gli account già abilitati. Avvio audio con blocco da
 128 KiB e buffer iniziale da 5 secondi, controlli CDN mantenuti e parallelizzati.
 Radio progressiva: il cambio brano nella stessa coda non annulla più il completamento;
 i mix vengono riconosciuti mantenendo la verifica dell'artista e la deduplicazione.
