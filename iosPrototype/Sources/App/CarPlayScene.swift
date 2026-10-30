@@ -396,7 +396,7 @@
 
     #if DEBUG
       /// Exercises real CPListItem page handlers without needing a connected car display.
-      func verifyAlbumPageHandlers() -> String {
+      func verifyAlbumPageHandlers() async -> String {
         let entries = (0..<25).map { n in
           Tile(id: "qa-\(n)", title: "Album \(n)", artwork: URL(string: "file:///qa-cover")) {}
         }
@@ -408,26 +408,78 @@
           pages += 1
           visited += state.page.range
           guard state.page.next != nil else { break }
-          guard let next = albums.sections.flatMap(\.items).compactMap({ $0 as? CPListItem })
-            .first(where: { $0.text == "Altri album" }), let handler = next.handler else {
+          guard
+            let next = albums.sections.flatMap(\.items).compactMap({ $0 as? CPListItem })
+              .first(where: { $0.text == "Altri album" }), let handler = next.handler
+          else {
             return "missing-footer"
           }
           var done = false
           handler(next) { done = true }
           completed = completed && done
+          await drainPageTransitions()
         }
-        guard let back = albums.sections.flatMap(\.items).compactMap({ $0 as? CPListItem })
-          .first(where: { $0.text == "Pagina precedente" }), let handler = back.handler else {
+        guard
+          let back = albums.sections.flatMap(\.items).compactMap({ $0 as? CPListItem })
+            .first(where: { $0.text == "Pagina precedente" }), let handler = back.handler
+        else {
           return "missing-back"
         }
         handler(back) {}
+        await drainPageTransitions()
         let previous = grids.object(forKey: albums)?.page.range == 12..<24
         return "\(visited == Array(0..<25)):\(pages):\(previous):\(completed)"
       }
+      /// Home ends on a partial page (13–15); completion must precede replacement.
+      func verifyHomePageHandlers() async -> String {
+        let entries = (0..<15).map { n in
+          Tile(id: "qa-home-\(n)", title: "Section \(n)", artwork: URL(string: "file:///qa-cover"))
+          {}
+        }
+        setTiles(entries, in: home, offset: 0)
+        guard
+          let next = home.sections.flatMap(\.items).compactMap({ $0 as? CPListItem })
+            .first(where: { $0.text == "Altri elementi" }), let handler = next.handler
+        else {
+          return "missing-footer"
+        }
+        var completionCount = 0
+        var rangeAtCompletion: Range<Int>?
+        handler(next) {
+          completionCount += 1
+          rangeAtCompletion = self.grids.object(forKey: self.home)?.page.range
+        }
+        let deferred = grids.object(forKey: home)?.page.range == 0..<12
+        await drainPageTransitions()
+        let lastPage = grids.object(forKey: home)?.page.range == 12..<15
+        guard
+          let back = home.sections.flatMap(\.items).compactMap({ $0 as? CPListItem })
+            .first(where: { $0.text == "Pagina precedente" }), let backHandler = back.handler
+        else {
+          return "missing-back"
+        }
+        backHandler(back) { completionCount += 1 }
+        await drainPageTransitions()
+        let returned = grids.object(forKey: home)?.page.range == 0..<12
+        // A delayed tap from the now obsolete last page must not change this page.
+        backHandler(back) { completionCount += 1 }
+        await drainPageTransitions()
+        let staleIgnored = grids.object(forKey: home)?.page.range == 0..<12
+        return
+          "\(deferred && rangeAtCompletion == 0..<12):\(lastPage):\(returned):\(staleIgnored):\(completionCount)"
+      }
+
+      private func drainPageTransitions() async {
+        await withCheckedContinuation { continuation in
+          DispatchQueue.main.async { continuation.resume() }
+        }
+      }
     #endif
 
-    private func sections(_ state: ContentState, in grid: CPListTemplate,
-      leadingButtons: [CPBarButton]) -> [CPListSection] {
+    private func sections(
+      _ state: ContentState, in grid: CPListTemplate,
+      leadingButtons: [CPBarButton]
+    ) -> [CPListSection] {
       var rows: [CPListTemplateItem] = []
       var index = 0
       let count = state.page.range.count
@@ -455,8 +507,11 @@
         let first = index
         var positions: [Int] = []
         let rowLimit: Int
-        if #available(iOS 26.0, *) { rowLimit = Int(CPMaximumNumberOfGridImages) }
-        else { rowLimit = 2 }
+        if #available(iOS 26.0, *) {
+          rowLimit = Int(CPMaximumNumberOfGridImages)
+        } else {
+          rowLimit = 2
+        }
         while index < count && positions.count < rowLimit {
           let entry = state.tiles[state.page.range.lowerBound + index]
           guard entry.action != nil, entry.artwork != nil || entry.videoID != nil else { break }
@@ -502,19 +557,33 @@
       // itself so the twelfth album can never become an inaccessible dead end.
       for (offset, title, symbol) in [
         (state.page.previous, "Pagina precedente", "chevron.up"),
-        (state.page.next, grid === albums ? "Altri album" : "Altri elementi", "chevron.down")
+        (state.page.next, grid === albums ? "Altri album" : "Altri elementi", "chevron.down"),
       ] {
         guard let offset else { continue }
-        let destination = CarPlayPage(count: state.tiles.count, offset: offset,
+        let destination = CarPlayPage(
+          count: state.tiles.count, offset: offset,
           capacity: state.page.capacity)
-        let row = CPListItem(text: title,
-          detailText: "\(destination.range.lowerBound + 1)–\(destination.range.upperBound) di \(state.tiles.count)",
+        let row = CPListItem(
+          text: title,
+          detailText:
+            "\(destination.range.lowerBound + 1)–\(destination.range.upperBound) di \(state.tiles.count)",
           image: UIImage(systemName: symbol))
-        row.handler = { [weak self, weak grid, weak state] _, done in
+        row.handler = { [weak self, weak grid, weak state] selected, done in
+          // Finish selection while its row still belongs to the template. Replacing
+          // the section in this callback can race CarPlay's selection/focus cleanup.
+          // Snapshot the state before completion, then replace on the next main turn.
+          guard let self, let grid, let state else {
+            done()
+            return
+          }
           done()
-          guard let self, let grid, let state else { return }
-          self.setTiles(state.tiles, in: grid, offset: offset, layout: state.layout,
-            leadingButtons: leadingButtons, refresh: state.refresh)
+          DispatchQueue.main.async { [weak self, weak grid, state, selected] in
+            _ = selected  // Keep the selected row alive through CarPlay's acknowledgement.
+            guard let self, let grid, self.grids.object(forKey: grid) === state else { return }
+            self.setTiles(
+              state.tiles, in: grid, offset: offset, layout: state.layout,
+              leadingButtons: leadingButtons, refresh: state.refresh)
+          }
         }
         rows.append(row)
       }
@@ -569,7 +638,8 @@
             guard let self, let grid, let state, let image, !Task.isCancelled,
               self.controller != nil, self.grids.object(forKey: grid) === state
             else { return }
-            let displayImage = state.layout == .covers ? AppleArtworkStore.squareCover(image) : image
+            let displayImage =
+              state.layout == .covers ? AppleArtworkStore.squareCover(image) : image
             state.images[index] = displayImage
             state.imageUpdates[index]?(displayImage)
           })
@@ -836,9 +906,11 @@
       }
       if app.music.loadingRadio || app.music.completingRadio || app.music.radioError != nil {
         let status = CPListItem(
-          text: app.music.loadingRadio ? "Preparo la radio…"
+          text: app.music.loadingRadio
+            ? "Preparo la radio…"
             : app.music.completingRadio ? "Completo la radio…" : "Suggerimenti non disponibili",
-          detailText: app.music.completingRadio ? "\(app.music.queue.count)/50 brani"
+          detailText: app.music.completingRadio
+            ? "\(app.music.queue.count)/50 brani"
             : app.music.radioError == nil ? nil : "Tocca per riprovare")
         status.isEnabled = !app.music.loadingRadio && !app.music.completingRadio
         status.handler = { [weak self] _, done in

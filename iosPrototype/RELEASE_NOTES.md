@@ -1,3 +1,18 @@
+# NoteNarrate iOS 0.13.5 (41) — paginazione CarPlay
+
+Il tap su «Altri elementi», «Altri album» e «Pagina precedente» completa la
+selezione mantenendo vive riga e pagina; la sostituzione delle sezioni avviene nel
+successivo turno della coda principale. I callback di pagine ormai sostituite
+vengono ignorati, incluso un doppio tap ravvicinato. Nessuna richiesta di rete è
+necessaria per cambiare pagina.
+
+Regression coverage: real CPListItem Home handlers for 15 entries (12 + 3),
+completion ordering, return and stale callbacks; existing 25-album handler check
+adapted to deferred page transitions. Six CarPlay core tests passed; Debug device
+compilation passed with Xcode 27.2 RC / SDK 27.2. Native UI regression cases are
+prepared but not run: the simulator service did not return an available device.
+Vehicle validation remains pending.
+
 # NoteNarrate iOS 0.13.4 (40) — radio Your Love e avvio audio
 
 A live progressive probe resolved the exact reference Your Love / Frankie Knuckles:

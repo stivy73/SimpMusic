@@ -151,9 +151,13 @@ struct RootView: View {
             }
           }
           #if os(iOS)
+            if ProcessInfo.processInfo.arguments.contains("--test-carplay-home-pages") {
+              Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("carplay-home-page-qa")
+                .task { qaAlbumPaging = await CarPlayScene().verifyHomePageHandlers() }
+            }
             if ProcessInfo.processInfo.arguments.contains("--test-carplay-album-pages") {
               Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("carplay-album-page-qa")
-                .task { qaAlbumPaging = CarPlayScene().verifyAlbumPageHandlers() }
+                .task { qaAlbumPaging = await CarPlayScene().verifyAlbumPageHandlers() }
             }
           #endif
           if ProcessInfo.processInfo.arguments.contains("--test-local-playback") {

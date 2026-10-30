@@ -857,6 +857,18 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
+  func testCarPlayHomeMoreElementsCompletesBeforeReplacingRowsAndReturns() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library", "--test-carplay-home-pages"]
+    app.launch()
+    let result = app.staticTexts["carplay-home-page-qa"]
+    XCTAssertTrue(result.waitForExistence(timeout: 15))
+    let finished = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "true:true:true:true:3"), object: result)
+    XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 10), .completed)
+  }
+
+  @MainActor
   func testOldFavouriteSongsAndEveryAlbumTrackMigrateIntoYouTubeLikes() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-remote-library", "--test-favorites-migration"]
