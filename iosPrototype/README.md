@@ -1,4 +1,17 @@
-# NoteNarrate iOS — 0.13.0 (36)
+# NoteNarrate iOS — 0.13.4 (40)
+
+Ultima beta interna: 0.13.4 (40), caricata, elaborata e assegnata via API al gruppo
+Stivy73, con gli account Gmail e aziendale già presenti. Avvio audio con blocco da
+128 KiB e buffer iniziale da 5 secondi, controlli CDN mantenuti e parallelizzati.
+Radio progressiva: il cambio brano nella stessa coda non annulla più il completamento;
+i mix vengono riconosciuti mantenendo la verifica dell'artista e la deduplicazione.
+Avanzamento X/50 visibile su iPhone e CarPlay. 32 test audio e 33 test radio mirati
+superati, compilazioni Debug e Release riuscite. Collaudo sul Duo/veicolo ancora da fare.
+Firma, upload, controllo stato e assegnazione usano la chiave API locale; nessun
+segreto è versionato. IPA e ricevuta si trovano in deliveries (non versionato).
+
+## Verifiche precedenti — build 36
+
 
 Client SwiftUI per iPhone e iPad, separato dalla build Android. Sviluppato con assistenza
 IA/vibecoding: è un prototipo, non un porting completo di SimpMusic.
