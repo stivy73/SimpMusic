@@ -92,8 +92,10 @@ def testflight(key_path, key_id, issuer, app_id, version, group_name=None):
         if len(selected) != 1 or selected[0]["attributes"].get("isInternalGroup") is not True:
             raise ValueError("Expected one existing internal group for this app")
         group_id = selected[0]["id"]
-        request("betaGroups/" + group_id + "/relationships/builds",
-                {"data": [{"type": "builds", "id": build["id"]}]})
+        # Build-side linkage is Apple's current endpoint. Group-side POST can
+        # time out while reads and this equivalent relationship update succeed.
+        request("builds/" + build["id"] + "/relationships/betaGroups",
+                {"data": [{"type": "betaGroups", "id": group_id}]})
     result["groups"] = []
     for group in groups:
         members = request("betaGroups/" + group["id"] + "/builds?limit=200").get("data", [])

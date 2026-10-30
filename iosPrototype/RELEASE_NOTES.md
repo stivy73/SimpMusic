@@ -11,7 +11,11 @@ completion ordering, return and stale callbacks; existing 25-album handler check
 adapted to deferred page transitions. Six CarPlay core tests passed; Debug device
 compilation passed with Xcode 27.2 RC / SDK 27.2. Native UI regression cases are
 prepared but not run: the simulator service did not return an available device.
-Vehicle validation remains pending.
+Vehicle validation remains pending. Release archive, distribution export and
+CheckCarPlayIPA.py passed; build 41 upload succeeded on 30 October 2026 at 20:04
+Europe/Rome. API group assignment verified Team interno and Stivy73. The Apple
+build-side betaGroups endpoint succeeded after the group-side endpoint repeatedly
+timed out; the distribution helper now uses the working official endpoint.
 
 # NoteNarrate iOS 0.13.4 (40) — radio Your Love e avvio audio
 
