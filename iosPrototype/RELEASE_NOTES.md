@@ -8,7 +8,10 @@ segmenti HLS iniziale, oltre il minuto e finale vengono verificati in parallelo.
 La correzione della durata e la protezione contro il silenzio finale restano attive.
 
 Validation: all 32 targeted audio/range/recovery tests passed after the final
-early-failure cancellation adjustment. Release signing and delivery pending.
+early-failure cancellation adjustment. Xcode 27.2 RC archive succeeded; app and all
+extensions are 0.13.3 (39). Distribution export is blocked: Xcode reports No Accounts
+and no distribution signing certificate for team 63W2ZKR3Z7. No build 39 upload
+was attempted; build 38 remains the latest available until account sign-in.
 A dedicated concurrent transport test verifies overlapping boundary/tail checks.
 The live Oceanic Delta Waves probe was rejected by anonymous YouTube source
 resolution, so no startup timing or >95-second playback result is claimed.
