@@ -230,6 +230,21 @@ import XCTest
           kind: .song, mediaId: "fake", title: "Heroes", subtitle: "Bowietribute", artwork: nil)
       ]))
   }
+  func testHouseRadioAcceptsRealMixLabelsButStillRequiresTheCorrectArtist() {
+    let song = MusicSuggestion(title: "French Kiss", artist: "Lil Louis", reason: "")
+    let cover = DiscoveryItem(kind: .song, mediaId: "cover", title: "French Kiss", subtitle: "Cover Band", artwork: nil)
+    let mix = DiscoveryItem(kind: .song, mediaId: "mix", title: "French Kiss (The Original Underground Mix)", subtitle: "Lil' Louis, The World", artwork: nil)
+    XCTAssertEqual(song.match(in: [cover, mix])?.mediaId, "mix")
+    let exact = DiscoveryItem(kind: .song, mediaId: "exact", title: "French Kiss", subtitle: "Lil Louis", artwork: nil)
+    XCTAssertEqual(song.match(in: [mix, exact])?.mediaId, "exact")
+    let live = DiscoveryItem(kind: .song, mediaId: "live", title: "French Kiss (Live)", subtitle: "Lil Louis", artwork: nil)
+    XCTAssertNil(song.match(in: [cover, live]))
+    let different = MusicSuggestion(title: "Gypsy Woman (She's Homeless)", artist: "Crystal Waters", reason: "")
+    XCTAssertNil(different.match(in: [DiscoveryItem(kind: .song, mediaId: "other", title: "Gypsy Woman (Other Song)", subtitle: "Crystal Waters", artwork: nil)]))
+    XCTAssertEqual(SongRadioHistory.identity(title: mix.title, artist: "Lil Louis"),
+      SongRadioHistory.identity(title: "French Kiss (Club Mix)", artist: "Lil Louis"))
+  }
+
   func testSuggestionsKeepUnavailableVisibleButOnlyVerifiedPlayable() async {
     let model = MusicSuggestionsModel(
       generate: { _, _, _, _ in

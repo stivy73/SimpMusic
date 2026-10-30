@@ -834,11 +834,13 @@
           radioRows.append(artist)
         }
       }
-      if app.music.loadingRadio || app.music.radioError != nil {
+      if app.music.loadingRadio || app.music.completingRadio || app.music.radioError != nil {
         let status = CPListItem(
-          text: app.music.loadingRadio ? "Preparo la radio…" : "Suggerimenti non disponibili",
-          detailText: app.music.radioError == nil ? nil : "Tocca per riprovare")
-        status.isEnabled = !app.music.loadingRadio
+          text: app.music.loadingRadio ? "Preparo la radio…"
+            : app.music.completingRadio ? "Completo la radio…" : "Suggerimenti non disponibili",
+          detailText: app.music.completingRadio ? "\(app.music.queue.count)/50 brani"
+            : app.music.radioError == nil ? nil : "Tocca per riprovare")
+        status.isEnabled = !app.music.loadingRadio && !app.music.completingRadio
         status.handler = { [weak self] _, done in
           done()
           self?.app.music.retryRadio()

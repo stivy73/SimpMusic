@@ -784,3 +784,18 @@ avvio/interruzione. Novanta test core e due prove UI in background superati,
 compresa una preparazione rallentata. L'udibilità nell'auto resta da confermare.
 Il blocco CDN oltre il primo MiB non è risolto: Condividi diagnostica include ora
 versione/build e la causa dello scarto del flusso account prima del fallback.
+
+
+### Firma e caricamento con API Apple
+
+Il comando `python3 Scripts/AppleAPI.py --check` verifica le credenziali locali senza
+mostrarle. Per firmare o caricare una beta, usare lo stesso script seguito da `--`
+e dagli argomenti `xcodebuild`, ad esempio `-- -exportArchive -archivePath ...
+-exportPath ... -exportOptionsPlist TestFlightExportOptions.plist`.
+Il percorso predefinito è `~/Downloads/api.txt` (oppure `ASC_CREDENTIALS_FILE`): viene
+letta solo la sezione marcata `APP STORE CONNECT CODEX`. Il file deve avere permessi
+600. La chiave privata viene fornita a Xcode tramite un file temporaneo protetto,
+rimosso alla fine del comando. La chiave e il file sorgente non devono entrare nel
+repository, nei log o nell'app. Lo script usa Xcode 27.2 e l'autenticazione API;
+non richiede di mantenere aperta una sessione Apple nelle impostazioni di Xcode.
+Accordi, certificati/profili e stato di elaborazione Apple vanno verificati separatamente.

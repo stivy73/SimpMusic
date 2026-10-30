@@ -1,3 +1,27 @@
+# NoteNarrate iOS 0.13.4 (40) — radio Your Love e avvio audio
+
+A live progressive probe resolved the exact reference Your Love / Frankie Knuckles:
+7 verified songs at 12.75 seconds, 42 at 78.46 seconds. A final single-result queue
+was not reproduced on this Mac; device history/session/model can differ.
+Code review found that selecting an early track in the current radio cancelled its
+background fill. That path now preserves completion; new queues/radios/accounts
+still cancel the old request. iPhone and CarPlay show completion progress (X/50).
+Catalogue matching now accepts trailing mix/edit/version/remaster labels and checks
+actual structured artist credits; exact versions are preferred, wrong artists/live
+versions/semantic subtitle mismatches remain rejected. History folds mix labels to
+avoid repeating alternate releases of a composition.
+
+33 focused discovery/Gemini tests passed, including real house catalogue examples.
+Release device compilation passed with signing disabled. A simulator UI regression
+case for track switching was added but cannot run while simulator runtimes remain
+unavailable. Release and Debug device compilation passed without signing. These changes are
+not yet in TestFlight. Includes the audio-startup optimizations of candidate 39.
+Apple API access and Team Admin key creation were explicitly authorized. The key
+was saved in the owner-only Downloads/api.txt, preserving its existing content.
+Scripts/AppleAPI.py reads only the marked Apple section and supplies a temporary
+private-key file to Xcode; no credentials or identifiers are committed to Git.
+API cloud signing and TestFlight distribution validation are in progress.
+
 # NoteNarrate iOS 0.13.3 (39)
 
 Avvio audio: blocchi iniziali di 128 KiB invece di 512 KiB; cache in RAM ancora

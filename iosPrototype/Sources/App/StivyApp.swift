@@ -432,6 +432,9 @@ struct QueueScreen: View {
           }
           if model.loadingRadio {
             ProgressView("Preparo la radio…").accessibilityIdentifier("radio-loading")
+          } else if model.completingRadio {
+            ProgressView("Completo la radio… \(model.queue.count)/50 brani")
+              .accessibilityIdentifier("radio-completing")
           }
           if let error = model.radioError {
             Text(error).font(.caption).foregroundStyle(.orange).accessibilityIdentifier(
@@ -448,7 +451,7 @@ struct QueueScreen: View {
           #endif
         } footer: {
           Text(
-            "A coda terminata prosegue con i suggerimenti di YouTube Music. La ripetizione ha precedenza."
+            "A coda terminata prosegue con nuovi suggerimenti. La ripetizione ha precedenza."
           )
         }
         Text("\(model.queue.count) brani").font(.caption).foregroundStyle(.secondary)

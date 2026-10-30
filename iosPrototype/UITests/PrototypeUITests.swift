@@ -807,6 +807,27 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
+  func testSwitchingToAnEarlyRadioTrackDoesNotCancelBackgroundFill() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-remote-library", "--test-radio", "--test-radio-progress", "--test-radio-progress-switch"]
+    app.launch()
+    openPlayerOptions(app)
+    let radio = app.buttons["song-option-radio"]
+    if !radio.isHittable { app.swipeUp() }
+    radio.tap()
+    app.buttons["show-queue"].tap()
+    XCTAssertTrue(app.buttons["queue-progress-1"].waitForExistence(timeout: 3))
+    XCTAssertTrue(app.descendants(matching: .any)["radio-completing"].exists)
+    app.buttons["queue-progress-1"].tap()
+    app.buttons["show-queue"].tap()
+    XCTAssertEqual(app.buttons["queue-progress-1"].value as? String, "Brano corrente")
+    let complete = NSPredicate(format: "label == '50 brani'")
+    expectation(for: complete, evaluatedWith: app.staticTexts["queue-count"])
+    waitForExpectations(timeout: 20)
+    XCTAssertEqual(app.buttons["queue-progress-1"].value as? String, "Brano corrente")
+  }
+
+  @MainActor
   func testRadioFailureKeepsExistingQueue() {
     let app = XCUIApplication()
     app.launchArguments = [

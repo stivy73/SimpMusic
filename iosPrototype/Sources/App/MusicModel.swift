@@ -291,6 +291,7 @@ final class MusicModel: NSObject, ObservableObject {
     }
   }
   @Published private(set) var loadingRadio = false
+  @Published private(set) var completingRadio = false
   @Published var radioError: String?
   @Published var radioActionError: String?
   @Published private(set) var radioTitle: String?
@@ -687,6 +688,7 @@ final class MusicModel: NSObject, ObservableObject {
     radioRevision = UUID()
     radioPublishedRevision = nil
     radioPublishedIDs = []
+    completingRadio = false
     waitingForRadio = nil
     loadingRadio = false
     endRadioBackgroundTask()
@@ -735,6 +737,7 @@ final class MusicModel: NSObject, ObservableObject {
         try Task.checkCancellation()
         if radioPublishedRevision == token {
           guard radioRevision == token else { return }
+          completingRadio = false
           loadingRadio = false
           radioTask = nil
           endRadioBackgroundTask()
@@ -772,6 +775,7 @@ final class MusicModel: NSObject, ObservableObject {
         endRadioBackgroundTask()
         radioError = error.localizedDescription
         radioActionError = error.localizedDescription
+        completingRadio = false
       }
     }
   }
@@ -843,6 +847,7 @@ final class MusicModel: NSObject, ObservableObject {
       play(seed, queue: songs, selectedIndex: 0, preserveRadio: true,
         reusePlayback: current?.id == seed.id)
       radioPublishedRevision = token
+      completingRadio = true
       radioPublishedIDs = Set(songs.map(\.id))
       radioCursor = RadioCursor(endpoint: .song(seed.id))
       artistRadio = false
@@ -875,7 +880,7 @@ final class MusicModel: NSObject, ObservableObject {
           let items = (1...50).map { DiscoveryItem(kind: .song, mediaId: "progress-\($0)",
             title: "Radio progressiva \($0)", subtitle: "Artista", artwork: nil) }
           await onUpdate(Array(items.prefix(6)))
-          try await Task.sleep(for: .seconds(4))
+          try await Task.sleep(for: .seconds(ProcessInfo.processInfo.arguments.contains("--test-radio-progress-switch") ? 12 : 4))
           try Task.checkCancellation()
           await onUpdate(items)
           return RadioPage(items: items, endpoint: .song(seed.id), continuation: nil, automix: nil)
@@ -1027,7 +1032,8 @@ final class MusicModel: NSObject, ObservableObject {
     if !preserveRadio {
       if newQueue != nil || !queue.contains(where: { $0.id == song.id }) {
         resetRadio()
-      } else {
+      } else if !(completingRadio && radioPublishedRevision == radioRevision) {
+        // Moving within the current radio must not cancel its background fill.
         invalidateRadioRequest()
       }
     }

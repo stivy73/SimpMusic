@@ -38,18 +38,35 @@ do {
     else { throw LibraryError.malformed }
     exit(0)
   }
-  if ["--song-radio-key-file", "--song-radio-progress-key-file"].contains(args.first ?? ""), args.count == 2 {
+  if ["--song-radio-key-file", "--song-radio-progress-key-file"].contains(args.first ?? ""), args.count >= 2 {
     let source = try String(contentsOfFile: args[1], encoding: .utf8)
     let pattern = try NSRegularExpression(pattern: #"AIza[A-Za-z0-9_-]{30,80}"#)
     guard let match = pattern.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
       let range = Range(match.range, in: source) else { throw PrototypeError.missingKey }
     let key = String(source[range])
-    let seed = PlaybackTrack(id: "reference-only", title: "La preda", artist: "Franco Battiato", artwork: nil)
+    let seed: PlaybackTrack
+    if args.count > 2 {
+      let results = try await HomeDiscovery(session: nil).search(query: args.dropFirst(2).joined(separator: " "), filter: .songs)
+      guard let song = results.first else { throw RadioError.unavailable }
+      seed = PlaybackTrack(song)
+      print("Radio reference: \(seed.title) / \(seed.artist)")
+    } else { seed = PlaybackTrack(id: "reference-only", title: "La preda", artist: "Franco Battiato", artwork: nil) }
+    let radio = GeminiSongRadio(generateBatch: { key, model, seed, excluded, count in
+      let suggestions = try await GeminiService().suggestMusic(key: key, model: model,
+        request: "Crea una nuova radio musicale ispirata al brano di riferimento, con artisti diversi e affinità di stile e atmosfera. Non ripetere proposte recenti.",
+        seeds: [seed], excluding: excluded, requestID: UUID().uuidString, count: count, includeReasons: false)
+      print("Generation: requested \(count), returned \(suggestions.count)")
+      return suggestions
+    }, search: { session, query in
+      let results = try await HomeDiscovery(session: session).search(query: query, filter: .songs)
+      print("Catalogue query: \(query); first results: \(results.prefix(2).map { $0.title + " / " + $0.subtitle }.joined(separator: " ; "))")
+      return results
+    })
     var history = SongRadioHistory()
     let progressive = args.first == "--song-radio-progress-key-file"
     for request in 1...(progressive ? 1 : 2) {
       let start = Date()
-      let songs = try await GeminiSongRadio().songs(seed: seed, excluding: history.tracks,
+      let songs = try await radio.songs(seed: seed, excluding: history.tracks,
         key: key, model: "gemini-3.8-flash", session: nil, onUpdate: progressive ? { @MainActor @Sendable songs in
           print("Radio available: \(songs.count) verified songs after \(String(format: "%.2f", Date().timeIntervalSince(start))) seconds")
         } : nil)

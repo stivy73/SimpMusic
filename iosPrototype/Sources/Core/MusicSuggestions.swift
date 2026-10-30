@@ -32,31 +32,38 @@ public struct MusicSuggestion: Codable, Hashable, Identifiable, Sendable {
     .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(
       separator: " ")
   }
-  /// Only actual matching catalog results can enter the playable queue; AI never supplies media IDs.
-  public func match(in items: [DiscoveryItem]) -> DiscoveryItem? {
-    let title = Self.normalize(title)
-    let artist = Self.normalize(artist)
-    guard !title.isEmpty, !artist.isEmpty else { return nil }
-    return items.first {
-      guard $0.kind == .song else { return false }
-      let candidate = Self.normalize($0.title)
-      let performer = Self.normalize($0.subtitle)
-      let suffixes = [
-        "", " remastered", " remaster", " official audio", " official video", " lyrics",
-      ]
-      let titleMatches =
-        suffixes.contains { candidate == title + $0 }
-        || candidate.range(
-          of: "^" + NSRegularExpression.escapedPattern(for: title)
-            + #" (19|20)[0-9]{2} remaster(ed)?$"#, options: .regularExpression) != nil
-      // SDK artistsDisplay joins real artist credits with commas. A tribute band whose name
-      // contains the original performer's name must not count as a verified artist match.
-      let artistMatches =
-        performer == artist
-        || $0.subtitle.components(separatedBy: ", ").contains { Self.normalize($0) == artist }
-      return titleMatches && artistMatches
+  /// Remove catalogue version labels, keeping semantic subtitles and live performances distinct.
+  static func catalogueTitle(_ text: String) -> String {
+    var title = text
+    let version = #"\s*[\(\[][^()\[\]]*\b(?:mix|remix|version|edit|dub|remastered|remaster)\b[^()\[\]]*[\)\]]\s*$"#
+    let credit = #"\s*[\(\[]\s*(?:feat\.?|featuring|ft\.?|con)\s+[^()\[\]]+[\)\]]\s*$"#
+    while true {
+      let next = title.replacingOccurrences(of: version, with: "", options: [.regularExpression, .caseInsensitive])
+        .replacingOccurrences(of: credit, with: "", options: [.regularExpression, .caseInsensitive])
+      if next == title { break }
+      title = next
     }
+    return normalize(title).replacingOccurrences(
+      of: #" (?:[12][0-9]{3} )?(?:remaster(?:ed)?|official (?:audio|video)|lyrics)(?: [12][0-9]{3})?$"#,
+      with: "", options: .regularExpression)
   }
+
+  /// Only matching real catalogue results enter the queue; version labels do not hide house tracks.
+  public func match(in items: [DiscoveryItem]) -> DiscoveryItem? {
+    let expectedTitle = Self.normalize(title)
+    let baseTitle = Self.catalogueTitle(title)
+    let expectedArtist = Self.normalize(artist)
+    guard !baseTitle.isEmpty, !expectedArtist.isEmpty else { return nil }
+    let verified = items.filter { item in
+      guard item.kind == .song else { return false }
+      let credits = [item.subtitle] + item.subtitle.components(separatedBy: ", ")
+        + (item.artistReferences ?? []).map(\.name)
+      return credits.contains { Self.normalize($0) == expectedArtist }
+    }
+    return verified.first { Self.normalize($0.title) == expectedTitle }
+      ?? verified.first { Self.catalogueTitle($0.title) == baseTitle }
+  }
+
 }
 
 public struct ResolvedMusicSuggestion: Identifiable, Sendable {
@@ -201,7 +208,7 @@ public struct SongRadioHistory: Codable, Sendable {
   public private(set) var tracks: [PlaybackTrack] = []
   public init() {}
   public static func identity(title: String, artist: String) -> String {
-    let title = MusicSuggestion.normalize(title).replacingOccurrences(
+    let title = MusicSuggestion.catalogueTitle(title).replacingOccurrences(
       of: #" (?:[12][0-9]{3} )?(?:remaster(?:ed)?|official (?:audio|video)|lyrics|live)(?: [12][0-9]{3})?$"#,
       with: "", options: .regularExpression)
     return title + "|" + MusicSuggestion.normalize(artist)
