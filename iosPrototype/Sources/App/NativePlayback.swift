@@ -264,6 +264,10 @@
         Task { @MainActor [weak self] in
           guard let self, self.nativePlayer === observedPlayer else { return }
           self.playing = active
+          if active {
+            // Once audible, grow the forward buffer again for cellular resilience.
+            self.nativePlayer.currentItem?.preferredForwardBufferDuration = 30
+          }
         }
       }
       progress = nativePlayer.addPeriodicTimeObserver(
@@ -403,7 +407,7 @@
             asset = loader.asset()
           }
           let item = AVPlayerItem(asset: asset)
-          item.preferredForwardBufferDuration = 30
+          item.preferredForwardBufferDuration = 5
           let timing = try await AudioPlaybackTiming.resolve(asset, source: sourceDuration)
           try Task.checkCancellation()
           guard intent.revision == expected, assetRevision == generation else { return }

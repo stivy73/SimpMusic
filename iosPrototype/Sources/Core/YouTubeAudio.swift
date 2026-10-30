@@ -191,15 +191,20 @@ public struct YouTubeAudio: Sendable {
           url: url, userAgent: userAgent, transport: transport, first: 0, last: 1023)
         // A readable prefix is not a playable song. Validate the exact failure boundary
         // and the tail for BOTH account and public streams before giving one to AVPlayer.
-        if length > 1_048_576 {
-          _ = try await validateRange(
-            url: url, userAgent: userAgent, transport: transport, first: 1_048_576,
-            last: min(length - 1, 1_049_599), expectedLength: length)
-        }
-        if length > 1024 {
-          _ = try await validateRange(
-            url: url, userAgent: userAgent, transport: transport, first: length - 1024,
-            last: length - 1, expectedLength: length)
+        try await withThrowingTaskGroup(of: Void.self) { group in
+          if length > 1_048_576 {
+            group.addTask {
+              _ = try await validateRange(url: url, userAgent: userAgent, transport: transport,
+                first: 1_048_576, last: min(length - 1, 1_049_599), expectedLength: length)
+            }
+          }
+          if length > 1024 {
+            group.addTask {
+              _ = try await validateRange(url: url, userAgent: userAgent, transport: transport,
+                first: length - 1024, last: length - 1, expectedLength: length)
+            }
+          }
+          for try await _ in group {}
         }
         try Task.checkCancellation()
         return Source(
@@ -294,9 +299,14 @@ public struct YouTubeAudio: Sendable {
     if let afterMinute = segments.first(where: { $0.start >= 60 }) {
       probes.append(afterMinute.url)
     }
-    for segment in Set(probes) {
-      _ = try await hlsData(
-        segment, userAgent: userAgent, transport: transport, limit: 1024, range: true)
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      for segment in Set(probes) {
+        group.addTask {
+          _ = try await hlsData(segment, userAgent: userAgent, transport: transport,
+            limit: 1024, range: true)
+        }
+      }
+      for try await _ in group {}
     }
     return url
   }

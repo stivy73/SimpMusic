@@ -133,6 +133,19 @@ final class AudioPlaybackTests: XCTestCase {
       Data(repeating: 1, count: Int(last - first + 1))
     )
   }
+  func testBoundaryAndTailAreCheckedConcurrentlyBeforeSourceIsAccepted() async throws {
+    ValidationConcurrencyStub.reset()
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [ValidationConcurrencyStub.self]
+    let transport = URLSession(configuration: config)
+    defer { transport.invalidateAndCancel() }
+    let source = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(), userAgent: "Test", authenticated: true, quality: .high)
+    XCTAssertEqual(source.byteCount, 4_000_000)
+    XCTAssertEqual(ValidationConcurrencyStub.maximum, 2,
+      "Tail and post-minute safety checks must overlap, rather than add round trips")
+  }
+
   func testPublicPrefixOnlyStreamFallsBackBeforePlayback() async throws {
     let calls = RangeCalls()
     RangeStub.handler = { request in
@@ -435,13 +448,13 @@ final class AudioRangeBufferTests: XCTestCase {
   }
   func testCrossingManyBlocksPreservesBytesAndBoundsTheCache() async throws {
     let calls = RangeCalls()
-    let buffer = buffer { request in
+    let buffer = buffer(blocks: 40) { request in
       let offset = Int64(
         request.value(forHTTPHeaderField: "Range")!.dropFirst(6).split(separator: "-")[0])!
       _ = calls.add(offset)
-      return try self.response(request)
+      return try self.response(request, blocks: 40)
     }
-    for index in 0..<12 {
+    for index in 0..<40 {
       let bytes = try await buffer.block(at: Int64(index) * AudioRangeBuffer.blockSize)
       XCTAssertEqual(bytes.count, Int(AudioRangeBuffer.blockSize))
       XCTAssertTrue(bytes.allSatisfy { $0 == UInt8(index) })
@@ -494,4 +507,30 @@ final class AudioRangeBufferTests: XCTestCase {
       XCTFail()
     } catch {}
   }
+}
+
+private final class ValidationConcurrencyStub: URLProtocol, @unchecked Sendable {
+  static let lock = NSLock()
+  nonisolated(unsafe) private static var active = 0
+  nonisolated(unsafe) private static var peak = 0
+  static var maximum: Int { lock.withLock { peak } }
+  static func reset() { lock.withLock { active = 0; peak = 0 } }
+  override class func canInit(with request: URLRequest) -> Bool { true }
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+  override func startLoading() {
+    let range = request.value(forHTTPHeaderField: "Range")!.dropFirst(6)
+    let parts = range.split(separator: "-")
+    let first = Int(parts[0])!, last = Int(parts[1])!
+    let delayed = first != 0
+    if delayed { Self.lock.withLock { Self.active += 1; Self.peak = max(Self.peak, Self.active) } }
+    DispatchQueue.global().asyncAfter(deadline: .now() + (delayed ? 0.15 : 0)) { [self] in
+      let response = HTTPURLResponse(url: request.url!, statusCode: 206, httpVersion: nil,
+        headerFields: ["Content-Range": "bytes \(first)-\(last)/4000000"])!
+      client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+      client?.urlProtocol(self, didLoad: Data(repeating: 1, count: last - first + 1))
+      if delayed { Self.lock.withLock { Self.active -= 1 } }
+      client?.urlProtocolDidFinishLoading(self)
+    }
+  }
+  override func stopLoading() {}
 }

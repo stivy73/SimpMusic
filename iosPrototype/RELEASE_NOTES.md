@@ -1,3 +1,21 @@
+# NoteNarrate iOS 0.13.3 (39)
+
+Avvio audio: blocchi iniziali di 128 KiB invece di 512 KiB; cache in RAM ancora
+limitata a 4 MiB (32 blocchi), lettura anticipata e retry invariati. Il primo buffer
+preferito passa da 30 a 5 secondi e torna a 30 quando AVPlayer inizia a riprodurre.
+Controlli CDN oltre 1 MiB e a fine brano in parallelo, senza rimuoverli; anche i
+segmenti HLS iniziale, oltre il minuto e finale vengono verificati in parallelo.
+La correzione della durata e la protezione contro il silenzio finale restano attive.
+
+Validation: all 32 targeted audio/range/recovery tests passed after the final
+early-failure cancellation adjustment. Release signing and delivery pending.
+A dedicated concurrent transport test verifies overlapping boundary/tail checks.
+The live Oceanic Delta Waves probe was rejected by anonymous YouTube source
+resolution, so no startup timing or >95-second playback result is claimed.
+Simulator UI tests could not start: installed simulator runtimes/devices are
+unavailable. No runtime was downloaded or phone connection changed. Physical Duo
+startup/continuity validation is required. SDK 27.2, deployment target iOS 17.
+
 # NoteNarrate iOS 0.13.2 (38)
 
 Radio progressiva: prima generazione di 8 proposte, pubblicazione dei primi risultati

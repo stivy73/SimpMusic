@@ -142,7 +142,8 @@ private final class LoadingBox: @unchecked Sendable {
 /// Per-track, bounded memory read-ahead. Shared range requests survive seeks without
 /// refetching the same bytes; no signed addresses or song data are persisted.
 actor AudioRangeBuffer {
-  static let blockSize: Int64 = 512 * 1024
+  // A 128 KiB head starts four times sooner at the same bandwidth than the old 512 KiB block.
+  static let blockSize: Int64 = 128 * 1024
   private let source: YouTubeAudio.Source
   private let session: URLSession
   private let diagnostic: (@Sendable (String) -> Void)?
@@ -196,7 +197,7 @@ actor AudioRangeBuffer {
       pending[offset] = nil
       cached[offset] = data
       touch(offset)
-      while order.count > 8 { cached.removeValue(forKey: order.removeFirst()) }
+      while order.count > 32 { cached.removeValue(forKey: order.removeFirst()) }
       try Task.checkCancellation()
       return data
     } catch {
