@@ -84,7 +84,8 @@ def testflight(key_path, key_id, issuer, app_id, version, group_name=None):
         "version": prerelease.get("attributes", {}).get("version"),
         "processingState": attributes.get("processingState"),
         "internalBuildState": detail.get("attributes", {}).get("internalBuildState")}
-    groups = request("apps/" + app_id + "/betaGroups?limit=200").get("data", [])
+    group_query = urllib.parse.urlencode({"filter[app]": app_id, "limit": "200"})
+    groups = request("betaGroups?" + group_query).get("data", [])
     if group_name:
         if result["processingState"] != "VALID":
             raise ValueError("Build is not ready for assignment")

@@ -13,6 +13,11 @@ Debug device build passato con Xcode 27.2 RC (27B48), SDK 27.2. Venti test mirat
 CarPlayContentTests e RemoteLibraryTests passati: conferma/rimozione, errore 403,
 cambio account e doppio tap durante una scrittura non ancora confermata. Verifica
 visiva e scrittura reale su autoradio rimangono da collaudare sul dispositivo.
+IPA di distribuzione: firma, entitlement/profilo CarPlay, estensioni e comandi Siri
+verificati. Upload riuscito il 31 ottobre 2026 alle 10:38 Europe/Rome. Apple API:
+VALID / IN_BETA_TESTING, Team interno e Stivy73 assegnati e verificati. L’elenco
+gruppi per app ha dato timeout: lo script ora usa betaGroups filtrato per app,
+verificato nella consegna. Sorgenti e versione pubblicati sul fork personale.
 
 # NoteNarrate iOS 0.14.0 (42) — Siri e Comandi rapidi
 
