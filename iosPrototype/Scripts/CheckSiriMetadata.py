@@ -35,8 +35,9 @@ def verify(path):
         assert phrases <= strings.keys(), 'Missing phrase localization: ' + locale
         for phrase in phrases:
             assert strings[phrase].strip() and '${applicationName}' in strings[phrase], locale
-    training = read('Metadata.appintents/root.ssu.yaml').decode()
-    assert 'locale: it' in training and 'locale: en' in training, 'Missing Siri training locale'
+    # Release exports strip the intermediate YAML and retain compiled NLU data.
+    for locale in ('it', 'en'):
+        assert read(locale + '.lproj/nlu.appintents/nlu.lzfse'), 'Missing compiled Siri locale'
     return {'siri_actions': sorted(EXPECTED), 'shortcuts_verified': len(EXPECTED),
             'localized_phrases': len(phrases), 'locales': ['it', 'en'],
             'audio_playback_intents': True, 'foreground_not_required': True}
