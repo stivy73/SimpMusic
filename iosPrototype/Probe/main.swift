@@ -288,5 +288,9 @@ do {
   }
 } catch {
   print("Probe failed: \(error.localizedDescription)")
+  if let failure = error as? AudioResolutionFailure {
+    print("Account audio: \(failure.accountDiagnostic)")
+    print("Musica: \(failure.networkDiagnostic)")
+  }
   exit(1)
 }

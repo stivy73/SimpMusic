@@ -1175,6 +1175,7 @@ final class MusicModel: NSObject, ObservableObject {
     narrationDiagnostic = presentOnPhone ? "Richiesta dal player" : "Richiesta da CarPlay"
     beginMeaningPreparation(token: token)
     explanationTask = Task {
+      var stage = "recupero testo"
       do {
         #if DEBUG
           if ProcessInfo.processInfo.arguments.contains("--test-carplay-meaning") {
@@ -1216,6 +1217,7 @@ final class MusicModel: NSObject, ObservableObject {
           lyrics = self.lyrics
         }
         meaningProgress = "Preparo l'interpretazione…"
+        stage = "interpretazione Gemini"
         narrationDiagnostic = "Testo recuperato; preparo interpretazione"
         let cacheKey = try InterpretationCache.key(
           model: textModel, title: song.title, artist: song.artist, lyrics: lyrics)
@@ -1236,13 +1238,18 @@ final class MusicModel: NSObject, ObservableObject {
         narrationDiagnostic =
           "Interpretazione pronta in \(Int(Date().timeIntervalSince(interpretationStarted))) s; preparo voce"
         meaning = result
+        stage = "audio narrato"
         try await speak(result, token: token)
       } catch is CancellationError {} catch {
         guard token == generation else { return }
         busyMeaning = false
         reading = false
-        meaningError = error.localizedDescription
-        narrationDiagnostic = "Errore: " + error.localizedDescription
+        if let networkError = error as? URLError, networkError.code == .timedOut {
+          meaningError = "Tempo scaduto durante \(stage). Controlla la connessione e riprova."
+        } else {
+          meaningError = error.localizedDescription
+        }
+        narrationDiagnostic = "Errore (\(stage)): " + (meaningError ?? error.localizedDescription)
         endMeaningPreparation()
         resumeMusic()
       }
@@ -1411,7 +1418,9 @@ final class MusicModel: NSObject, ObservableObject {
   private func beginMeaningPreparation(token: UUID) {
     endMeaningPreparation()
     preparationTimeout = Task { [weak self] in
-      do { try await Task.sleep(for: .seconds(45)) } catch { return }
+      // Covers lyrics, one text generation (45 s maximum), and the first TTS
+      // chunk. The operating system's background-expiration handler stays active.
+      do { try await Task.sleep(for: .seconds(90)) } catch { return }
       guard let self, self.generation == token, self.busyMeaning else { return }
       self.stopMeaning(resume: true)
       self.meaningError =

@@ -164,7 +164,7 @@ final class GeminiRequestTests: XCTestCase {
     var calls = 0
     let service = service { request in
       calls += 1
-      XCTAssertEqual(request.timeoutInterval, 25)
+      XCTAssertEqual(request.timeoutInterval, 45)
       return (
         200,
         try JSONSerialization.data(withJSONObject: [

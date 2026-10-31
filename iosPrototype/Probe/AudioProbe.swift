@@ -4,6 +4,71 @@ import PrototypeCore
 import YouTubeSDK
 
 func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
+  if args.first == "--audio-access" {
+    let query = args.dropFirst().joined(separator: " ")
+    let results = try await HomeDiscovery(session: nil).search(query: query, filter: .songs)
+    guard let song = results.first else { throw AudioPlaybackError.unavailable }
+    print("Public access probe: \(song.title)")
+    let cipher = YouTubePlayerCipher.shared
+    let info = try await cipher.playerInfo()
+    let video = try await cipher.decipher(
+      video: YouTubeBrowse(session: nil).player(
+        videoID: song.mediaId,
+        signatureTimestamp: info.signatureTimestamp), player: info)
+    guard let address = YouTubeAudio.candidates(video, quality: .normal).first else {
+      throw AudioPlaybackError.unavailable
+    }
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.httpShouldSetCookies = false
+    let session = URLSession(configuration: configuration)
+    defer { session.invalidateAndCancel() }
+    var length: Int64?
+    for mode in ["header", "query", "both", "full-scope"] {
+      for index in 0..<3 {
+        let offset: Int64 =
+          index == 0 ? 0 : index == 1 ? 1_048_576 : max(0, (length ?? 1024) - 1024)
+        let last = offset + 1023
+        var clean = URLComponents(url: address, resolvingAgainstBaseURL: false)!
+        clean.percentEncodedQuery = clean.percentEncodedQuery?.split(
+          separator: "&",
+          omittingEmptySubsequences: false
+        ).filter {
+          $0.split(separator: "=", maxSplits: 1).first?.removingPercentEncoding != "range"
+        }.joined(separator: "&")
+        var request = URLRequest(url: clean.url!, timeoutInterval: 15)
+        request.setValue(ClientConfig.webRemix.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("bytes=\(offset)-\(last)", forHTTPHeaderField: "Range")
+        if mode != "header",
+          var url = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+        {
+          let value = mode == "full-scope" ? "0-\((length ?? 10_000_000) - 1)" : "\(offset)-\(last)"
+          url.percentEncodedQuery =
+            (url.percentEncodedQuery.map { $0 + "&" } ?? "") + "range=" + value
+          request.url = url.url
+          if mode == "query" { request.setValue(nil, forHTTPHeaderField: "Range") }
+        }
+        let (bytes, response) = try await session.bytes(for: request)
+        defer { bytes.task.cancel() }
+        let http = response as? HTTPURLResponse
+        let range = http?.value(forHTTPHeaderField: "Content-Range") ?? "none"
+        if mode == "header", index == 0,
+          let total = range.split(separator: "/").last.flatMap({ Int64($0) })
+        {
+          length = total
+        }
+        var count = 0
+        for try await _ in bytes {
+          count += 1
+          if count >= 1024 { break }
+        }
+        bytes.task.cancel()
+        print(
+          "\(mode) offset \(offset): HTTP \(http?.statusCode ?? 0), sample \(count), range \(range)"
+        )
+      }
+    }
+    return true
+  }
   if args.first == "--audio-timing" || args.first == "--audio-startup" {
     let query = args.dropFirst().joined(separator: " ")
     let results = try await HomeDiscovery(session: nil).search(query: query, filter: .songs)

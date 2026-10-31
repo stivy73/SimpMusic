@@ -355,12 +355,26 @@ non viene usata una tastiera non autorizzata dall'entitlement CarPlay Audio.
 Riferimenti: https://developer.apple.com/documentation/carplay e
 https://developer.apple.com/documentation/carplay/cpnowplayingtemplate .
 
-La generazione automatica usa un singolo tentativo (timeout rete 25 secondi),
-compatibile con il watchdog generale di preparazione da 45 secondi. Il retry per
+La generazione automatica usa un singolo tentativo (timeout rete 45 secondi),
+con un watchdog generale di preparazione da 90 secondi per includere recupero
+testo e primo audio TTS. Le risposte rapide procedono subito; questi valori sono
+scadenze massime, non attese obbligatorie. La scadenza del tempo in background
+imposta da iOS resta gestita separatamente. Gli errori indicano la fase (recupero
+testo, interpretazione Gemini o audio narrato), senza includere contenuti o chiavi. Il retry per
 sola lunghezza resta disponibile nel servizio per chiamanti che lo richiedono;
 non ritarda più la voce nel player mobile e CarPlay. I test di voce in background
 sono fixture reali del player, mentre la prova server Google usa testo recuperato
 online. Nessuno dei due dimostra l'uscita fisica CarPlay del veicolo.
+
+Diagnosi su rete pubblica del 31 ottobre 2026: «Storie di tutti i giorni» di
+Riccardo Fogli restituisce HTTP 206 all'inizio e oltre 1 MiB sul percorso WEB,
+ma HTTP 403 nell'ultimo intervallo. Anche le varianti `range` della query usate
+nel confronto con Android non rendono accessibile la coda. La validazione
+completa resta obbligatoria: accettare soltanto l'inizio riproporrebbe un blocco
+durante la canzone. `swift run NetworkProbe --audio-access "titolo artista"`
+confronta i tre intervalli leggendo al massimo 1 KiB per richiesta e senza
+registrare cookie o URL firmati. Il test pubblico non verifica l'account
+dei tester e non dimostra che Premium risolva il problema.
 
 
 ## Build 23: passaggio dalla musica alla voce

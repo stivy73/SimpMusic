@@ -32,7 +32,9 @@ public struct GeminiService: Sendable {
       if optimizeForLatency && model == "gemini-3.8-flash" {
         body["generationConfig"] = ["thinkingConfig": ["thinkingLevel": "low"]]
       }
-      let json = try await post(url: url, key: key, body: body, timeout: retryLength ? 90 : 25)
+      // A single narration request still needs room for a slow mobile connection.
+      // This is a deadline, not a delay: fast replies proceed immediately to TTS.
+      let json = try await post(url: url, key: key, body: body, timeout: retryLength ? 90 : 45)
       guard let candidates = json["candidates"] as? [[String: Any]],
         let content = candidates.first?["content"] as? [String: Any],
         let parts = content["parts"] as? [[String: Any]]
