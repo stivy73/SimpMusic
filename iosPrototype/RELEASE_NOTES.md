@@ -16,6 +16,11 @@ AudioPlaybackTests superati; Debug iOS compilato con Xcode 27.2 RC (27B48),
 SDK 27.2. Prova live sul Mac: interpretazione e TTS streaming completati con la
 chiave di progetto; uscita fisica sul telefono e su CarPlay non verificata.
 
+Upload riuscito il 31 ottobre 2026 alle 23:01 Europe/Rome. Apple API:
+VALID / IN_BETA_TESTING; Team interno e Stivy73 assegnati e verificati, inclusa
+la presenza dei due nuovi tester in Team interno. Il salvataggio delle note beta
+remote ha restituito HTTP 409; i limiti restano documentati qui.
+
 # NoteNarrate iOS 0.14.1 (43) — Mi piace nel player CarPlay
 
 La barra del player mostra cinque pulsanti: cuore, interpretazione, album, artista
