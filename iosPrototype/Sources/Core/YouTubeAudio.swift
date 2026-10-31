@@ -27,6 +27,12 @@ public enum AudioPlaybackError: LocalizedError {
 public struct AudioResolutionFailure: LocalizedError, Sendable {
   public let accountDiagnostic: String
   public let networkDiagnostic: String
+  public let resolutionReport: String
+  public init(accountDiagnostic: String, networkDiagnostic: String, resolutionReport: String = "") {
+    self.accountDiagnostic = accountDiagnostic
+    self.networkDiagnostic = networkDiagnostic
+    self.resolutionReport = resolutionReport
+  }
   public var errorDescription: String? { AudioPlaybackError.unavailable.localizedDescription }
 
   static func detail(_ error: Error) -> String {
@@ -35,10 +41,63 @@ public struct AudioResolutionFailure: LocalizedError, Sendable {
         + (status.map { "HTTP \($0), intervallo non valido" } ?? "risposta non valida")
     }
     if error is PlayerCipherError { return "decodifica indirizzo audio non disponibile" }
+    if case DecodingError.keyNotFound(let key, _) = error {
+      let field = String(key.stringValue.filter { $0.isASCII && ($0.isLetter || $0.isNumber) }.prefix(40))
+      return "risposta player incompleta (\(field))"
+    }
+    if error is DecodingError { return "formato risposta player non riconosciuto" }
     if case LibraryError.authentication = error { return "sessione rifiutata da YouTube Music" }
     if case LibraryError.http(let status) = error { return "player HTTP \(status)" }
     if let error = error as? URLError { return "rete \(error.code.rawValue)" }
     return "nessuno stream completo validato"
+  }
+}
+
+/// Per-resolution bounded metadata only. Never retains URLs, cookies, response
+/// bodies, header values other than a validated numeric range, or track identity.
+final class AudioResolutionTrace: @unchecked Sendable {
+  private let lock = NSLock()
+  private let began = DispatchTime.now().uptimeNanoseconds
+  private var lines: [String] = []
+  private let receive: (@Sendable (String) -> Void)?
+  init(receive: (@Sendable (String) -> Void)? = nil) { self.receive = receive }
+  var report: String { lock.withLock { lines.joined(separator: "\n") } }
+  func record(_ message: String) {
+    let snapshot = lock.withLock {
+      let ms = (DispatchTime.now().uptimeNanoseconds - began) / 1_000_000
+      lines.append("+\(ms)ms " + String(message.prefix(500)))
+      if lines.count > 96 { lines.removeFirst(lines.count - 96) }
+      return lines.joined(separator: "\n")
+    }
+    receive?(snapshot)
+  }
+  static func range(_ http: HTTPURLResponse) -> String {
+    guard let value = http.value(forHTTPHeaderField: "Content-Range") else { return "none" }
+    guard value.count < 100,
+      value.range(of: #"^bytes ([0-9]+-[0-9]+|\*)/[0-9]+$"#, options: .regularExpression) != nil
+    else { return "invalid" }
+    return value
+  }
+  static func response(_ http: HTTPURLResponse, requested: URL, bytes: Int, ms: Int) -> String {
+    let allowed = ["audio/mp4", "audio/mpeg", "video/mp4", "application/octet-stream",
+      "text/html", "text/plain", "application/vnd.apple.mpegurl", "application/x-mpegurl"]
+    let mime = http.mimeType.map { allowed.contains($0) ? $0 : "other" } ?? "none"
+    let redirect: String
+    if http.url?.host == requested.host { redirect = "same-host" }
+    else if let host = http.url?.host, host.hasSuffix(".googlevideo.com") { redirect = "googlevideo" }
+    else { redirect = "other" }
+    return "HTTP \(http.statusCode), bytes \(bytes), range \(range(http)), mime \(mime), redirect \(redirect), \(ms)ms"
+  }
+  static func addressMetadata(_ url: URL) -> String {
+    let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+    func value(_ name: String) -> String? { items.first(where: { $0.name == name })?.value }
+    let expiry: String
+    if let seconds = value("expire").flatMap(Double.init), seconds.isFinite,
+      abs(seconds - Date().timeIntervalSince1970) < 7 * 86400
+    { expiry = seconds > Date().timeIntervalSince1970 ? "valid" : "expired" }
+    else { expiry = "unknown" }
+    let signed = (value("sparams") ?? "").split(separator: ",")
+    return "expiry=\(expiry), n=\(value("n") != nil), signature=\(value("sig") != nil || value("signature") != nil), pot=\(value("pot") != nil), ip_bound=\(value("ip") != nil), range_signed=\(signed.contains("range"))"
   }
 }
 
@@ -52,9 +111,10 @@ public struct YouTubeAudio: Sendable {
     public let isHLS: Bool
     public let authenticated: Bool
     public let accountDiagnostic: String
+    public let resolutionReport: String
     public init(
       url: URL, duration: Double, userAgent: String, byteCount: Int64?, isHLS: Bool,
-      authenticated: Bool = false, accountDiagnostic: String = ""
+      authenticated: Bool = false, accountDiagnostic: String = "", resolutionReport: String = ""
     ) {
       self.url = url
       self.duration = duration
@@ -63,6 +123,7 @@ public struct YouTubeAudio: Sendable {
       self.isHLS = isHLS
       self.authenticated = authenticated
       self.accountDiagnostic = accountDiagnostic
+      self.resolutionReport = resolutionReport
     }
   }
   private let transport: URLSession?
@@ -87,19 +148,31 @@ public struct YouTubeAudio: Sendable {
 
   public func resolve(
     videoID: String, session account: YouTubeSession? = nil, quality: AudioQuality = .high,
-    excluding: Set<URL> = [], preferHLS: Bool = false
+    excluding: Set<URL> = [], preferHLS: Bool = false,
+    diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws
     -> Source
   {
+    let trace = AudioResolutionTrace(receive: diagnostic)
+    trace.record("Audio report v1; account=\(account != nil); recovery=\(preferHLS)")
+    func completed(_ source: Source, path: String) -> Source {
+      trace.record("Selected \(path); validation complete")
+      return Source(url: source.url, duration: source.duration, userAgent: source.userAgent,
+        byteCount: source.byteCount, isHLS: source.isHLS, authenticated: source.authenticated,
+        accountDiagnostic: source.accountDiagnostic, resolutionReport: trace.report)
+    }
     var accountDiagnostic = "Nessuna sessione YouTube Music disponibile"
     var publicDiagnostic = "IOS pubblico: non verificato"
     if preferHLS { await YouTubePlayerCipher.shared.invalidate() }
     if let account {
       do {
-        let video = try await webVideo(videoID: videoID, account: account)
-        return try await source(
+        trace.record("ACCOUNT_WEB player start")
+        let video = try await webVideo(videoID: videoID, account: account, trace: trace)
+        let selected = try await source(
           video: video, userAgent: ClientConfig.webRemix.userAgent, authenticated: true,
-          quality: quality, excluding: excluding, preferHLS: preferHLS)
+          quality: quality, excluding: excluding, preferHLS: preferHLS,
+          diagnostic: { trace.record("ACCOUNT_WEB " + $0) })
+        return completed(selected, path: "ACCOUNT_WEB")
       } catch is CancellationError { throw CancellationError() } catch {
         try Task.checkCancellation()
         if case DecodingError.keyNotFound(let key, _) = error {
@@ -109,61 +182,77 @@ public struct YouTubeAudio: Sendable {
         } else {
           accountDiagnostic = "Account: " + AudioResolutionFailure.detail(error)
         }
+        trace.record("ACCOUNT_WEB failed: " + accountDiagnostic)
       }
     }
     do {
+      trace.record("PUBLIC_IOS player start; client_version=" + ClientConfig.ios.version)
       let video = try await YouTubeClient().video(id: videoID)
       let fallback = try await source(
         video: video, userAgent: ClientConfig.ios.userAgent, authenticated: false, quality: quality,
-        excluding: excluding, preferHLS: preferHLS)
-      return Source(
+        excluding: excluding, preferHLS: preferHLS,
+        diagnostic: { trace.record("PUBLIC_IOS " + $0) })
+      return completed(Source(
         url: fallback.url, duration: fallback.duration, userAgent: fallback.userAgent,
         byteCount: fallback.byteCount, isHLS: fallback.isHLS, authenticated: false,
-        accountDiagnostic: accountDiagnostic + "; sorgente IOS pubblica validata")
+        accountDiagnostic: accountDiagnostic + "; sorgente IOS pubblica validata"), path: "PUBLIC_IOS")
     } catch is CancellationError { throw CancellationError() } catch {
       try Task.checkCancellation()
       publicDiagnostic = "IOS pubblico: " + AudioResolutionFailure.detail(error)
+      trace.record("PUBLIC_IOS failed: " + publicDiagnostic)
     }
     // Native IOS can serve a valid prefix but reject the rest. Try the web player
     // with its actual signature timestamp and local s/n decoding before giving up.
     do {
-      let video = try await webVideo(videoID: videoID, account: nil)
+      trace.record("PUBLIC_WEB player start")
+      let video = try await webVideo(videoID: videoID, account: nil, trace: trace)
       let fallback = try await source(
         video: video, userAgent: ClientConfig.webRemix.userAgent, authenticated: false,
-        quality: quality, excluding: excluding, preferHLS: preferHLS)
-      return Source(
+        quality: quality, excluding: excluding, preferHLS: preferHLS,
+        diagnostic: { trace.record("PUBLIC_WEB " + $0) })
+      return completed(Source(
         url: fallback.url, duration: fallback.duration, userAgent: fallback.userAgent,
         byteCount: fallback.byteCount, isHLS: fallback.isHLS, authenticated: false,
-        accountDiagnostic: accountDiagnostic + "; sorgente WEB pubblica decodificata e validata")
+        accountDiagnostic: accountDiagnostic + "; sorgente WEB pubblica decodificata e validata"), path: "PUBLIC_WEB")
     } catch is CancellationError { throw CancellationError() } catch {
       try Task.checkCancellation()
+      trace.record("PUBLIC_WEB failed: " + AudioResolutionFailure.detail(error))
       throw AudioResolutionFailure(
         accountDiagnostic: accountDiagnostic,
         networkDiagnostic: publicDiagnostic + "; WEB pubblico: "
-          + AudioResolutionFailure.detail(error))
+          + AudioResolutionFailure.detail(error), resolutionReport: trace.report)
     }
   }
 
-  private func webVideo(videoID: String, account: YouTubeSession?) async throws -> YouTubeVideo {
+  private func webVideo(videoID: String, account: YouTubeSession?, trace: AudioResolutionTrace)
+    async throws -> YouTubeVideo {
     let cipher = YouTubePlayerCipher.shared
     let info: YouTubePlayerCipher.PlayerInfo?
     do { info = try await cipher.playerInfo() } catch is CancellationError {
       throw CancellationError()
     } catch {
       try Task.checkCancellation()
+      trace.record("WEB cipher metadata unavailable: " + AudioResolutionFailure.detail(error))
       info = nil
     }
+    if let info {
+      trace.record("WEB cipher player=\(info.id), timestamp=\(info.signatureTimestamp)")
+    }
     let video = try await YouTubeBrowse(session: account).player(
-      videoID: videoID, signatureTimestamp: info?.signatureTimestamp)
+      videoID: videoID, signatureTimestamp: info?.signatureTimestamp,
+      diagnostic: { trace.record("WEB player " + $0) })
     // An unavailable decoder registry must not break already playable direct/HLS
     // responses. source() still validates actual media access beyond the prefix.
     guard let info else { return video }
-    return try await cipher.decipher(video: video, player: info)
+    let decoded = try await cipher.decipher(video: video, player: info)
+    trace.record("WEB cipher completed")
+    return decoded
   }
 
   func source(
     video: YouTubeVideo, userAgent: String, authenticated: Bool, quality: AudioQuality,
-    excluding: Set<URL> = [], preferHLS: Bool = false
+    excluding: Set<URL> = [], preferHLS: Bool = false,
+    diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws
     -> Source
   {
@@ -177,10 +266,18 @@ public struct YouTubeAudio: Sendable {
       candidates.insert(hls, at: 0)
     }
     var lastError: Error = AudioPlaybackError.unavailable
-    for url in candidates {
+    diagnostic?("player AAC=\((video.streamingData?.adaptiveFormats ?? []).filter { $0.mimeType.hasPrefix("audio/mp4") }.count), candidates=\(candidates.count), hls=\(video.hlsURL != nil)")
+    for (index, url) in candidates.enumerated() {
+      let label = "candidate \(index + 1)/\(candidates.count)"
+      let record: @Sendable (String) -> Void = { diagnostic?(label + " " + $0) }
+      if let format = video.streamingData?.adaptiveFormats.first(where: { $0.url == url.absoluteString }) {
+        record("itag=\(format.itag), bitrate=\(format.bitrate), declared_bytes=\(format.contentLength.flatMap(Int64.init) ?? -1)")
+      }
+      record(AudioResolutionTrace.addressMetadata(url))
       do {
         if url == video.hlsURL {
-          let playlist = try await validateHLS(url: url, userAgent: userAgent, transport: transport)
+          let playlist = try await validateHLS(url: url, userAgent: userAgent, transport: transport,
+            diagnostic: record)
           guard !excluding.contains(playlist) else { continue }
           return Source(
             url: playlist, duration: Double(video.lengthInSeconds) ?? 0,
@@ -188,20 +285,23 @@ public struct YouTubeAudio: Sendable {
             accountDiagnostic: authenticated ? "Account: segmenti HLS verificati" : "")
         }
         let length = try await validateRange(
-          url: url, userAgent: userAgent, transport: transport, first: 0, last: 1023)
+          url: url, userAgent: userAgent, transport: transport, first: 0, last: 1023,
+          diagnostic: record)
         // A readable prefix is not a playable song. Validate the exact failure boundary
         // and the tail for BOTH account and public streams before giving one to AVPlayer.
         try await withThrowingTaskGroup(of: Void.self) { group in
           if length > 1_048_576 {
             group.addTask {
               _ = try await validateRange(url: url, userAgent: userAgent, transport: transport,
-                first: 1_048_576, last: min(length - 1, 1_049_599), expectedLength: length)
+                first: 1_048_576, last: min(length - 1, 1_049_599), expectedLength: length,
+                diagnostic: record)
             }
           }
           if length > 1024 {
             group.addTask {
               _ = try await validateRange(url: url, userAgent: userAgent, transport: transport,
-                first: length - 1024, last: length - 1, expectedLength: length)
+                first: length - 1024, last: length - 1, expectedLength: length,
+                diagnostic: record)
             }
           }
           for try await _ in group {}
@@ -215,6 +315,7 @@ public struct YouTubeAudio: Sendable {
       } catch is CancellationError { throw CancellationError() } catch {
         try Task.checkCancellation()
         lastError = error
+        record("rejected: " + AudioResolutionFailure.detail(error))
       }
     }
     throw lastError
@@ -222,12 +323,25 @@ public struct YouTubeAudio: Sendable {
 
   private func validateRange(
     url: URL, userAgent: String, transport: URLSession, first: Int64, last: Int64,
-    expectedLength: Int64? = nil
+    expectedLength: Int64? = nil, diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws -> Int64 {
     let source = Source(
       url: url, duration: 0, userAgent: userAgent, byteCount: expectedLength, isHLS: false)
     let request = try AudioRangeLoader.rangeRequest(source: source, offset: first, last: last)
-    let (data, response) = try await transport.data(for: request)
+    let began = Date()
+    diagnostic?("request bytes=\(first)-\(last)")
+    let data: Data
+    let response: URLResponse
+    do {
+      (data, response) = try await transport.data(for: request)
+    } catch {
+      diagnostic?("bytes=\(first)-\(last) transport: " + AudioResolutionFailure.detail(error))
+      throw error
+    }
+    if let http = response as? HTTPURLResponse {
+      diagnostic?("bytes=\(first)-\(last) " + AudioResolutionTrace.response(http,
+        requested: url, bytes: data.count, ms: Int(max(0, Date().timeIntervalSince(began) * 1000))))
+    }
     try Task.checkCancellation()
     guard let http = response as? HTTPURLResponse, http.statusCode == 206,
       let range = http.value(forHTTPHeaderField: "Content-Range"),
@@ -244,10 +358,13 @@ public struct YouTubeAudio: Sendable {
   /// A manifest returning 200 says nothing about segment access. Probe an early,
   /// post-minute and final segment, keeping all requests on Google's media hosts.
   private func validateHLS(
-    url: URL, userAgent: String, transport: URLSession, depth: Int = 0
+    url: URL, userAgent: String, transport: URLSession, depth: Int = 0,
+    diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws -> URL {
     guard depth < 3 else { throw AudioPlaybackError.unavailable }
-    let data = try await hlsData(url, userAgent: userAgent, transport: transport, limit: 512 * 1024)
+    diagnostic?("HLS manifest depth=\(depth)")
+    let data = try await hlsData(url, userAgent: userAgent, transport: transport, limit: 512 * 1024,
+      diagnostic: diagnostic)
     guard let text = String(data: data, encoding: .utf8), text.hasPrefix("#EXTM3U") else {
       throw AudioPlaybackError.unavailable
     }
@@ -276,7 +393,8 @@ public struct YouTubeAudio: Sendable {
       guard let value = selectedURI, let child = Self.mediaURL(value, relativeTo: url)
       else { throw AudioPlaybackError.unavailable }
       return try await validateHLS(
-        url: child, userAgent: userAgent, transport: transport, depth: depth + 1)
+        url: child, userAgent: userAgent, transport: transport, depth: depth + 1,
+        diagnostic: diagnostic)
     }
     var segments: [(url: URL, start: Double)] = []
     var position = 0.0
@@ -295,15 +413,16 @@ public struct YouTubeAudio: Sendable {
     guard !segments.isEmpty, lines.contains("#EXT-X-ENDLIST") else {
       throw AudioPlaybackError.unavailable
     }
-    var probes = [segments[0].url, segments[segments.count - 1].url]
+    var probes = [("head", segments[0].url), ("tail", segments[segments.count - 1].url)]
     if let afterMinute = segments.first(where: { $0.start >= 60 }) {
-      probes.append(afterMinute.url)
+      probes.append(("after-minute", afterMinute.url))
     }
     try await withThrowingTaskGroup(of: Void.self) { group in
-      for segment in Set(probes) {
+      var seen = Set<URL>()
+      for (name, segment) in probes where seen.insert(segment).inserted {
         group.addTask {
           _ = try await hlsData(segment, userAgent: userAgent, transport: transport,
-            limit: 1024, range: true)
+            limit: 1024, range: true, diagnostic: { diagnostic?("HLS segment \(name) " + $0) })
         }
       }
       for try await _ in group {}
@@ -352,13 +471,20 @@ public struct YouTubeAudio: Sendable {
   }
 
   private func hlsData(
-    _ url: URL, userAgent: String, transport: URLSession, limit: Int, range: Bool = false
+    _ url: URL, userAgent: String, transport: URLSession, limit: Int, range: Bool = false,
+    diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws -> Data {
     var request = URLRequest(url: url, timeoutInterval: 15)
     request.cachePolicy = .reloadIgnoringLocalCacheData
     request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
     if range { request.setValue("bytes=0-1023", forHTTPHeaderField: "Range") }
+    let began = Date()
     let (bytes, response) = try await transport.bytes(for: request)
+    defer { bytes.task.cancel() }
+    if let http = response as? HTTPURLResponse {
+      diagnostic?("headers " + AudioResolutionTrace.response(http, requested: url, bytes: 0,
+        ms: Int(max(0, Date().timeIntervalSince(began) * 1000))))
+    }
     guard let http = response as? HTTPURLResponse,
       [200, 206].contains(http.statusCode),
       let final = http.url, Self.mediaURL(final.absoluteString, relativeTo: url) != nil
@@ -373,6 +499,7 @@ public struct YouTubeAudio: Sendable {
       }
     }
     guard !data.isEmpty else { throw AudioPlaybackError.unavailable }
+    diagnostic?("sample bytes=\(data.count)")
     return data
   }
 

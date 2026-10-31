@@ -241,7 +241,7 @@ actor AudioRangeBuffer {
         try Task.checkCancellation()
         guard let http = response as? HTTPURLResponse else { throw AudioPlaybackError.unavailable }
         diagnostic?(
-          "CDN offset \(offset): HTTP \(http.statusCode), bytes \(data.count), range \(http.value(forHTTPHeaderField: "Content-Range") ?? "none")"
+          "CDN offset \(offset): HTTP \(http.statusCode), bytes \(data.count), range \(AudioResolutionTrace.range(http))"
         )
         if [408, 429, 500, 502, 503, 504].contains(http.statusCode), attempt < 2 {
           let retry = Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 0.5

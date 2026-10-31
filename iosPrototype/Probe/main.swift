@@ -291,6 +291,7 @@ do {
   if let failure = error as? AudioResolutionFailure {
     print("Account audio: \(failure.accountDiagnostic)")
     print("Musica: \(failure.networkDiagnostic)")
+    if !failure.resolutionReport.isEmpty { print(failure.resolutionReport) }
   }
   exit(1)
 }

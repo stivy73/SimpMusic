@@ -420,3 +420,20 @@ precarica i like. Se manca l’account o la sincronizzazione fallisce, viene mos
 un avviso sul display del veicolo. Nessuna modifica al volume o alla riproduzione
 è necessaria per mettere Mi piace. La prova su autoradio resta distinta dai test
 unitari e dalla verifica del pacchetto firmato.
+
+
+## Diagnostica audio 0.14.3 (45)
+
+Da Impostazioni → Diagnostica audio e voce → Condividi diagnostica si esporta
+il report degli ultimi percorsi e intervalli audio. La raccolta avviene nelle
+richieste già necessarie alla riproduzione, senza ulteriori chiamate di rete.
+Il report distingue risposta player, decodifica indirizzo e accesso al CDN;
+conserva i controlli riusciti, quelli rifiutati e i codici di rete/cancellazione.
+I controlli AAC sono paralleli: dopo un rifiuto l’altro può essere cancellato,
+e una richiesta avviata senza esito non deve essere considerata riuscita.
+Per HLS sono identificati manifest e segmenti iniziale, dopo un minuto e finale.
+Le firme sono indicate soltanto come presenti/assenti, gli indirizzi mai copiati.
+Non contiene cookie, chiavi API, IP, SSID, nomi account, titoli o contenuti dei brani.
+I test coprono redazione dei segreti, risposte malformate, limite del report,
+concorrenza, fallimento della coda e mancata propagazione dei messaggi privati.
+Il CDN 403 non è dichiarato risolto da questa build.

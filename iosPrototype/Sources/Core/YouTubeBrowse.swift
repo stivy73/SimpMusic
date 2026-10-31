@@ -141,7 +141,13 @@ public final class YouTubeBrowse: Sendable {
   }
 
   /// Reuse the confirmed account identity for media, not just the library.
-  public func player(videoID: String, signatureTimestamp: Int? = nil) async throws -> YouTubeVideo {
+  public func player(videoID: String, signatureTimestamp: Int? = nil,
+    diagnostic: (@Sendable (String) -> Void)? = nil) async throws -> YouTubeVideo {
+    let version = session?.clientVersion ?? ClientConfig.webRemix.version
+    let safeVersion = version.count <= 40
+      && version.range(of: #"^[0-9]+(\.[0-9]+)*$"#, options: .regularExpression) != nil
+      ? version : "custom"
+    diagnostic?("client=WEB_REMIX, version=\(safeVersion), account=\(session != nil)")
     // Match PipePipe's WEB_REMIX playback contract: the nonce identifies this
     // player request and is carried into each direct media URL it produces.
     let alphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
@@ -159,7 +165,13 @@ public final class YouTubeBrowse: Sendable {
         "contentCheckOk": true,
         "racyCheckOk": true,
         "playbackContext": ["contentPlaybackContext": playbackContext],
-      ])
+      ], diagnostic: diagnostic)
+    if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+      let status = (root["playabilityStatus"] as? [String: Any])?["status"] as? String ?? "UNKNOWN"
+      let known = ["OK", "ERROR", "UNPLAYABLE", "LOGIN_REQUIRED", "AGE_CHECK_REQUIRED",
+        "CONTENT_CHECK_REQUIRED", "LIVE_STREAM_OFFLINE"]
+      diagnostic?("playability=\(known.contains(status) ? status : "UNKNOWN"), details=\(root["videoDetails"] != nil), streams=\(root["streamingData"] != nil)")
+    }
     return try JSONDecoder().decode(
       YouTubeVideo.self, from: Self.addingPlaybackNonce(nonce, to: data))
   }
@@ -204,7 +216,8 @@ public final class YouTubeBrowse: Sendable {
     return try JSONSerialization.data(withJSONObject: root)
   }
 
-  private func send(endpoint: String, fields: [String: Any], continuationQuery: String? = nil)
+  private func send(endpoint: String, fields: [String: Any], continuationQuery: String? = nil,
+    diagnostic: (@Sendable (String) -> Void)? = nil)
     async throws -> Data
   {
     let context = InnerTubeContext(client: .webRemix, cookies: session?.cookies, gl: "IT", hl: "it")
@@ -253,8 +266,13 @@ public final class YouTubeBrowse: Sendable {
     }
     payload.merge(fields) { _, new in new }
     request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+    let began = Date()
     let (data, response) = try await transport.data(for: request)
     try Task.checkCancellation()
+    if let http = response as? HTTPURLResponse {
+      diagnostic?(AudioResolutionTrace.response(http, requested: request.url!, bytes: data.count,
+        ms: Int(max(0, Date().timeIntervalSince(began) * 1000))))
+    }
     guard let status = (response as? HTTPURLResponse)?.statusCode else {
       throw LibraryError.malformed
     }

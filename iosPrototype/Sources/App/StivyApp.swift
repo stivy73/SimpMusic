@@ -1151,12 +1151,12 @@ struct SettingsView: View {
         }
       }
       Section {
-        DisclosureGroup("Diagnostica lettura") {
+        DisclosureGroup("Diagnostica audio e voce") {
           Text(diagnostics).font(.caption).textSelection(.enabled)
           ShareLink(item: diagnostics) {
             Label("Condividi diagnostica", systemImage: "square.and.arrow.up")
           }
-          Text("Solo le ultime fasi audio, senza chiavi API, testo, indirizzi firmati o brani.")
+          Text("Include percorsi audio, intervalli verificati e risposte HTTP. Senza chiavi API, cookie, testo, indirizzi firmati o brani.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -1194,6 +1194,9 @@ struct SettingsView: View {
         + model.player.sourceDiagnostic
         + "\nMusica: " + model.player.networkDiagnostic
         + "\nDurata audio: " + model.player.timingDiagnostic
+        + "\niOS: " + UIDevice.current.systemVersion
+        + "\nRete attuale: " + AudioPreferences.shared.networkDiagnostic
+        + "\n\nDettaglio risoluzione audio:\n" + model.player.audioResolutionReport
     #else
       "Voce: " + model.narrationDiagnostic
     #endif

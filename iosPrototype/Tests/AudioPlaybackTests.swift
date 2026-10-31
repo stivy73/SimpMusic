@@ -29,6 +29,86 @@ final class AudioPlaybackTests: XCTestCase {
       "decodifica indirizzo audio non disponibile")
   }
 
+  func testAddressDiagnosticsExposeFlagsWithoutSignedValuesOrIP() throws {
+    let expiry = Int(Date().timeIntervalSince1970) + 3600
+    let url = try XCTUnwrap(URL(string:
+      "https://private.googlevideo.com/audio?sig=private-signature&n=private-challenge&pot=private-token&ip=192.0.2.1&expire=\(expiry)&sparams=ip,range"))
+    let result = AudioResolutionTrace.addressMetadata(url)
+    for expected in ["expiry=valid", "n=true", "signature=true", "pot=true",
+      "ip_bound=true", "range_signed=true"] { XCTAssertTrue(result.contains(expected)) }
+    for secret in ["private", "192.0.2.1", String(expiry), "https://"] {
+      XCTAssertFalse(result.contains(secret))
+    }
+    let expired = try XCTUnwrap(URL(string: "https://a.googlevideo.com/audio?expire=\(expiry - 7200)"))
+    XCTAssertTrue(AudioResolutionTrace.addressMetadata(expired).contains("expiry=expired"))
+  }
+
+  func testResponseDiagnosticsRejectProviderStringsInRangeAndMime() throws {
+    let url = try XCTUnwrap(URL(string: "https://a.googlevideo.com/audio?sig=private"))
+    let http = try XCTUnwrap(HTTPURLResponse(url: url, statusCode: 403, httpVersion: nil,
+      headerFields: ["Content-Range": "https://private.invalid/?cookie=secret",
+        "Content-Type": "application/private-secret"]))
+    let result = AudioResolutionTrace.response(http, requested: url, bytes: 0, ms: 120)
+    XCTAssertTrue(result.contains("HTTP 403"))
+    XCTAssertTrue(result.contains("range invalid"))
+    XCTAssertTrue(result.contains("mime other"))
+    XCTAssertTrue(result.contains("120ms"))
+    XCTAssertFalse(result.contains("private"))
+    XCTAssertFalse(result.contains("secret"))
+    let valid = try XCTUnwrap(HTTPURLResponse(url: url, statusCode: 206, httpVersion: nil,
+      headerFields: ["Content-Range": "bytes 1048576-1049599/4000000"]))
+    XCTAssertEqual(AudioResolutionTrace.range(valid), "bytes 1048576-1049599/4000000")
+  }
+
+  func testConcurrentTraceRemainsBounded() {
+    let trace = AudioResolutionTrace()
+    DispatchQueue.concurrentPerform(iterations: 200) { index in
+      trace.record("probe \(index)")
+    }
+    let lines = trace.report.components(separatedBy: .newlines)
+    XCTAssertEqual(lines.count, 96)
+    XCTAssertTrue(lines.allSatisfy { $0.hasPrefix("+") && $0.contains("ms probe ") })
+  }
+
+  func testTailFailureReportRetainsSuccessfulRangesAndAllCandidates() async throws {
+    let trace = AudioResolutionTrace()
+    RangeStub.handler = { request in
+      if request.value(forHTTPHeaderField: "Range") == "bytes=3998976-3999999" {
+        return (403, ["Content-Type": "text/plain"], Data())
+      }
+      return try self.validProbe(request)
+    }
+    defer { RangeStub.handler = nil }
+    do {
+      _ = try await YouTubeAudio(transport: validationTransport()).source(video: validationVideo(), userAgent: "Test", authenticated: false,
+        quality: .high, diagnostic: { trace.record($0) })
+      XCTFail("Must reject an inaccessible tail")
+    } catch {}
+    let result = trace.report
+    XCTAssertTrue(result.contains("bytes=0-1023 HTTP 206"))
+    XCTAssertTrue(result.contains("bytes=1048576-1049599"))
+    XCTAssertTrue(result.contains("bytes=3998976-3999999 HTTP 403"))
+    XCTAssertTrue(result.contains("candidate 1/2"))
+    XCTAssertTrue(result.contains("candidate 2/2"))
+    XCTAssertFalse(result.contains("googlevideo.com"))
+  }
+
+  func testNetworkTraceNeverCopiesUnderlyingLocalizedDescription() async throws {
+    let trace = AudioResolutionTrace()
+    RangeStub.handler = { _ in
+      throw URLError(.timedOut, userInfo: [NSLocalizedDescriptionKey: "private-signed-url-cookie"])
+    }
+    defer { RangeStub.handler = nil }
+    do {
+      _ = try await YouTubeAudio(transport: validationTransport()).source(video: validationVideo(), userAgent: "Test", authenticated: false,
+        quality: .high, diagnostic: { trace.record($0) })
+      XCTFail("Must reject failed requests")
+    } catch {}
+    XCTAssertTrue(trace.report.contains("rete -1001"))
+    XCTAssertFalse(trace.report.contains("private"))
+    XCTAssertFalse(trace.report.contains("cookie"))
+  }
+
   func testRangeRequestPreservesSignatureAndUsesOneAbsoluteRange() throws {
     let source = YouTubeAudio.Source(
       url: URL(string: "https://a.googlevideo.com/audio?signature=test%2Btoken&range=0-1")!,

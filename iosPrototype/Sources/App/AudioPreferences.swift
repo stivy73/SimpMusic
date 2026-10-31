@@ -48,6 +48,13 @@ import Network
   @Published private(set) var expensive = true
   private let monitor = NWPathMonitor()
   var currentQuality: AudioQuality { expensive ? cellularQuality : wifiQuality }
+  var networkDiagnostic: String {
+    let path = monitor.currentPath
+    let kind = path.usesInterfaceType(.cellular) ? "cellular"
+      : path.usesInterfaceType(.wifi) ? "wifi"
+      : path.usesInterfaceType(.wiredEthernet) ? "ethernet" : "other"
+    return "\(kind), available=\(path.status == .satisfied), expensive=\(path.isExpensive), constrained=\(path.isConstrained)"
+  }
   init() {
     monitor.pathUpdateHandler = { [weak self] path in
       let value = path.isExpensive || path.isConstrained || path.usesInterfaceType(.cellular)

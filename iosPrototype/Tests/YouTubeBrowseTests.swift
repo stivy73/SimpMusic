@@ -50,6 +50,21 @@ private final class BrowseURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 final class YouTubeBrowseTests: XCTestCase {
+  func testPlayerDiagnosticReportsLoginRequirementWithoutPrivateReason() async throws {
+    let (transport, id) = transport(body:
+      #"{"playabilityStatus":{"status":"LOGIN_REQUIRED","reason":"private account cookie token"}}"#)
+    defer { BrowseURLProtocol.store.remove(id) }
+    let trace = AudioResolutionTrace()
+    do {
+      _ = try await YouTubeBrowse(session: nil, transport: transport).player(videoID: "fixture",
+        diagnostic: { trace.record($0) })
+      XCTFail("Missing player details must still fail decoding")
+    } catch {}
+    XCTAssertTrue(trace.report.contains("playability=LOGIN_REQUIRED"))
+    XCTAssertTrue(trace.report.contains("details=false, streams=false"))
+    XCTAssertFalse(trace.report.contains("private"))
+    XCTAssertFalse(trace.report.contains("cookie"))
+  }
   func testChartsCountryAndFollowEndpointUseExistingAccountTransport() async throws {
     let (transport, id) = transport(body: "{\"status\":\"STATUS_SUCCEEDED\"}")
     defer { BrowseURLProtocol.store.remove(id) }

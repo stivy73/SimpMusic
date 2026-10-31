@@ -1,3 +1,28 @@
+# NoteNarrate iOS 0.14.3 (45) — diagnostica streaming HTTP 403
+
+La diagnostica audio conserva il percorso account WEB, IOS pubblico e WEB
+pubblico, le versioni client e del decoder, lo stato di riproducibilità restituito
+al player, i formati AAC/HLS tentati e gli esiti dei controlli all’inizio, oltre
+1 MiB e in coda. Ogni controllo registra intervallo richiesto/restituito, stato
+HTTP, byte ricevuti, tipo MIME, eventuale cambio host e tempo impiegato. Registra
+soltanto la presenza di firme e parametri di accesso e la validità temporale del
+flusso: nessun valore di firma, indirizzo firmato, cookie, token, IP o identità
+account. Per le pagine player si registrano solo codici di riproducibilità noti,
+mai il messaggio privato del provider. Il report è limitato e conserva anche i
+recuperi automatici e la classe di rete, senza IP o nome della rete Wi-Fi.
+
+Dopo un errore: Impostazioni → Diagnostica audio e voce → Condividi diagnostica.
+Il report resta disponibile anche dopo la chiusura dell’app. Il nuovo report
+non aggira i rifiuti del server: il problema CDN 403 resta aperto. Il test pubblico
+su «Storie di tutti i giorni» mostra player OK, firma non scaduta, HTTP 206
+all’inizio e HTTP 403 sull’ultimo intervallo. Va confrontato con il report dei
+telefoni dei tester sulla loro rete. Nessuna verifica fisica CarPlay effettuata.
+
+Verifica locale: 51 test mirati AudioPlaybackTests, AudioRangeBufferTests,
+AudioRecoveryTests e YouTubeBrowseTests superati; Debug iOS compilato con
+Xcode 27.2 RC (27B48), SDK 27.2. Firme, upload ed esecuzione fisica sono
+verifiche separate dal report e dai test.
+
 # NoteNarrate iOS 0.14.2 (44) — timeout interpretazione e diagnostica
 
 La richiesta singola per l’interpretazione ha una scadenza di 45 secondi anziché

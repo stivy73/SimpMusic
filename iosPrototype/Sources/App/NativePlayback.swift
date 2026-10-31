@@ -38,6 +38,12 @@
       didSet { UserDefaults.standard.set(networkDiagnostic, forKey: "lastAudioNetworkDiagnostic") }
     }
     @Published private(set) var timingDiagnostic = "Durata non ancora verificata"
+    @Published private(set) var audioResolutionReport =
+      UserDefaults.standard.string(forKey: "lastAudioResolutionReport") ?? "Nessun report audio disponibile"
+    {
+      didSet { UserDefaults.standard.set(audioResolutionReport, forKey: "lastAudioResolutionReport") }
+    }
+    private var audioReportFinalized = false
     #if DEBUG
       @Published var diagnostic = "idle"
     #endif
@@ -321,6 +327,11 @@
       elapsed = startAt ?? 0
       if !recovering { durationSeconds = 0 }
       timingDiagnostic = "Durata in verifica"
+      let previousReport = recovering
+        ? String(audioResolutionReport.suffix(16000)) + "\n--- Recupero audio ---\n" : ""
+      let networkContext = previousReport + "Rete all'avvio: " + AudioPreferences.shared.networkDiagnostic + "\n"
+      audioResolutionReport = networkContext + "Risoluzione audio in corso"
+      audioReportFinalized = false
       playing = false
       playbackError = nil
       isLoading = true
@@ -360,11 +371,21 @@
             #endif
             sourceDiagnostic = "File locale verificato"
             networkDiagnostic = "Riproduzione offline, nessuna richiesta CDN"
+            audioResolutionReport = "File locale; nessuna richiesta CDN"
+            audioReportFinalized = true
           } else {
             let source = try await YouTubeAudio().resolve(
               videoID: videoId, session: accountProvider(),
               quality: AudioPreferences.shared.currentQuality, excluding: rejectedSources,
-              preferHLS: recovering)
+              preferHLS: recovering,
+              diagnostic: { [weak self] report in
+                Task { @MainActor [weak self] in
+                  guard let self, self.intent.revision == expected, self.assetRevision == generation,
+                    !self.audioReportFinalized
+                  else { return }
+                  self.audioResolutionReport = networkContext + report
+                }
+              })
             #if DEBUG
               diagnostic = "source bytes \(source.byteCount ?? 0)"
             #endif
@@ -372,6 +393,8 @@
             guard intent.revision == expected, assetRevision == generation else { return }
             activeSourceURL = source.url
             sourceDiagnostic = source.accountDiagnostic
+            audioReportFinalized = true
+            audioResolutionReport = networkContext + source.resolutionReport
             networkDiagnostic =
               source.authenticated
               ? "Flusso account YouTube Music; controllo finale superato"
@@ -391,6 +414,9 @@
                 guard let self, self.intent.revision == expected, self.assetRevision == generation
                 else { return }
                 self.networkDiagnostic = String(message.prefix(300))
+                let lines = (self.audioResolutionReport + "\nPlayback: " + message)
+                  .components(separatedBy: .newlines)
+                self.audioResolutionReport = lines.suffix(96).joined(separator: "\n")
                 if message.contains("HTTP 403"), !self.isLoading {
                   if !self.recoverAudio(reason: "Il server ha rifiutato il flusso") {
                     self.pause()
@@ -485,8 +511,10 @@
           isLoading = false
           finishLoadingTask()
           if let failure = error as? AudioResolutionFailure {
+            audioReportFinalized = true
             sourceDiagnostic = failure.accountDiagnostic
             networkDiagnostic = failure.networkDiagnostic
+            audioResolutionReport = networkContext + failure.resolutionReport
           }
           if !recoverAudio(reason: "Caricamento audio non riuscito") {
             pause()
