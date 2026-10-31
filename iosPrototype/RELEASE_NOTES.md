@@ -14,6 +14,10 @@ passati con Xcode 27.2 RC (27B48), SDK 27.2. CheckSiriMetadata.py verifica cinqu
 azioni audio, otto frasi e risorse it/en nel pacchetto compilato. Riconoscimento
 vocale Siri, avvio a freddo e comportamento nell’auto restano da collaudare sul device.
 Ricerca e ascolto per titolo/artista/album conservano il percorso SiriKit esistente.
+IPA di distribuzione: firma, provisioning CarPlay, estensioni e cinque App Shortcuts
+verificati. Upload riuscito il 31 ottobre 2026 alle 07:29 Europe/Rome. Apple API:
+VALID / IN_BETA_TESTING, gruppi Team interno e Stivy73 assegnati e verificati.
+Sorgenti della build e strumenti di verifica pubblicati sul fork personale.
 
 # NoteNarrate iOS 0.13.5 (41) — paginazione CarPlay
 
