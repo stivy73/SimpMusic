@@ -1,3 +1,21 @@
+# NoteNarrate iOS 0.14.2 (44) — timeout interpretazione e diagnostica
+
+La richiesta singola per l’interpretazione ha una scadenza di 45 secondi anziché
+25; la preparazione complessiva di testo e primo audio TTS ha una scadenza di
+90 secondi anziché 45. Le risposte rapide procedono immediatamente. Restano
+attive cancellazione, ripresa della musica e scadenza del tempo in background iOS.
+La diagnostica degli errori distingue recupero testo, interpretazione Gemini e
+audio narrato, senza includere chiavi o contenuti.
+
+Limiti noti: il rifiuto HTTP 403 di alcuni intervalli CDN YouTube NON è risolto.
+La riproduzione con gli account dei nuovi tester e l’errore libreria -1017 restano
+da verificare. Questa beta non dimostra che Premium sia necessario o sufficiente.
+Il controllo completo degli intervalli audio resta attivo per evitare di avviare
+uno stream che poi si blocca. Trenta test mirati GeminiRequestTests e
+AudioPlaybackTests superati; Debug iOS compilato con Xcode 27.2 RC (27B48),
+SDK 27.2. Prova live sul Mac: interpretazione e TTS streaming completati con la
+chiave di progetto; uscita fisica sul telefono e su CarPlay non verificata.
+
 # NoteNarrate iOS 0.14.1 (43) — Mi piace nel player CarPlay
 
 La barra del player mostra cinque pulsanti: cuore, interpretazione, album, artista
