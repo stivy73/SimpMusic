@@ -1,3 +1,20 @@
+# NoteNarrate iOS 0.14.0 (42) — Siri e Comandi rapidi
+
+Cinque App Shortcuts audio: interpreta e narra il brano corrente, genera una nuova
+radio Gemini, interrompe la narrazione e riprende la musica, mette in pausa e passa
+al brano successivo. Otto frasi localizzate in italiano e inglese; nessuna apertura
+dell’interfaccia richiesta dagli intent. Gli intent condividono AppleAppSession con
+iPhone e CarPlay e riutilizzano preparazione audio e radio progressiva esistenti.
+I comandi cloud comunicano l’avvio della preparazione, non il suo completamento.
+Brano mancante, chiave Gemini mancante, audio in caricamento e narrazione già in
+corso producono errori espliciti prima di cambiare la riproduzione.
+
+Sei test SiriPlaybackActionTests superati. Debug device build e Release archive
+passati con Xcode 27.2 RC (27B48), SDK 27.2. CheckSiriMetadata.py verifica cinque
+azioni audio, otto frasi e risorse it/en nel pacchetto compilato. Riconoscimento
+vocale Siri, avvio a freddo e comportamento nell’auto restano da collaudare sul device.
+Ricerca e ascolto per titolo/artista/album conservano il percorso SiriKit esistente.
+
 # NoteNarrate iOS 0.13.5 (41) — paginazione CarPlay
 
 Il tap su «Altri elementi», «Altri album» e «Pagina precedente» completa la

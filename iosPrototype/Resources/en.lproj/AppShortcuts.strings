@@ -1,0 +1,8 @@
+"Spiegami questa canzone con ${applicationName}" = "Explain this song with ${applicationName}";
+"Leggi il significato della canzone con ${applicationName}" = "Read the song meaning with ${applicationName}";
+"Crea una radio da questo brano con ${applicationName}" = "Create a radio from this song with ${applicationName}";
+"Avvia la radio del brano con ${applicationName}" = "Start song radio with ${applicationName}";
+"Riprendi la musica con ${applicationName}" = "Resume music with ${applicationName}";
+"Riprendi ${applicationName}" = "Resume ${applicationName}";
+"Metti in pausa ${applicationName}" = "Pause ${applicationName}";
+"Prossimo brano con ${applicationName}" = "Next song with ${applicationName}";

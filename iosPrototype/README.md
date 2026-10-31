@@ -825,3 +825,10 @@ L'assegnazione accetta solo un gruppo interno già esistente della stessa app;
 non crea tester, non abilita distribuzione automatica e non invia release allo store.
 Gli endpoint sono quelli pubblici Apple: [elenco build](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-builds)
 e [aggiunta build a un gruppo](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-betagroups-_id_-relationships-builds).
+
+## Siri e Comandi rapidi — 0.14.0 (42)
+
+Interpretazione narrata, nuova radio Gemini, ripresa, pausa e brano successivo
+sono disponibili come App Shortcuts audio con frasi italiane e inglesi.
+Esempi, requisiti e limiti di verifica: [SIRI.md](SIRI.md).
+Validazione del pacchetto: `python3 Scripts/CheckSiriMetadata.py <exported.ipa>`.
