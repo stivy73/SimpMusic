@@ -1,3 +1,19 @@
+# NoteNarrate iOS 0.14.1 (43) — Mi piace nel player CarPlay
+
+La barra del player mostra cinque pulsanti: cuore, interpretazione, album, artista
+e Altro. Shuffle e ripetizione sono disponibili nel menu Altro. Il cuore usa lo
+stesso LibraryModel e account YouTube Music degli altri preferiti nell’app; nessun
+preferito locale parallelo. La raccolta Mi piace viene caricata al collegamento.
+Il cuore si riempie solo dopo conferma remota, resta disabilitato durante lettura o
+scrittura della raccolta e conserva il brano toccato se nel frattempo cambia traccia.
+Cambio account e disconnessione CarPlay invalidano i callback. Errori e account
+mancante vengono spiegati sul display CarPlay.
+
+Debug device build passato con Xcode 27.2 RC (27B48), SDK 27.2. Venti test mirati
+CarPlayContentTests e RemoteLibraryTests passati: conferma/rimozione, errore 403,
+cambio account e doppio tap durante una scrittura non ancora confermata. Verifica
+visiva e scrittura reale su autoradio rimangono da collaudare sul dispositivo.
+
 # NoteNarrate iOS 0.14.0 (42) — Siri e Comandi rapidi
 
 Cinque App Shortcuts audio: interpreta e narra il brano corrente, genera una nuova

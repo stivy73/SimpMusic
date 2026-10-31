@@ -106,6 +106,9 @@
     private var meaningAlert: CPAlertTemplate?
     private var meaningStarted = false
     private var meaningButtonState: String?
+    private var likeTask: Task<Void, Never>?
+    private var likeRequest = UUID()
+    private var likingSongID: String?
     private var account: YouTubeSession?
     private let home = CPListTemplate(title: "Home", sections: [])
     private let albums = CPListTemplate(title: "Album", sections: [])
@@ -166,6 +169,7 @@
       searchTask?.cancel()
       searchRevision = UUID()
       subscriptions.removeAll()
+      cancelLikeRequest()
       for task in tasks { task.cancel() }
       tasks = []
       for state in grids.objectEnumerator()?.allObjects as? [ContentState] ?? [] {
@@ -182,6 +186,7 @@
       guard controller != nil else { return }
       if account != value {
         account = value
+        cancelLikeRequest()
         detailRevision = UUID()
         for task in tasks { task.cancel() }
         tasks = []
@@ -192,6 +197,9 @@
         voiceQueryID = nil
         grids.removeAllObjects()
         controller?.popToRootTemplate(animated: false, completion: { _, _ in })
+      }
+      if value != nil {
+        tasks.append(Task { [weak self] in await self?.app.library.load(.likes) })
       }
       await app.home.configure(session: value)
       if value != nil && app.library.albums.isEmpty && !app.library.loading {
@@ -926,8 +934,12 @@
       CPNowPlayingTemplate.shared.isUpNextButtonEnabled = !app.music.queue.isEmpty
       let active = app.music.busyMeaning || app.music.reading
       let enabled = app.music.current != nil && !app.music.player.isLoading
+      let songID = app.music.current?.id ?? ""
+      let liked = app.library.isLiked(songID)
+      let likesLoading = app.library.state(.likes).loading
+      let likePending = likingSongID != nil || app.library.pendingLikes.contains(songID)
       let state =
-        "\(enabled):\(active):\(app.music.current?.id ?? ""):\(app.music.shuffleEnabled):\(app.music.repeatMode.rawValue)"
+        "\(enabled):\(active):\(songID):\(app.music.shuffleEnabled):\(app.music.repeatMode.rawValue):\(liked):\(likePending):\(likesLoading):\(app.library.session != nil)"
       guard meaningButtonState != state else { return }
       meaningButtonState = state
       let light = CPNowPlayingImageButton(
@@ -951,19 +963,89 @@
       }
       album.isEnabled = app.music.current != nil && !active
       artist.isEnabled = album.isEnabled
-      let shuffle = CPNowPlayingShuffleButton { [weak self] _ in
-        guard let music = self?.app.music else { return }
-        music.setShuffle(!music.shuffleEnabled)
+      let like = CPNowPlayingImageButton(
+        image: UIImage(systemName: liked ? "heart.fill" : "heart")!
+      ) { [weak self] _ in self?.toggleCurrentLike() }
+      like.isSelected = liked
+      like.isEnabled = app.music.current != nil && !likePending && !likesLoading
+      let more = CPNowPlayingMoreButton { [weak self] _ in self?.showPlaybackOptions() }
+      more.isEnabled = enabled && !active
+      CPNowPlayingTemplate.shared.updateNowPlayingButtons([like, light, album, artist, more])
+    }
+
+    private func cancelLikeRequest() {
+      likeRequest = UUID()
+      likeTask?.cancel()
+      likeTask = nil
+      likingSongID = nil
+    }
+
+    private func toggleCurrentLike() {
+      guard likeTask == nil, let song = app.music.current else { return }
+      guard let session = app.library.session else {
+        showPlayerNotice("Accedi a YouTube Music in NoteNarrate per usare i Mi piace.")
+        return
       }
-      let repeatButton = CPNowPlayingRepeatButton { [weak self] _ in
-        guard let music = self?.app.music else { return }
-        music.repeatMode = music.repeatMode.next
+      let request = UUID()
+      likeRequest = request
+      likingSongID = song.id
+      configureNowPlaying()
+      likeTask = Task { [weak self] in
+        guard let self else { return }
+        defer {
+          if self.likeRequest == request {
+            self.likeTask = nil
+            self.likingSongID = nil
+            self.configureNowPlaying()
+          }
+        }
+        // Snapshot the tapped song: a track change must not like the next song.
+        await self.app.library.toggleLike(song.discoveryItem)
+        guard !Task.isCancelled, self.likeRequest == request,
+          self.app.library.session == session, self.controller != nil
+        else { return }
+        if let error = self.app.library.syncError { self.showPlayerNotice(error) }
       }
-      shuffle.isEnabled = enabled && !active
-      repeatButton.isEnabled = shuffle.isEnabled
-      CPNowPlayingTemplate.shared.updateNowPlayingButtons([
-        light, album, artist, shuffle, repeatButton,
-      ])
+    }
+
+    private func showPlayerNotice(_ message: String) {
+      guard let controller, controller.presentedTemplate == nil else { return }
+      let close = CPAlertAction(title: "Chiudi", style: .cancel) { [weak self] _ in
+        self?.controller?.dismissTemplate(animated: true, completion: { _, _ in })
+      }
+      controller.presentTemplate(
+        CPAlertTemplate(titleVariants: [message], actions: [close]),
+        animated: true, completion: { _, _ in })
+    }
+
+    private func showPlaybackOptions() {
+      guard let controller, controller.presentedTemplate == nil else { return }
+      let shuffleEnabled = !app.music.shuffleEnabled
+      let nextRepeat = app.music.repeatMode.next
+      let shuffle = CPAlertAction(
+        title: shuffleEnabled ? "Attiva riproduzione casuale" : "Disattiva riproduzione casuale",
+        style: .default
+      ) { [weak self] _ in
+        self?.controller?.dismissTemplate(animated: true) { [weak self] success, _ in
+          guard let self, success else { return }
+          self.app.music.setShuffle(shuffleEnabled)
+          self.configureNowPlaying()
+        }
+      }
+      let repeatAction = CPAlertAction(title: nextRepeat.title, style: .default) { [weak self] _ in
+        self?.controller?.dismissTemplate(animated: true) { [weak self] success, _ in
+          guard let self, success else { return }
+          self.app.music.repeatMode = nextRepeat
+          self.configureNowPlaying()
+        }
+      }
+      let close = CPAlertAction(title: "Chiudi", style: .cancel) { [weak self] _ in
+        self?.controller?.dismissTemplate(animated: true, completion: { _, _ in })
+      }
+      controller.presentTemplate(
+        CPActionSheetTemplate(
+          title: "Riproduzione", message: app.music.repeatMode.title,
+          actions: [shuffle, repeatAction, close]), animated: true, completion: { _, _ in })
     }
 
     private func explain() {

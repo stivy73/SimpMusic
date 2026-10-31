@@ -391,3 +391,18 @@ Navigation: NoteNarrate mantiene Audio, senza forzature della categoria.
 Shuffle e ripetizione sono collegati allo stesso ordine della coda del telefono
 e a MPRemoteCommandCenter. Il collaudo Siri e dei comandi su auto reale resta
 necessario; i difetti audio della build23 sono fuori da questo intervento.
+
+## Player 0.14.1 (43)
+
+Cinque controlli: **Mi piace YouTube Music**, interpretazione, album, artista e
+**Altro**. Il menu Altro permette di attivare/disattivare la riproduzione casuale
+e passare al successivo modo di ripetizione (spenta, coda, brano). La voce mostra
+l’azione successiva; il messaggio mostra la ripetizione attuale.
+
+Il cuore usa LibraryModel.toggleLike sulla traccia selezionata al momento del tap.
+La grafica segue i soli like confermati dal server e si aggiorna anche dopo azioni
+dal telefono; durante caricamento/scrittura è disabilitato. Il collegamento CarPlay
+precarica i like. Se manca l’account o la sincronizzazione fallisce, viene mostrato
+un avviso sul display del veicolo. Nessuna modifica al volume o alla riproduzione
+è necessaria per mettere Mi piace. La prova su autoradio resta distinta dai test
+unitari e dalla verifica del pacchetto firmato.

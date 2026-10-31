@@ -28,10 +28,18 @@ final class RemoteLibraryTests: XCTestCase {
       }
     }
     let writes = Writes()
-    let library = model(fetch: { _, _ in [DiscoveryItem(kind: .song, mediaId: "existing", title: "existing", subtitle: "Artist", artwork: nil)] },
+    let library = model(
+      fetch: { _, _ in
+        [
+          DiscoveryItem(
+            kind: .song, mediaId: "existing", title: "existing", subtitle: "Artist", artwork: nil)
+        ]
+      },
       rate: { _, id, liked in try await writes.write(id, liked: liked) })
     var confirmed: [String] = []
-    await library.importLikes([song("existing"), song("new"), song("new"), song("failure"), song("later")]) {
+    await library.importLikes([
+      song("existing"), song("new"), song("new"), song("failure"), song("later"),
+    ]) {
       confirmed.append($0.mediaId)
     }
     XCTAssertEqual(confirmed, ["existing", "new"])
@@ -50,9 +58,11 @@ final class RemoteLibraryTests: XCTestCase {
   }
 
   func testAccountChangeDuringImportDoesNotAcknowledgeOrTouchNewAccount() async {
-    let library = model(fetch: { _, _ in [] }, rate: { _, _, _ in
-      try await Task.sleep(for: .milliseconds(80))
-    })
+    let library = model(
+      fetch: { _, _ in [] },
+      rate: { _, _, _ in
+        try await Task.sleep(for: .milliseconds(80))
+      })
     var confirmed = 0
     let task = Task {
       await library.importLikes([song("new"), song("later")]) { _ in confirmed += 1 }
@@ -127,6 +137,35 @@ final class RemoteLibraryTests: XCTestCase {
     XCTAssertFalse(model.isLiked("s"))
     let values = await writes.values
     XCTAssertEqual(values, [true, false])
+  }
+
+  func testPendingLikeIsUnconfirmedAndRepeatedTapCannotReverseIt() async {
+    actor Gate {
+      var writes = 0
+      var finished = false
+      var continuation: CheckedContinuation<Void, Never>?
+      func write() async {
+        writes += 1
+        if !finished { await withCheckedContinuation { continuation = $0 } }
+      }
+      func finish() {
+        finished = true
+        continuation?.resume()
+        continuation = nil
+      }
+    }
+    let gate = Gate()
+    let library = model(fetch: { _, _ in [] }, rate: { _, _, _ in await gate.write() })
+    let write = Task { await library.toggleLike(song("s")) }
+    while library.pendingLikes.isEmpty { await Task.yield() }
+    XCTAssertFalse(library.isLiked("s"))
+    await library.toggleLike(song("s"))
+    await gate.finish()
+    await write.value
+    XCTAssertTrue(library.isLiked("s"))
+    XCTAssertTrue(library.pendingLikes.isEmpty)
+    let writes = await gate.writes
+    XCTAssertEqual(writes, 1)
   }
 
   func testFailedUnlikeKeepsExistingLike() async {
