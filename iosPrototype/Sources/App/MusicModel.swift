@@ -232,6 +232,13 @@ final class MusicModel: NSObject, ObservableObject {
   private var streamingAudio: PCMStreamPlayer?
   private var explanationTask: Task<Void, Never>?
   private var preparationTimeout: Task<Void, Never>?
+  private var preparationStage = "recupero testo"
+  private var narrationReportStarted = Date()
+  @Published private(set) var narrationReport =
+    UserDefaults.standard.string(forKey: "lastNarrationReport") ?? "Nessuna richiesta"
+  {
+    didSet { UserDefaults.standard.set(narrationReport, forKey: "lastNarrationReport") }
+  }
   var meaningRequestID: UUID { generation }
   @Published var narrationDiagnostic =
     UserDefaults.standard.string(forKey: "lastNarrationDiagnostic") ?? "Nessuna richiesta"
@@ -1173,6 +1180,10 @@ final class MusicModel: NSObject, ObservableObject {
     let token = UUID()
     generation = token
     narrationDiagnostic = presentOnPhone ? "Richiesta dal player" : "Richiesta da CarPlay"
+    narrationReportStarted = Date()
+    narrationReport = "Narrazione report v1; modello testo=\(GeminiAPIError.diagnosticModel(textModel)); voce=\(useGeminiVoice ? "Gemini" : "sistema")"
+    preparationStage = "recupero testo"
+    recordNarration(narrationDiagnostic)
     beginMeaningPreparation(token: token)
     explanationTask = Task {
       var stage = "recupero testo"
@@ -1218,7 +1229,9 @@ final class MusicModel: NSObject, ObservableObject {
         }
         meaningProgress = "Preparo l'interpretazione…"
         stage = "interpretazione Gemini"
+        preparationStage = stage
         narrationDiagnostic = "Testo recuperato; preparo interpretazione"
+        recordNarration("Testo sorgente disponibile; \(lyrics.count) caratteri")
         let cacheKey = try InterpretationCache.key(
           model: textModel, title: song.title, artist: song.artist, lyrics: lyrics)
         let cached = force ? nil : await InterpretationCache.shared.read(cacheKey)
@@ -1226,10 +1239,25 @@ final class MusicModel: NSObject, ObservableObject {
         let result: String
         if let cached {
           result = cached
+          recordNarration("Interpretazione dalla cache locale")
         } else {
           result = try await GeminiService().explain(
             key: apiKey, model: textModel, title: song.title, artist: song.artist, lyrics: lyrics,
-            retryLength: false)
+            retryLength: false, streaming: true,
+            diagnostic: { [weak self] event in
+              Task { @MainActor [weak self] in
+                guard let self, self.generation == token else { return }
+                self.recordNarration(event)
+                if self.preparationStage == "interpretazione Gemini", self.busyMeaning {
+                  self.narrationDiagnostic = "Interpretazione: " + event
+                  if event.hasPrefix("Nuovo tentativo") {
+                    self.meaningProgress = "Gemini non ha risposto; riprovo…"
+                  } else if event.hasPrefix("Primo testo") {
+                    self.meaningProgress = "Ricevo l'interpretazione…"
+                  }
+                }
+              }
+            })
           try Task.checkCancellation()
           await InterpretationCache.shared.store(result, key: cacheKey)
         }
@@ -1237,8 +1265,10 @@ final class MusicModel: NSObject, ObservableObject {
         guard token == generation else { return }
         narrationDiagnostic =
           "Interpretazione pronta in \(Int(Date().timeIntervalSince(interpretationStarted))) s; preparo voce"
+        recordNarration(narrationDiagnostic)
         meaning = result
         stage = "audio narrato"
+        preparationStage = stage
         try await speak(result, token: token)
       } catch is CancellationError {} catch {
         guard token == generation else { return }
@@ -1250,6 +1280,7 @@ final class MusicModel: NSObject, ObservableObject {
           meaningError = error.localizedDescription
         }
         narrationDiagnostic = "Errore (\(stage)): " + (meaningError ?? error.localizedDescription)
+        recordNarration("Errore (\(stage)): " + GeminiAPIError.safeDiagnostic(error))
         endMeaningPreparation()
         resumeMusic()
       }
@@ -1267,6 +1298,8 @@ final class MusicModel: NSObject, ObservableObject {
     beginMeaningPreparation(token: token)
     busyMeaning = true
     meaningError = nil
+    narrationReportStarted = Date()
+    narrationReport = "Narrazione report v1; rilettura; voce=\(useGeminiVoice ? "Gemini" : "sistema")"
     explanationTask = Task {
       do {
         try await speak(meaning, token: token)
@@ -1275,6 +1308,7 @@ final class MusicModel: NSObject, ObservableObject {
         busyMeaning = false
         reading = false
         meaningError = error.localizedDescription
+        recordNarration("Errore rilettura: " + GeminiAPIError.safeDiagnostic(error))
         endMeaningPreparation()
         resumeMusic()
       }
@@ -1283,6 +1317,7 @@ final class MusicModel: NSObject, ObservableObject {
 
   private func speak(_ text: String, token: UUID) async throws {
     meaningProgress = "Preparo la voce…"
+    preparationStage = "audio narrato"
     #if !os(macOS)
       try AppleAudioSession.activate()
     #endif
@@ -1295,6 +1330,7 @@ final class MusicModel: NSObject, ObservableObject {
     #endif
     narrationDiagnostic =
       cloudVoice ? "Gemini TTS: attendo audio" : "Voce di sistema: attendo avvio"
+    recordNarration(narrationDiagnostic)
     if cloudVoice {
       let output = PCMStreamPlayer(gain: NarrationLevel.gain)
       streamingAudio = output
@@ -1303,6 +1339,7 @@ final class MusicModel: NSObject, ObservableObject {
       let started: @MainActor @Sendable () -> Void = { [weak self] in
         guard let self, self.generation == token else { return }
         self.narrationDiagnostic = "Gemini TTS: lettura avviata (+30%)"
+        self.recordNarration("Gemini TTS: primo audio riprodotto")
         self.reading = true
         self.busyMeaning = false
         self.endMeaningPreparation()
@@ -1312,6 +1349,7 @@ final class MusicModel: NSObject, ObservableObject {
       }
       do {
         if let cached = await cache.read(cacheKey) {
+          recordNarration("Audio dalla cache locale")
           try pauseForNarration(token: token)
           try await output.enqueue(cached, onStart: started)
         } else {
@@ -1320,6 +1358,12 @@ final class MusicModel: NSObject, ObservableObject {
             try await recording.append(chunk)
             try await self.pauseForNarration(token: token)
             try await output.enqueue(chunk, onStart: started)
+          }
+          let trace: @Sendable (String) -> Void = { [weak self] event in
+            Task { @MainActor [weak self] in
+              guard let self, self.generation == token else { return }
+              self.recordNarration(event)
+            }
           }
           #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--test-stream-meaning") {
@@ -1330,11 +1374,11 @@ final class MusicModel: NSObject, ObservableObject {
               }
             } else {
               try await GeminiService().streamSpeech(
-                key: apiKey, text: text, voice: voice, style: style, receive: receive)
+                key: apiKey, text: text, voice: voice, style: style, diagnostic: trace, receive: receive)
             }
           #else
             try await GeminiService().streamSpeech(
-              key: apiKey, text: text, voice: voice, style: style, receive: receive)
+              key: apiKey, text: text, voice: voice, style: style, diagnostic: trace, receive: receive)
           #endif
           try Task.checkCancellation()
           await cache.store(await recording.contents(), key: cacheKey)
@@ -1348,6 +1392,7 @@ final class MusicModel: NSObject, ObservableObject {
       guard generation == token else { return }
       streamingAudio = nil
       narrationDiagnostic = "Gemini TTS: lettura completata"
+      recordNarration(narrationDiagnostic)
       reading = false
       busyMeaning = false
       #if DEBUG
@@ -1369,6 +1414,7 @@ final class MusicModel: NSObject, ObservableObject {
           self.busyMeaning = false
           self.endMeaningPreparation()
           self.narrationDiagnostic = "Voce di sistema: lettura avviata (+30%)"
+          self.recordNarration(self.narrationDiagnostic)
           #if DEBUG
             self.narrationStarts += 1
           #endif
@@ -1381,6 +1427,7 @@ final class MusicModel: NSObject, ObservableObject {
       reading = false
       busyMeaning = false
       narrationDiagnostic = "Voce di sistema: lettura completata"
+      recordNarration(narrationDiagnostic)
       #if DEBUG
         narrationFinishes += 1
       #endif
@@ -1418,14 +1465,15 @@ final class MusicModel: NSObject, ObservableObject {
   private func beginMeaningPreparation(token: UUID) {
     endMeaningPreparation()
     preparationTimeout = Task { [weak self] in
-      // Covers lyrics, one text generation (45 s maximum), and the first TTS
-      // chunk. The operating system's background-expiration handler stays active.
-      do { try await Task.sleep(for: .seconds(90)) } catch { return }
+      // Lyrics + text (75 s total, including one retry) + first TTS chunk (60 s).
+      // Fast responses proceed immediately. The OS expiration handler stays active.
+      do { try await Task.sleep(for: .seconds(150)) } catch { return }
       guard let self, self.generation == token, self.busyMeaning else { return }
       self.stopMeaning(resume: true)
       self.meaningError =
         "Preparazione della lettura troppo lunga. Controlla la connessione e riprova."
-      self.narrationDiagnostic = "Preparazione: timeout prima dell'audio"
+      self.narrationDiagnostic = "Preparazione: timeout 150 s durante \(self.preparationStage)"
+      self.recordNarration(self.narrationDiagnostic)
     }
     #if os(iOS)
       meaningBackgroundTask = UIApplication.shared.beginBackgroundTask(
@@ -1439,6 +1487,7 @@ final class MusicModel: NSObject, ObservableObject {
           self.stopMeaning(resume: true)
           self.meaningError = "Preparazione interrotta dal sistema. Riprova."
           self.narrationDiagnostic = "Preparazione: tempo in background esaurito"
+          self.recordNarration("\(self.narrationDiagnostic); fase=\(self.preparationStage)")
         }
       }
     #endif
@@ -1452,6 +1501,13 @@ final class MusicModel: NSObject, ObservableObject {
       UIApplication.shared.endBackgroundTask(meaningBackgroundTask)
       meaningBackgroundTask = .invalid
     #endif
+  }
+
+  private func recordNarration(_ event: String) {
+    let elapsed = max(0, Int(Date().timeIntervalSince(narrationReportStarted) * 1000))
+    var lines = narrationReport.components(separatedBy: "\n")
+    lines.append("+\(elapsed)ms " + event)
+    narrationReport = lines.suffix(70).joined(separator: "\n")
   }
 
 }

@@ -138,7 +138,9 @@ final class GeminiRequestTests: XCTestCase {
       _ = try await service.explain(
         key: "dummy", model: "model", title: "T", artist: "A", lyrics: "lyrics")
       XCTFail()
-    } catch PrototypeError.http(429) {} catch { XCTFail() }
+    } catch let error as GeminiAPIError {
+      XCTAssertEqual(error.status, 429)
+    } catch { XCTFail() }
   }
   func testCustomModelKeepsItsOwnConfigurationAndLengthRetry() async throws {
     var calls = 0
@@ -164,7 +166,7 @@ final class GeminiRequestTests: XCTestCase {
     var calls = 0
     let service = service { request in
       calls += 1
-      XCTAssertEqual(request.timeoutInterval, 45)
+      XCTAssertEqual(request.timeoutInterval, 90)
       return (
         200,
         try JSONSerialization.data(withJSONObject: [
@@ -177,6 +179,110 @@ final class GeminiRequestTests: XCTestCase {
       title: "T", artist: "A", lyrics: "Testo sorgente", retryLength: false)
     XCTAssertEqual(calls, 1)
     XCTAssertEqual(result, "Risposta completa ma breve.")
+  }
+
+  private func textSSE(_ text: String, finish: String? = "STOP") throws -> Data {
+    var candidate: [String: Any] = ["content": ["parts": [["text": text]]]]
+    if let finish { candidate["finishReason"] = finish }
+    let data = try JSONSerialization.data(withJSONObject: ["candidates": [candidate]])
+    return Data(("data: " + String(decoding: data, as: UTF8.self) + "\n\n").utf8)
+  }
+
+  func testStreamingInterpretationUsesActualLyricsAndOnlyCompleteFinalText() async throws {
+    let service = service { request in
+      XCTAssertTrue(request.url!.absoluteString.hasSuffix("gemini-3.8-flash:streamGenerateContent?alt=sse"))
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "text/event-stream")
+      XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "fixture-key")
+      XCTAssertEqual(request.timeoutInterval, 45, accuracy: 0.1)
+      let body = try self.body(request)
+      XCTAssertTrue(String(describing: body["contents"]!).contains("Testo sorgente"))
+      let thought = Data("data: {\"candidates\":[{\"content\":{\"parts\":[{\"thought\":true,\"text\":\"Never read this reasoning\"}]}}]}\n\n".utf8)
+      let first = try self.textSSE("La canzone ", finish: nil)
+      let last = try self.textSSE("parla di amicizia.")
+      return (200, thought + first + last)
+    }
+    let text = try await service.explain(key: "fixture-key", model: "gemini-3.8-flash",
+      title: "T", artist: "A", lyrics: "Testo sorgente", retryLength: false, streaming: true)
+    XCTAssertEqual(text, "La canzone parla di amicizia.")
+  }
+
+  func testTimeoutRetriesOnceAndDoesNotRewriteACompleteShortInterpretation() async throws {
+    var calls = 0
+    let service = service { _ in
+      calls += 1
+      if calls == 1 {
+        throw URLError(.timedOut, userInfo: [NSLocalizedDescriptionKey: "secret-key-private-url"])
+      }
+      return (200, try self.textSSE("Risposta completa."))
+    }
+    let text = try await service.explain(key: "fixture-key", model: "gemini-3.8-flash",
+      title: "T", artist: "A", lyrics: "Testo", retryLength: false, streaming: true)
+    XCTAssertEqual(calls, 2)
+    XCTAssertEqual(text, "Risposta completa.")
+  }
+
+  func testTemporaryServerErrorRetriesAndDiscardsTheFailedAttempt() async throws {
+    var calls = 0
+    let service = service { _ in
+      calls += 1
+      if calls == 1 { return (503, Data("private diagnostic message".utf8)) }
+      return (200, try self.textSSE("Testo nuovo completo."))
+    }
+    let text = try await service.explain(key: "fixture-key", model: "gemini-3.8-flash",
+      title: "T", artist: "A", lyrics: "Testo", retryLength: false, streaming: true)
+    XCTAssertEqual(calls, 2)
+    XCTAssertEqual(text, "Testo nuovo completo.")
+  }
+
+  func testSecondTimeoutStopsAndCancellationIsNeverRetried() async throws {
+    for code in [URLError.timedOut, .cancelled] {
+      var calls = 0
+      let service = service { _ in calls += 1; throw URLError(code) }
+      do {
+        _ = try await service.explain(key: "fixture-key", model: "gemini-3.8-flash",
+          title: "T", artist: "A", lyrics: "Testo", retryLength: false, streaming: true)
+        XCTFail("Network error swallowed")
+      } catch let error as URLError { XCTAssertEqual(error.code, code) }
+      XCTAssertEqual(calls, code == .timedOut ? 2 : 1)
+    }
+  }
+
+  func testStreamingQuotaAndAuthorizationAreNotRetriedAndDoNotLeakProviderMessages() async throws {
+    for status in [429, 403] {
+      var calls = 0
+      let errorData = Data(#"{"error":{"message":"secret-key-private-url","status":"RESOURCE_EXHAUSTED","details":[{"reason":"QUOTA_EXCEEDED","violations":[{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier","quotaDimensions":{"project":"private-project"}}]}]}}"#.utf8)
+      let service = service { _ in calls += 1; return (status, errorData) }
+      do {
+        _ = try await service.explain(key: "fixture-key", model: "gemini-3.8-flash",
+          title: "T", artist: "A", lyrics: "Testo", retryLength: false, streaming: true)
+        XCTFail("API error swallowed")
+      } catch let error as GeminiAPIError {
+        XCTAssertEqual(error.status, status)
+        XCTAssertTrue(error.freeQuota)
+        XCTAssertFalse(error.localizedDescription.contains("secret-key"))
+        XCTAssertFalse(error.diagnostic.contains("private-project"))
+        XCTAssertTrue(error.diagnostic.contains("RESOURCE_EXHAUSTED"))
+      }
+      XCTAssertEqual(calls, 1)
+    }
+    XCTAssertEqual(GeminiAPIError.safeDiagnostic(URLError(.timedOut,
+      userInfo: [NSLocalizedDescriptionKey: "private-url-key"])), "rete -1001")
+    XCTAssertEqual(GeminiAPIError.diagnosticModel("AIza-private-key"), "personalizzato")
+  }
+
+  func testIncompleteOrBlockedInterpretationNeverReachesSpeech() throws {
+    for finish in [nil, "MAX_TOKENS", "SAFETY"] as [String?] {
+      var decoder = GeminiTextStreamDecoder()
+      let data = try textSSE("Testo interrotto", finish: finish)
+      XCTAssertThrowsError(try {
+        for line in String(decoding: data, as: UTF8.self).components(separatedBy: "\n") {
+          try decoder.consume(line)
+        }
+        return try decoder.completedText()
+      }())
+    }
+    var decoder = GeminiTextStreamDecoder()
+    XCTAssertThrowsError(try decoder.consume("data: {\"promptFeedback\":{\"blockReason\":\"SAFETY\"}}"))
   }
 
   func testSpeechRequestPreservesWholeTextAndStyle() async throws {
@@ -256,7 +362,9 @@ final class GeminiRequestTests: XCTestCase {
         XCTFail()
       }
       XCTFail()
-    } catch PrototypeError.http(403) {} catch { XCTFail("Unexpected error") }
+    } catch let error as GeminiAPIError {
+      XCTAssertEqual(error.status, 403)
+    } catch { XCTFail("Unexpected error") }
   }
 
   func testTranslationKeepsOriginalLineCountAndUsesExistingKey() async throws {

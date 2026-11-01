@@ -13,6 +13,17 @@ final class ProbeTimings: NSObject, URLSessionTaskDelegate, @unchecked Sendable 
   }
 }
 
+actor ProbeSpeechStart {
+  private var first = true
+  private let start: Date
+  init(start: Date) { self.start = start }
+  func received() {
+    guard first else { return }
+    first = false
+    print("First TTS PCM: \(String(format: "%.2f", Date().timeIntervalSince(start))) seconds")
+  }
+}
+
 do {
   let args = Array(CommandLine.arguments.dropFirst())
   if try await probeCipherIfRequested(args) { exit(0) }
@@ -254,15 +265,19 @@ do {
     let start = Date()
     let text = try await service.explain(
       key: key, model: "gemini-3.8-flash", title: song.title,
-      artist: song.artistsDisplay, lyrics: lyrics, retryLength: false)
+      artist: song.artistsDisplay, lyrics: lyrics, retryLength: false, streaming: true,
+      diagnostic: { print("Narration: " + $0) })
     print(
       "Gemini interpretation OK: \(text.count) characters; expected length: \(Interpretation.isExpectedLength(text)); seconds: \(Int(Date().timeIntervalSince(start)))"
     )
     let speechStart = Date()
     if streamMeaning {
       let recording = SpeechRecording()
-      try await service.streamSpeech(key: key, text: text, voice: "Kore", style: .professional) {
+      let firstAudio = ProbeSpeechStart(start: speechStart)
+      try await service.streamSpeech(key: key, text: text, voice: "Kore", style: .empathetic,
+        diagnostic: { print("Narration: " + $0) }) {
         bytes in
+        await firstAudio.received()
         try await recording.append(bytes)
       }
       let pcm = await recording.contents()

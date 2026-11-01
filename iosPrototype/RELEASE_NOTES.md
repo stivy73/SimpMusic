@@ -1,3 +1,38 @@
+# NoteNarrate iOS 0.14.6 (48) — recupero e diagnostica della narrazione
+
+L'interpretazione richiesta dal player o da CarPlay riceve il testo via SSE,
+senza attendere una risposta HTTP completa entro il precedente limite di 45 s.
+Un solo tentativo aggiuntivo recupera timeout, connessioni perse e alcuni errori
+temporanei HTTP. Il budget totale del testo è 75 s, compreso il recupero;
+nessuna riscrittura solo per correggere la lunghezza rallenta la voce.
+Solo il testo completo, concluso con STOP, raggiunge cache e sintesi vocale.
+Una generazione parziale, bloccata o annullata non viene letta.
+
+La diagnostica condivisibile distingue modello, richiesta del testo, prima
+risposta, completamento, richiesta TTS, primo audio ricevuto e riprodotto.
+HTTP, codici Google consentiti e quota gratuita, quando dichiarata dal server,
+sono separati dai timeout di rete. Nessuna chiave, URL, messaggio libero Google,
+contenuto del testo o identificativo di progetto viene conservato nel report.
+Errori di quota/autorizzazione non generano tentativi automatici aggiuntivi.
+Il primo audio TTS ammette 60 s di inattività; la protezione complessiva di 150 s
+include recupero testo, interpretazione e preparazione della voce. Le risposte
+rapide proseguono immediatamente. Scadenza background del sistema invariata.
+
+Verifica reale con la chiave locale già configurata e «Waiting On A Friend
+(Remastered 2009)»: interpretazione completa di 898 caratteri in 4,10 s;
+primo PCM Gemini dopo ulteriori 0,88 s; flusso completo di 3.125.760 byte,
+con Kore / Empatico. Il probe non riproduce su CarPlay e non usa la chiave
+del tester: non dimostra l'assenza di timeout sul suo piano o sulla sua rete.
+
+31 test Core mirati superati: richieste, recupero singolo, cancellazione,
+risposte incomplete, quota/autorizzazioni, protezione dei dati e cache.
+Su iPhone simulato iOS 27.2 superati narrazione CarPlay in background con
+ritardo di preparazione, ripresa musica, rotazione e interruzione. Su Duo
+simulato 27.1 superato il test voce/rotazione; il test background si è fermato
+all'attesa dello stato Running Background e resta non verificato su quel
+runtime. Nessuna nuova prova sul Duo fisico o sull'uscita audio dell'auto.
+Xcode 27.2 RC (27B48), SDK iOS 27.2; minimo iOS invariato a 17.
+
 # NoteNarrate iOS 0.14.5 (47) — impaginazione Home su Duo
 
 Le righe orizzontali di Home e pagine come «Ascolta di nuovo» ritagliano i propri

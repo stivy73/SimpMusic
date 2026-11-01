@@ -73,6 +73,7 @@ extension GeminiService {
   /// Backpressure is controlled by the receiver. Cancelling the caller cancels the HTTP task too.
   public func streamSpeech(
     key: String, text: String, voice: String, style: VoiceStyle,
+    diagnostic: @escaping @Sendable (String) -> Void = { _ in },
     receive: @Sendable (Data) async throws -> Void
   ) async throws {
     guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -82,7 +83,7 @@ extension GeminiService {
       string:
         "https://generativelanguage.googleapis.com/v1beta/models/\(Self.speechModel):streamGenerateContent?alt=sse"
     )!
-    var request = URLRequest(url: url, timeoutInterval: 90)
+    var request = URLRequest(url: url, timeoutInterval: 60)
     request.httpMethod = "POST"
     request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -103,19 +104,32 @@ extension GeminiService {
         "speechConfig": ["voiceConfig": ["voice": voice]],
       ],
     ])
+    diagnostic("TTS modello=\(Self.speechModel); richiesta inviata; inattività massima 60 s")
     let (bytes, response) = try await session.bytes(for: request)
     defer { bytes.task.cancel() }
     guard let response = response as? HTTPURLResponse else { throw PrototypeError.invalidResponse }
+    diagnostic("TTS HTTP \(response.statusCode)")
     guard (200..<300).contains(response.statusCode) else {
-      throw PrototypeError.http(response.statusCode)
+      var data = Data()
+      for try await byte in bytes {
+        if data.count >= 16_384 { break }
+        data.append(byte)
+      }
+      throw GeminiAPIError(status: response.statusCode, body: data)
     }
     var decoder = GeminiSpeechDecoder()
+    var receivedBytes = 0
     for try await line in bytes.lines {
       try Task.checkCancellation()
-      for chunk in try decoder.consume(line) { try await receive(chunk) }
+      for chunk in try decoder.consume(line) {
+        if receivedBytes == 0 { diagnostic("TTS primo audio ricevuto") }
+        receivedBytes += chunk.count
+        try await receive(chunk)
+      }
     }
     try Task.checkCancellation()
     try decoder.validateCompletion()
+    diagnostic("TTS completato; \(receivedBytes) byte PCM")
   }
 }
 

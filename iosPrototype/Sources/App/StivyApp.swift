@@ -1196,6 +1196,7 @@ struct SettingsView: View {
         + "\nDurata audio: " + model.player.timingDiagnostic
         + "\niOS: " + UIDevice.current.systemVersion
         + "\nRete attuale: " + AudioPreferences.shared.networkDiagnostic
+        + "\n\nDettaglio narrazione:\n" + model.narrationReport
         + "\n\nDettaglio risoluzione audio:\n" + model.player.audioResolutionReport
     #else
       "Voce: " + model.narrationDiagnostic
