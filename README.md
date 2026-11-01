@@ -79,3 +79,10 @@ Sorgenti originali: [maxrave-dev/SimpMusic](https://github.com/maxrave-dev/SimpM
 - Retains the 2.3.10 fix for empty-queue transitions when starting a radio station.
 
 The Android APK source is maintained on this personal fork and its `stivy73/core` submodule; upstream SimpMusic attribution and GPL licensing are preserved.
+
+
+### NoteNarrate Android — Google API keys (2.3.13)
+
+Song interpretation with Gemini uses the native Google Interactions API and the `x-goog-api-key` header. Both legacy and authorization API key formats are passed intact, without prefix or fixed-length validation. Requests disable interaction storage (`store=false`).
+
+The selected text model is preserved. If the Google project reaches the quota for `gemini-3.8-flash`, Settings → AI → Model ID can select `gemini-3.5-flash-lite`; this does not change Gemini TTS. Quota and permission errors are distinguished from invalid credentials, and Android Auto announces text-model quota failures. No automatic model downgrade or embedded personal API key is introduced.

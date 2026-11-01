@@ -266,6 +266,7 @@ import simpmusic.composeapp.generated.resources.equalizer_type_built_in
 import simpmusic.composeapp.generated.resources.equalizer_type_system
 import simpmusic.composeapp.generated.resources.free_space
 import simpmusic.composeapp.generated.resources.gemini
+import simpmusic.composeapp.generated.resources.gemini_text_model_hint
 import simpmusic.composeapp.generated.resources.google_tts_key_hint
 import simpmusic.composeapp.generated.resources.google_tts_api_key
 import simpmusic.composeapp.generated.resources.google_tts_get_api_key
@@ -2075,7 +2076,9 @@ fun SettingScreen(
                                             (it.isNotEmpty() && !it.contains(" ")) to runBlocking { getString(Res.string.invalid) }
                                         },
                                     ),
-                                message = runBlocking { getString(Res.string.custom_model_id_messages) },
+                                message = runBlocking {
+                                    getString(if (aiProvider == DataStoreManager.AI_PROVIDER_GEMINI) Res.string.gemini_text_model_hint else Res.string.custom_model_id_messages)
+                                },
                                 confirm =
                                     runBlocking { getString(Res.string.set) } to { state ->
                                         viewModel.setCustomModelId(state.textField?.value ?: "")

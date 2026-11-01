@@ -104,6 +104,8 @@ import simpmusic.composeapp.generated.resources.added_to_youtube_liked
 import simpmusic.composeapp.generated.resources.error
 import simpmusic.composeapp.generated.resources.lastfm_login_failed
 import simpmusic.composeapp.generated.resources.login_success
+import simpmusic.composeapp.generated.resources.song_meaning_permission_denied
+import simpmusic.composeapp.generated.resources.song_meaning_quota_exceeded
 import simpmusic.composeapp.generated.resources.song_meaning_api_key_missing
 import simpmusic.composeapp.generated.resources.song_meaning_error
 import simpmusic.composeapp.generated.resources.song_meaning_invalid_api_key
@@ -273,6 +275,10 @@ class SharedViewModel(
                                 LocalResource.Error(
                                     if (result.message == "invalid_ai_api_key") {
                                         getString(Res.string.song_meaning_invalid_api_key)
+                                    } else if (result.message == "ai_permission_denied") {
+                                        getString(Res.string.song_meaning_permission_denied)
+                                    } else if (result.message == "ai_quota_exceeded") {
+                                        getString(Res.string.song_meaning_quota_exceeded)
                                     } else {
                                         result.message ?: getString(Res.string.song_meaning_error)
                                     },

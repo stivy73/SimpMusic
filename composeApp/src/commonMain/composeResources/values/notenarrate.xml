@@ -8,4 +8,7 @@
     <string name="google_tts_key_hint">Optional: leave empty to use the AI API key when Gemini is selected.</string>
     <string name="go_to_album">Go to album</string>
     <string name="go_to_album_named">Go to album · %1$s</string>
+    <string name="song_meaning_quota_exceeded">AI quota or rate limit reached. Retry later, or select gemini-3.5-flash-lite under Settings → AI → Model ID. A valid key does not guarantee quota for every model.</string>
+    <string name="gemini_text_model_hint">Google API keys in both legacy and authorization formats are accepted. If gemini-3.8-flash reaches your project quota, try gemini-3.5-flash-lite. This changes the text model only; Gemini TTS stays unchanged.</string>
+    <string name="song_meaning_permission_denied">The Google project or key is not permitted to use this model. Check Gemini API permissions and restrictions in Google AI Studio.</string>
 </resources>
