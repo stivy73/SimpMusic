@@ -15,6 +15,12 @@ interno aperto. Test finale superato anche su iPhone standard iOS 27.2, compresa
 la visibilità della testata nativa. Compilazione con
 Xcode 27.2 RC (27B48), SDK 27.2; prova sul Duo fisico separata.
 
+IPA distribuzione, firma, CarPlay, Siri ed estensioni verificati. Upload riuscito
+il 1 novembre 2026 alle 15:38 Europe/Rome. Apple API: VALID / IN_BETA_TESTING;
+assegnazioni a Team interno e Stivy73 rilette dalle relazioni delle build.
+Note beta italiane salvate e rilette. Sorgenti della build: 90aa8f39, su GitHub.
+Conservati IPA, report di validazione, stato Apple e screenshot dei test UI.
+
 # NoteNarrate iOS 0.14.4 (46) — percorso audio alternativo per HTTP 403
 
 Dopo il percorso account, la risoluzione audio prova il client Apple VISIONOS
