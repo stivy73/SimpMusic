@@ -99,7 +99,9 @@ def testflight(key_path, key_id, issuer, app_id, version, group_name=None):
                 {"data": [{"type": "betaGroups", "id": group_id}]})
     result["groups"] = []
     for group in groups:
-        members = request("betaGroups/" + group["id"] + "/builds?limit=200").get("data", [])
+        # Only IDs are needed. Fetching full build resources can stall Apple's
+        # response even though the assignment has already succeeded.
+        members = request("betaGroups/" + group["id"] + "/relationships/builds?limit=200").get("data", [])
         if any(item["id"] == build["id"] for item in members):
             result["groups"].append({"id": group["id"], "name": group["attributes"].get("name"),
                 "internal": group["attributes"].get("isInternalGroup")})

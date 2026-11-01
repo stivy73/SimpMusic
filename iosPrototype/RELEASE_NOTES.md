@@ -26,6 +26,13 @@ di nuovo collaudo dello stesso brano sui dispositivi dei tester. Nessun nuovo
 requisito Premium introdotto; nessun servizio esterno riceve cookie o sessioni.
 Firma, upload Apple e assegnazione ai gruppi sono verifiche separate.
 
+IPA distribuzione, profili CarPlay, estensioni e Siri verificati; upload riuscito
+il 1 novembre 2026 alle 12:38 Europe/Rome. Apple: VALID / IN_BETA_TESTING;
+assegnazioni a Team interno e Stivy73 rilette dagli ID delle relazioni build.
+Note beta italiane salvate e rilette. Sorgenti della build: ef16d33c, su GitHub.
+La verifica leggera degli ID sostituisce le letture complete che hanno dato
+timeout durante il controllo; nessun nuovo utente o ruolo modificato.
+
 # NoteNarrate iOS 0.14.3 (45) — diagnostica streaming HTTP 403
 
 La diagnostica audio conserva il percorso account WEB, IOS pubblico e WEB
