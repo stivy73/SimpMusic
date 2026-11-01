@@ -130,6 +130,12 @@
       didConnect interfaceController: CPInterfaceController
     ) {
       controller = interfaceController
+      // Work around reported artwork taps not opening the iOS 27 system mini-player.
+      // Apple's supported fallback restores the native Now Playing navigation
+      // button, which presents the shared full-screen template.
+      if #available(iOS 27.0, *) {
+        CPNowPlayingTemplate.shared.allowsMiniPlayer = false
+      }
       home.tabTitle = "Home"
       home.tabImage = UIImage(systemName: "house.fill")
       albums.tabTitle = "Album"
