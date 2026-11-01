@@ -16,6 +16,25 @@ più una playlist personale Apple. Compilazioni Debug e Release riuscite.
 Scritture remote nei test UI simulate; nessun nuovo collaudo sul telefono dei tester.
 I dettagli sono in [SHARING.md](SHARING.md).
 
-Stato della consegna: preparazione di archivio firmato, upload API ed elaborazione
-Apple in corso. Assegnazione prevista ai gruppi esistenti Team interno e Stivy73.
-Nessuna pubblicazione App Store.
+## Consegna verificata il 1 novembre 2026
+
+Archivio firmato ed esportazione API riusciti. Verificati firma di distribuzione,
+profili CarPlay, Siri, widget, estensione Condividi e App Group. Upload API riuscito;
+App Store Connect conferma **VALID** e **IN_BETA_TESTING**.
+
+Build Apple: `93a8e803-9ccb-46fd-a639-1defa29b030b`.
+Gruppi assegnati e riletti dall’API: **Team interno** e **Stivy73**.
+Note beta italiane (`it`) salvate e rilette. Nessuna modifica a membri, ruoli o
+distribuzione automatica dei gruppi. Nessuna pubblicazione App Store.
+
+Sorgenti/versione/build dell’archivio: `01cf8a2ab682bad930ba7c625074aec233232675`,
+pubblicati sul fork personale `stivy73/SimpMusic`, branch `feature/youtube-library-albums`.
+
+IPA: `deliveries/NoteNarrate-iOS-0.15.0-build50-Sharing.ipa`.
+SHA256: `fb293ccc19ba3f8dfa8c9b19b977b8e40c0703bd1d4ea02b1617a0d7c3f595eb`.
+Verifica firma: `deliveries/NoteNarrate-iOS-0.15.0-build50-Sharing-validation.json`.
+Stato Apple: `deliveries/NoteNarrate-iOS-0.15.0-build50-Sharing-AppStore-status.json`.
+Archivio: `/tmp/NoteNarrate-0.15.0-build50.xcarchive`.
+
+Disponibilità della beta e installazione sul telefono sono verifiche distinte:
+nessun nuovo collaudo fisico sui dispositivi dei tester viene dichiarato qui.

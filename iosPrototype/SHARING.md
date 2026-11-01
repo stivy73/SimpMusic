@@ -77,5 +77,6 @@ Verifiche del 1 novembre 2026 con Xcode 27.2 RC (27B48), SDK 27.2:
 
 Prove locali in `deliveries/sharing/` e nei result bundle
 `/tmp/NoteNarrate-SharedCatalog-UI-{signed,final,manual}.xcresult`.
-Nessun collaudo nuovo sui telefoni dei tester e nessun upload TestFlight in questa
-modifica. Resta necessario un successivo rilascio per distribuire la funzionalità.
+Nessun nuovo collaudo sui telefoni dei tester. La funzionalità è stata poi
+distribuita in TestFlight interno con **0.15.0 (50)**; stato e gruppi verificati
+separatamente nella [consegna](RELEASE-0.15.0-50.md).
