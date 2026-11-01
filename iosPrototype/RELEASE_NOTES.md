@@ -1,3 +1,20 @@
+# NoteNarrate iOS 0.14.5 (47) — impaginazione Home su Duo
+
+Le righe orizzontali di Home e pagine come «Ascolta di nuovo» ritagliano i propri
+contenuti ai margini del viewport. Le barre e i titoli nativi restano fuori
+dal ritaglio; la ScrollView verticale conserva la testata estesa. Album e filtri
+usano i margini del contenuto scrollabile, rispettando gli inset laterali
+asimmetrici del sistema senza aggiungere larghezze fisse per la fascia Duo.
+Le copertine restano quadrate; titolo e sottotitolo riservano due righe e non
+vengono compressi all’altezza della prima card nel LazyHStack.
+
+Test UI ripetibile con titoli lunghi: ultima card raggiungibile prima della
+barra laterale, «Altro», pagina di esplorazione, Back e mini-player. Superato
+su simulatore Duo iOS 27.1; verificati visivamente anche Duo ruotato e display
+interno aperto. Test finale superato anche su iPhone standard iOS 27.2, compresa
+la visibilità della testata nativa. Compilazione con
+Xcode 27.2 RC (27B48), SDK 27.2; prova sul Duo fisico separata.
+
 # NoteNarrate iOS 0.14.4 (46) — percorso audio alternativo per HTTP 403
 
 Dopo il percorso account, la risoluzione audio prova il client Apple VISIONOS

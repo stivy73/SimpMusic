@@ -11,7 +11,7 @@ struct HomeView: View {
   init(onSearch: @escaping () -> Void, onSettings: @escaping () -> Void, home: HomeModel? = nil) {
     self.onSearch = onSearch
     self.onSettings = onSettings
-    _home = StateObject(wrappedValue: home ?? HomeModel())
+    _home = StateObject(wrappedValue: home ?? discoveryHomeModel())
   }
 
   var body: some View {
@@ -39,8 +39,10 @@ struct HomeView: View {
                 .accessibilityValue(
                   home.selectedFilter == filter ? "Selezionato" : "Non selezionato")
             }
-          }.padding(.horizontal, 20)
+          }
         }
+        .contentMargins(.horizontal, 20, for: .scrollContent)
+        .clipped()
         if library.session == nil {
           Button {
             library.showLogin = true
@@ -117,7 +119,7 @@ struct HomeBrowseView: View {
   init(title: String, target: BrowseTarget) {
     self.title = title
     self.target = target
-    _home = StateObject(wrappedValue: HomeModel(target: target))
+    _home = StateObject(wrappedValue: discoveryHomeModel(target: target))
   }
 
   var body: some View {
@@ -134,7 +136,8 @@ struct HomeBrowseView: View {
         DiscoveryCategories(sections: home.categories)
         DiscoveryContinuation(home: home)
       }.padding(.vertical, 16)
-    }.navigationTitle(title).inlineNavigationTitle()
+    }.accessibilityIdentifier("home-browse-scroll")
+      .navigationTitle(title).inlineNavigationTitle()
       .toolbar {
         if target.browseId.hasPrefix("UC") {
           FollowArtistButton(
@@ -155,6 +158,28 @@ struct HomeBrowseView: View {
       }
       .onChange(of: library.session?.identity) { _, value in if value != identity { dismiss() } }
   }
+}
+
+@MainActor
+private func discoveryHomeModel(target: BrowseTarget? = nil) -> HomeModel {
+  #if DEBUG
+    if ProcessInfo.processInfo.arguments.contains("--test-home-layout") {
+      return HomeModel(target: target, fetch: { _, endpoint, _ in
+        if endpoint.browseId == "FEmusic_moods_and_genres" { return HomePage(shelves: []) }
+        let items = (0..<6).map { index in
+          DiscoveryItem(kind: .album, mediaId: "MPREqa-\(index)",
+            title: index == 0 ? "Album" : "Oceanic Delta Waves e altri brani da ascoltare ancora",
+            subtitle: "Artista dal nome lungo per verificare entrambe le righe", artwork: nil)
+        }
+        return HomePage(shelves: [
+          HomeShelf(id: "qa-listen", title: "Ascolta di nuovo", items: items,
+            more: BrowseTarget(browseId: "FEqa-listen")),
+          HomeShelf(id: "qa-albums", title: "Album per te", items: items),
+        ])
+      })
+    }
+  #endif
+  return HomeModel(target: target)
 }
 
 struct DiscoveryShelves: View {
@@ -206,8 +231,13 @@ struct DiscoveryShelves: View {
                   DiscoveryCard(item: item)
                 }
               }
-            }.padding(.horizontal, 20)
+            }
           }
+          .contentMargins(.horizontal, 20, for: .scrollContent)
+          // Clip the row's foreground at its safe-area viewport. Native Duo
+          // controls belong to the navigation container and must stay unclipped.
+          .clipped()
+          .accessibilityIdentifier("home-shelf-\(shelf.id)")
         }
       }
     }
@@ -220,8 +250,11 @@ private struct DiscoveryCard: View {
     VStack(alignment: .leading, spacing: 7) {
       Artwork(url: item.artwork).frame(width: 164, height: 164)
         .clipShape(RoundedRectangle(cornerRadius: item.kind == .artist ? 82 : 14))
-      Text(item.title).font(.subheadline.weight(.semibold)).lineLimit(2)
-      Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+      Text(item.title).font(.subheadline.weight(.semibold))
+        .lineLimit(2, reservesSpace: true).fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("home-card-title-\(item.id)")
+      Text(item.subtitle).font(.caption).foregroundStyle(.secondary)
+        .lineLimit(2, reservesSpace: true).fixedSize(horizontal: false, vertical: true)
     }.frame(width: 164, alignment: .leading).foregroundStyle(.primary)
       .accessibilityElement(children: .combine)
   }

@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
@@ -67,6 +68,103 @@ final class PrototypeUITests: XCTestCase {
     app.launch()
     selectTab("Impostazioni", symbol: "gearshape.fill", in: app)
     saveSettingsAndExpectHome(app)
+  }
+
+  @MainActor
+  func testHomeShelvesStayInsideContentBesideDuoRail() {
+    let app = XCUIApplication()
+    app.launchArguments = [
+      "--test-home-layout", "--test-remote-library", "--test-local-playback", "--test-long-local",
+    ]
+    app.launch()
+    defer {
+      let mini = app.buttons["mini-playback-toggle"]
+      if mini.isHittable && mini.value as? String == "Riproduzione attiva" { mini.tap() }
+    }
+    let close = app.buttons["close-player"]
+    guard close.waitForExistence(timeout: 15) else {
+      XCTFail("The local player fixture did not start", file: #filePath, line: #line)
+      return
+    }
+    close.tap()
+    XCTAssertTrue(app.buttons["open-player"].waitForExistence(timeout: 8))
+    let homeTitle = app.staticTexts["NoteNarrate"].firstMatch
+    XCTAssertTrue(homeTitle.waitForExistence(timeout: 5) && homeTitle.isHittable,
+      "The native Home title must remain visible outside the shelf clipping")
+
+    let rightBoundary: () -> CGFloat = {
+      let window = app.windows.firstMatch.frame
+      let home = app.descendants(matching: .any).matching(
+        NSPredicate(format: "label == %@", "Home")).firstMatch
+      let search = app.descendants(matching: .any).matching(
+        NSPredicate(format: "label == %@", "Cerca")).firstMatch
+      XCTAssertTrue(home.exists && search.exists, "Native tabs must be identifiable for the bounds check")
+      if home.exists && search.exists && home.frame.minX > window.midX
+        && abs(home.frame.midX - search.frame.midX)
+          < min(home.frame.width, search.frame.width) / 2
+      {
+        return home.frame.minX
+      }
+      return window.maxX
+    }
+
+    let verifyShelf: () -> Bool = {
+      let shelf = app.scrollViews["home-shelf-qa-listen"].firstMatch
+      guard shelf.waitForExistence(timeout: 10) else {
+        XCTFail("The deterministic Home shelf is missing")
+        return false
+      }
+      let last = app.descendants(matching: .any)
+        .matching(identifier: "home-item-album:MPREqa-5").firstMatch
+      for _ in 0..<10 {
+        if last.exists && last.frame.minX >= shelf.frame.minX
+          && last.frame.maxX <= rightBoundary() && last.isHittable { break }
+        shelf.swipeLeft()
+      }
+      guard last.exists else {
+        XCTFail("The last album must be reachable by scrolling the shelf")
+        return false
+      }
+      XCTAssertTrue(last.isHittable)
+      XCTAssertGreaterThanOrEqual(last.frame.minX, shelf.frame.minX)
+      XCTAssertLessThanOrEqual(last.frame.maxX, rightBoundary(),
+        "The last album must finish before the native side controls")
+      let title = app.staticTexts["home-card-title-album:MPREqa-5"].firstMatch
+      let lineHeight = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight
+      if title.exists {
+        XCTAssertGreaterThan(title.frame.height, lineHeight * 1.5,
+          "The long album title must have space to wrap to two lines")
+        XCTAssertLessThanOrEqual(title.frame.maxX, rightBoundary())
+      } else {
+        // Combined card accessibility still exposes its complete foreground bounds.
+        let captionHeight = UIFont.preferredFont(forTextStyle: .caption1).lineHeight
+        XCTAssertGreaterThanOrEqual(last.frame.height,
+          last.frame.width + lineHeight * 2 + captionHeight,
+          "The card must reserve its artwork and multiline title without clipping")
+      }
+      return true
+    }
+
+    guard verifyShelf() else { return }
+    let more = app.buttons["Altro: Ascolta di nuovo"].firstMatch
+    XCTAssertTrue(more.isHittable)
+    XCTAssertLessThanOrEqual(more.frame.maxX, rightBoundary())
+    more.tap()
+    XCTAssertTrue(app.scrollViews["home-browse-scroll"].waitForExistence(timeout: 8))
+    guard verifyShelf() else { return }
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Duo Home browse: final album and long title beside native rail"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+
+    let back = [app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch,
+      app.navigationBars.buttons.firstMatch, app.buttons["Back"].firstMatch,
+      app.buttons["Indietro"].firstMatch, app.buttons["NoteNarrate"].firstMatch]
+      .first(where: { $0.isHittable })
+    guard let back else { XCTFail("The native browse Back button is missing"); return }
+    back.tap()
+    XCTAssertTrue(app.scrollViews["home-scroll"].waitForExistence(timeout: 8))
+    XCTAssertTrue(app.buttons["open-player"].isHittable)
   }
 
   @MainActor
