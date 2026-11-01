@@ -1,3 +1,31 @@
+# NoteNarrate iOS 0.14.4 (46) — percorso audio alternativo per HTTP 403
+
+Dopo il percorso account, la risoluzione audio prova il client Apple VISIONOS
+con un visitatore anonimo appena ottenuto da YouTube. Bootstrap, richiesta player
+e richieste audio usano la stessa identità client. I cookie dell’account Music
+restano esclusi da questo percorso. Il player continua a verificare inizio,
+oltre 1 MiB e fine di ogni AAC, oppure i segmenti HLS iniziali, oltre un minuto
+e finali. I vecchi percorsi IOS/WEB restano disponibili se questo non funziona.
+Il report distingue PUBLIC_APPLE senza registrare visitor, URL firmati o chiavi.
+
+Verifica del caso del tester, «Waiting On A Friend (Remastered 2009)»:
+4.440.476/4.440.476 byte AAC standard letti con intervalli esatti e senza 403;
+altri due brani completi verificati (3.449.447 e 4.048.605 byte). Player nativo
+AVFoundation: avvio circa 1,71 s e avanzamento 95,09 s durante 95 s reali.
+56 test mirati superati; compilazione iOS con Xcode 27.2 RC / SDK 27.2.
+L’anomalia di durata del contenitore osservata nel probe Mac compare anche sul
+file locale: la normalizzazione temporale esistente dell’app resta invariata.
+
+CarPlay usa il pulsante nativo «In riproduzione» al posto del mini-player iOS 27,
+come alternativa supportata al mancato ingresso nel player completo.
+
+Limiti: YouTube può applicare requisiti diversi su altre reti o sessioni, anche
+a questo client. Il risultato locale non dimostra la riproduzione sull’IP
+cellulare del tester, l’ascolto fino alla fine o l’uscita CarPlay fisica. Richiesta
+di nuovo collaudo dello stesso brano sui dispositivi dei tester. Nessun nuovo
+requisito Premium introdotto; nessun servizio esterno riceve cookie o sessioni.
+Firma, upload Apple e assegnazione ai gruppi sono verifiche separate.
+
 # NoteNarrate iOS 0.14.3 (45) — diagnostica streaming HTTP 403
 
 La diagnostica audio conserva il percorso account WEB, IOS pubblico e WEB

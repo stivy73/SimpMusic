@@ -288,6 +288,7 @@ do {
   }
 } catch {
   print("Probe failed: \(error.localizedDescription)")
+  print("Error type: \((error as NSError).domain), code \((error as NSError).code)")
   if let failure = error as? AudioResolutionFailure {
     print("Account audio: \(failure.accountDiagnostic)")
     print("Musica: \(failure.networkDiagnostic)")

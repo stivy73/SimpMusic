@@ -4,6 +4,91 @@ import PrototypeCore
 import YouTubeSDK
 
 func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
+  if args.first == "--apple-audio-full", args.count == 2 {
+    let source = try await YouTubeAudio().resolve(videoID: args[1], quality: .normal)
+    print(source.resolutionReport)
+    print("Selected source: HLS=\(source.isHLS), bytes=\(source.byteCount ?? -1), seconds=\(source.duration)")
+    guard source.resolutionReport.contains("Selected PUBLIC_APPLE"), !source.isHLS,
+      let length = source.byteCount, length > 0
+    else { throw AudioPlaybackError.unavailable }
+    let config = URLSessionConfiguration.ephemeral
+    config.httpShouldSetCookies = false
+    config.httpCookieStorage = nil
+    let session = URLSession(configuration: config)
+    defer { session.invalidateAndCancel() }
+    var total: Int64 = 0
+    var complete = Data()
+    for offset in stride(from: Int64(0), to: length, by: 131072) {
+      let last = min(length - 1, offset + 131071)
+      var request = URLRequest(url: source.url, timeoutInterval: 20)
+      request.setValue(source.userAgent, forHTTPHeaderField: "User-Agent")
+      request.setValue("bytes=\(offset)-\(last)", forHTTPHeaderField: "Range")
+      let (data, response) = try await session.data(for: request)
+      guard let http = response as? HTTPURLResponse, http.statusCode == 206,
+        http.value(forHTTPHeaderField: "Content-Range") == "bytes \(offset)-\(last)/\(length)",
+        data.count == last - offset + 1
+      else { throw AudioPlaybackError.rejectedRange(offset: offset,
+        status: (response as? HTTPURLResponse)?.statusCode) }
+      total += Int64(data.count)
+      complete.append(data)
+    }
+    print("PUBLIC_APPLE anonymous complete AAC: \(total)/\(length) bytes; exact ranges; duration \(source.duration)s")
+    let loader = AudioRangeLoader(source: source, diagnostic: { print($0) })
+    defer { withExtendedLifetime(loader) {} }
+    try await loader.prepare()
+    let duration = try await loader.asset().load(.duration).seconds
+    print("Native AVFoundation raw duration: \(duration)s")
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".m4a")
+    try complete.write(to: file)
+    defer { try? FileManager.default.removeItem(at: file) }
+    let fileDuration = try await AVURLAsset(url: file).load(.duration).seconds
+    print("Native AVFoundation file duration: \(fileDuration)s")
+    let preciseFile = AVURLAsset(url: file,
+      options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
+    print("Native precise file duration: \(try await preciseFile.load(.duration).seconds)s")
+    if let track = try await preciseFile.loadTracks(withMediaType: .audio).first {
+      print("Native audio timescale: \(try await track.load(.naturalTimeScale))")
+      for format in try await track.load(.formatDescriptions) {
+        if let description = CMAudioFormatDescriptionGetStreamBasicDescription(format) {
+          print("Native audio sample rate: \(description.pointee.mSampleRate)")
+        }
+      }
+      let reader = try AVAssetReader(asset: preciseFile)
+      let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+      reader.add(output)
+      guard reader.startReading() else { throw AudioPlaybackError.unavailable }
+      var lastEnd = 0.0
+      var summed = 0.0
+      while let sample = output.copyNextSampleBuffer() {
+        let duration = CMSampleBufferGetDuration(sample).seconds
+        let start = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+        if duration.isFinite { summed += duration }
+        if start.isFinite && duration.isFinite { lastEnd = max(lastEnd, start + duration) }
+      }
+      print("Native compressed audio timeline: last=\(lastEnd)s, summed=\(summed)s, completed=\(reader.status == .completed)")
+    }
+    if FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/ffprobe") {
+      let probe = Process()
+      probe.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ffprobe")
+      probe.arguments = ["-v", "error", "-show_entries", "format=duration:stream=sample_rate,duration,time_base", "-of", "json", file.path]
+      let output = Pipe()
+      probe.standardOutput = output
+      probe.standardError = FileHandle.nullDevice
+      try probe.run()
+      let info = output.fileHandleForReading.readDataToEndOfFile()
+      probe.waitUntilExit()
+      if probe.terminationStatus == 0, let text = String(data: info, encoding: .utf8) {
+        print("Independent container metadata: " + text)
+      }
+    }
+    let timing = try await AudioPlaybackTiming.resolve(loader.asset(), source: source.duration)
+    guard timing.duration.isFinite, timing.duration > 0,
+      abs(timing.duration - source.duration) < 5 else {
+      throw AudioPlaybackError.unavailable
+    }
+    print("Native AVFoundation timing: \(timing.diagnostic); no account credentials used")
+    return true
+  }
   if args.first == "--audio-access" {
     let query = args.dropFirst().joined(separator: " ")
     let results = try await HomeDiscovery(session: nil).search(query: query, filter: .songs)
@@ -69,16 +154,25 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
     }
     return true
   }
-  if args.first == "--audio-timing" || args.first == "--audio-startup" {
+  if args.first == "--audio-timing" || args.first == "--audio-startup"
+    || args.first == "--audio-startup-id" {
     let query = args.dropFirst().joined(separator: " ")
-    let results = try await HomeDiscovery(session: nil).search(query: query, filter: .songs)
-    guard let song = results.first else { throw AudioPlaybackError.unavailable }
-    print("Catalog: \(song.title), duration \(song.durationSeconds ?? 0)s")
+    let videoID: String
+    if args.first == "--audio-startup-id" {
+      videoID = query
+    } else {
+      let results = try await HomeDiscovery(session: nil).search(query: query, filter: .songs)
+      guard let song = results.first else { throw AudioPlaybackError.unavailable }
+      print("Catalog: \(song.title), duration \(song.durationSeconds ?? 0)s")
+      videoID = song.mediaId
+    }
     let began = Date()
-    let source = try await YouTubeAudio().resolve(videoID: song.mediaId)
+    let source = try await YouTubeAudio().resolve(videoID: videoID)
+    if args.first == "--audio-startup-id" { print(source.resolutionReport) }
     print("Source safety checks complete: \(String(format: "%.2f", Date().timeIntervalSince(began)))s")
     print("Source duration: \(source.duration)s; HLS: \(source.isHLS)")
-    let loader = AudioRangeLoader(source: source)
+    let loader = AudioRangeLoader(source: source, diagnostic: { print($0) })
+    defer { withExtendedLifetime(loader) {} }
     try await loader.prepare()
     print("Initial range ready: \(String(format: "%.2f", Date().timeIntervalSince(began)))s")
     let asset = loader.asset()
@@ -91,13 +185,14 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
         print("Segment empty: \(segment.isEmpty), target: \(segment.timeMapping.target.start.seconds)..<\(segment.timeMapping.target.end.seconds)")
       }
     }
-    if args.first == "--audio-startup" {
+    if args.first == "--audio-startup" || args.first == "--audio-startup-id" {
       let timing = try await AudioPlaybackTiming.resolve(asset, source: source.duration)
       let player = await MainActor.run {
         let item = AVPlayerItem(asset: asset)
         item.preferredForwardBufferDuration = 5
         if timing.duration > 0 { item.forwardPlaybackEndTime = CMTime(seconds: timing.duration, preferredTimescale: 600) }
         let player = AVPlayer(playerItem: item)
+        if args.first == "--audio-startup-id" { player.isMuted = true }
         player.volume = 0
         player.playImmediately(atRate: 1)
         return player

@@ -163,6 +163,7 @@ public struct YouTubeAudio: Sendable {
     }
     var accountDiagnostic = "Nessuna sessione YouTube Music disponibile"
     var publicDiagnostic = "IOS pubblico: non verificato"
+    var appleDiagnostic = ""
     if preferHLS { await YouTubePlayerCipher.shared.invalidate() }
     if let account {
       do {
@@ -184,6 +185,25 @@ public struct YouTubeAudio: Sendable {
         }
         trace.record("ACCOUNT_WEB failed: " + accountDiagnostic)
       }
+    }
+    // Some public mobile responses expose only a readable prefix. Bootstrap a
+    // fresh anonymous visitor for the Apple player, then apply the SAME complete
+    // range/HLS validation as every other source. Account playback stays first.
+    do {
+      trace.record("PUBLIC_APPLE player start")
+      let video = try await YouTubeApplePlayer().video(id: videoID,
+        diagnostic: { trace.record("PUBLIC_APPLE " + $0) })
+      let fallback = try await source(video: video, userAgent: YouTubeApplePlayer.userAgent,
+        authenticated: false, quality: quality, excluding: excluding, preferHLS: preferHLS,
+        diagnostic: { trace.record("PUBLIC_APPLE " + $0) })
+      return completed(Source(url: fallback.url, duration: fallback.duration,
+        userAgent: fallback.userAgent, byteCount: fallback.byteCount, isHLS: fallback.isHLS,
+        authenticated: false,
+        accountDiagnostic: accountDiagnostic + "; sorgente Apple pubblica validata"), path: "PUBLIC_APPLE")
+    } catch is CancellationError { throw CancellationError() } catch {
+      try Task.checkCancellation()
+      appleDiagnostic = "Apple pubblico: " + AudioResolutionFailure.detail(error)
+      trace.record("PUBLIC_APPLE failed: " + appleDiagnostic)
     }
     do {
       trace.record("PUBLIC_IOS player start; client_version=" + ClientConfig.ios.version)
@@ -219,7 +239,7 @@ public struct YouTubeAudio: Sendable {
       trace.record("PUBLIC_WEB failed: " + AudioResolutionFailure.detail(error))
       throw AudioResolutionFailure(
         accountDiagnostic: accountDiagnostic,
-        networkDiagnostic: publicDiagnostic + "; WEB pubblico: "
+        networkDiagnostic: appleDiagnostic + "; " + publicDiagnostic + "; WEB pubblico: "
           + AudioResolutionFailure.detail(error), resolutionReport: trace.report)
     }
   }
