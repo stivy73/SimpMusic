@@ -70,9 +70,10 @@ func probeCipherIfRequested(_ args: [String]) async throws -> Bool {
     defer { transport.invalidateAndCancel() }
     for candidate in candidates {
       guard let url = candidate.url.flatMap(URL.init(string:)) else { continue }
-      for offset: Int64 in [
+      let offsets: [Int64] = args.contains("--sequential-only") ? [] : [
         0, 1_048_576, max(0, (Int64(candidate.contentLength ?? "") ?? 1024) - 1024),
-      ] {
+      ]
+      for offset in offsets {
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.setValue("bytes=\(offset)-\(offset + 1023)", forHTTPHeaderField: "Range")
         request.setValue(ClientConfig.webRemix.userAgent, forHTTPHeaderField: "User-Agent")
@@ -83,17 +84,20 @@ func probeCipherIfRequested(_ args: [String]) async throws -> Bool {
       }
       if args.contains("--blocks"), let length = candidate.contentLength.flatMap(Int64.init) {
         var total: Int64 = 0
-        for offset in stride(from: Int64(0), to: length, by: 524288) {
-          let last = min(length - 1, offset + 524287)
+        let blockSize: Int64 = args.contains("--blocks128") ? 131072 : 524288
+        for offset in stride(from: Int64(0), to: length, by: Int(blockSize)) {
+          let last = min(length - 1, offset + blockSize - 1)
           var request = URLRequest(url: url, timeoutInterval: 15)
           request.setValue("bytes=\(offset)-\(last)", forHTTPHeaderField: "Range")
           request.setValue(ClientConfig.webRemix.userAgent, forHTTPHeaderField: "User-Agent")
           let (data, response) = try await transport.data(for: request)
           let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+          let correctRange = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Range")
+            == "bytes \(offset)-\(last)/\(length)"
           print(
-            "Public decoded block itag \(candidate.itag), offset \(offset): HTTP \(status), bytes \(data.count)"
+            "Public decoded block itag \(candidate.itag), offset \(offset): HTTP \(status), bytes \(data.count), exact range \(correctRange)"
           )
-          guard status == 206, data.count == last - offset + 1 else { break }
+          guard status == 206, correctRange, data.count == last - offset + 1 else { break }
           total += Int64(data.count)
         }
         print("Public decoded complete bytes: \(total)/\(length)")
