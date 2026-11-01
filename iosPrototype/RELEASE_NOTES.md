@@ -23,6 +23,13 @@ AudioRecoveryTests e YouTubeBrowseTests superati; Debug iOS compilato con
 Xcode 27.2 RC (27B48), SDK 27.2. Firme, upload ed esecuzione fisica sono
 verifiche separate dal report e dai test.
 
+Release archive, esportazione IPA, firma distribuzione, profili CarPlay,
+estensioni e metadati Siri verificati. Upload riuscito il 1 novembre 2026 alle
+07:57 Europe/Rome. Apple API: VALID / IN_BETA_TESTING; Team interno e Stivy73
+assegnati e verificati. Entrambi i nuovi tester risultano nel Team interno.
+Note beta italiane salvate e rilette via API. Sorgenti della build su GitHub;
+installazione e prova sui telefoni/autoradio dei tester rimangono separate.
+
 # NoteNarrate iOS 0.14.2 (44) — timeout interpretazione e diagnostica
 
 La richiesta singola per l’interpretazione ha una scadenza di 45 secondi anziché
