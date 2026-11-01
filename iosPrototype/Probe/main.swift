@@ -249,22 +249,33 @@ do {
     // Read only the explicitly labelled Gemini key; never log credentials or API bodies.
     let source = try String(contentsOfFile: args[1], encoding: .utf8)
     let lines = source.components(separatedBy: .newlines)
+    let keyLabel: String
+    if let option = args.firstIndex(of: "--key-label"), option + 1 < args.count {
+      keyLabel = args[option + 1]
+    } else { keyLabel = "Gemini key" }
     guard
       let label = lines.firstIndex(where: {
-        $0.trimmingCharacters(in: .whitespaces) == "Gemini key"
+        $0.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: ":"))
+          .caseInsensitiveCompare(keyLabel) == .orderedSame
       }),
       label + 1 < lines.count
     else { throw PrototypeError.missingKey }
     let key = lines[label + 1].trimmingCharacters(in: .whitespacesAndNewlines)
-    guard key.range(of: #"^AIza[A-Za-z0-9_-]{35}$"#, options: .regularExpression) != nil else {
+    // Google supports multiple key formats. Validate header safety, not a legacy prefix.
+    guard (16...1024).contains(key.utf8.count),
+      key.utf8.allSatisfy({ $0 >= 33 && $0 <= 126 }) else {
       throw PrototypeError.missingKey
     }
     let session = URLSession(configuration: .default, delegate: ProbeTimings(), delegateQueue: nil)
     defer { session.finishTasksAndInvalidate() }
     let service = GeminiService(session: session)
+    let textModel: String
+    if let option = args.firstIndex(of: "--text-model"), option + 1 < args.count {
+      textModel = args[option + 1]
+    } else { textModel = "gemini-3.8-flash" }
     let start = Date()
     let text = try await service.explain(
-      key: key, model: "gemini-3.8-flash", title: song.title,
+      key: key, model: textModel, title: song.title,
       artist: song.artistsDisplay, lyrics: lyrics, retryLength: false, streaming: true,
       diagnostic: { print("Narration: " + $0) })
     print(

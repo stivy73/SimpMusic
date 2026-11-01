@@ -33,6 +33,31 @@ all'attesa dello stato Running Background e resta non verificato su quel
 runtime. Nessuna nuova prova sul Duo fisico o sull'uscita audio dell'auto.
 Xcode 27.2 RC (27B48), SDK iOS 27.2; minimo iOS invariato a 17.
 
+Distribuzione 1 novembre 2026: archivio, IPA, firma, profili CarPlay,
+estensioni e metadati Siri verificati. Upload API riuscito alle 18:22
+Europe/Rome; Apple VALID / IN_BETA_TESTING. Assegnazioni a Team interno e
+Stivy73 salvate e rilette; note beta italiane verificate. Sorgenti prodotto
+della build: e06470f6, su GitHub. IPA e report conservati in deliveries.
+
+Confronto successivo con una chiave tester esplicitamente autorizzata: il
+catalogo modelli risponde HTTP 200, ma gemini-3.8-flash va in timeout sul
+percorso generateContent/SSE. Interactions esplicita HTTP 429 too_many_requests
+e cita il livello gratuito. Stessa richiesta minima con la chiave di controllo:
+HTTP 200 in 1,35 s. Non è stato rilevato un errore del formato della chiave:
+la chiave tester funziona sia con Flash Lite sia con la voce.
+
+Soluzione verificata senza attivare fatturazione: impostare Modello testo su
+gemini-3.5-flash-lite, mantenendo Gemini TTS. Percorso completo sullo stesso
+brano: 859 caratteri in 2,65 s, primo PCM dopo ulteriori 0,70 s, generazione
+vocale completa di 2.595.840 byte (54,08 s) con Kore / Empatico. Sono prove API
+con la chiave tester; l'ascolto sul telefono resta da confermare. Quote e limiti
+restano quelli del progetto Google, distinti per modello.
+
+Lo strumento NetworkProbe ammette le chiavi opache nei formati Google nuovi
+e precedenti, con etichetta esplicita --key-label e modello --text-model.
+Prima riconosceva solo il vecchio prefisso; l'app non aveva quel filtro.
+Le credenziali non sono memorizzate nei sorgenti né nei report condivisibili.
+
 # NoteNarrate iOS 0.14.5 (47) — impaginazione Home su Duo
 
 Le righe orizzontali di Home e pagine come «Ascolta di nuovo» ritagliano i propri
