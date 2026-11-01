@@ -18,6 +18,10 @@ extension LibraryModel {
             cookies: "SAPISID=fixture", identity: "library-test", clientVersion: "test"),
           save: { _ in },
           fetch: { _ in
+            if ProcessInfo.processInfo.arguments.contains("--test-empty-library-albums") {
+              let response = #"{"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"selected":true,"content":{"sectionListRenderer":{"contents":[{"itemSectionRenderer":{"contents":[{"messageRenderer":{"text":{"runs":[{"text":"Non hai ancora salvato album nella tua libreria"}]}}}]}}]}}}}]}}}"#
+              return try LibraryAlbumsPage.parse(Data(response.utf8)).albums
+            }
             if ProcessInfo.processInfo.arguments.contains("--test-collection-presentation") {
               return (0..<26).reversed().map { n in
                 LibraryAlbum(
@@ -136,11 +140,18 @@ struct LibraryView: View {
         albumContent
       }
     }.navigationTitle("Libreria")
-      .task(id: library.session) {
+      .task(id: library.accountRevision) {
         if let session = library.session { await model.migrateFavorites(to: library, account: session) }
       }
       .sheet(isPresented: $createPlaylist) { CreatePlaylistSheet() }
       .toolbar {
+        #if DEBUG
+          if ProcessInfo.processInfo.arguments.contains("--test-library-reconnect") {
+            Button("Riconnetti account test") {
+              if let session = library.session { library.connect(session) }
+            }.accessibilityIdentifier("library-reconnect-test")
+          }
+        #endif
         Button {
           model.externalRoute = .received
         } label: {
@@ -176,7 +187,7 @@ struct LibraryView: View {
           .disabled(section.remote.map { library.state($0).loading } ?? library.loading)
         }
       }
-      .task(id: library.session) {
+      .task(id: library.accountRevision) {
         if library.session != nil && library.albums.isEmpty && !library.loading {
           library.refresh()
         }
@@ -193,12 +204,19 @@ struct LibraryView: View {
         Text(error)
       } actions: {
         Button("Riprova") { library.refresh() }
-        Button("Accedi nuovamente") { library.showLogin = true }
+        Button("Cambia account") { library.showLogin = true }
       }
     } else {
       VStack(spacing: 0) {
         if library.albums.isEmpty {
-          ContentUnavailableView("Nessun album salvato", systemImage: "opticaldisc")
+          ContentUnavailableView {
+            Label("Nessun album salvato", systemImage: "opticaldisc")
+          } description: {
+            Text("Qui compaiono gli album salvati su YouTube Music. Le playlist hanno una raccolta separata.")
+          } actions: {
+            Button("Vai alle playlist") { section = .playlists }
+              .accessibilityIdentifier("library-empty-open-playlists")
+          }
         } else {
           Text("\(library.albums.count) album").font(.caption).foregroundStyle(.secondary)
             .accessibilityIdentifier("library-album-count")
@@ -237,7 +255,7 @@ private struct RemoteLibraryView: View {
         VStack(spacing: 8) {
           Text(error).font(.callout).foregroundStyle(.orange)
           Button("Riprova") { Task { await library.load(kind, force: true) } }
-          Button("Accedi nuovamente") { library.showLogin = true }
+          Button("Cambia account") { library.showLogin = true }
         }.padding()
       }
       if state.loading {
@@ -272,7 +290,7 @@ private struct RemoteLibraryView: View {
       }
     }.frame(maxWidth: .infinity, maxHeight: .infinity)
       .refreshable { await library.load(kind, force: true) }
-      .task(id: library.session) { await library.load(kind) }
+      .task(id: library.accountRevision) { await library.load(kind) }
   }
 }
 

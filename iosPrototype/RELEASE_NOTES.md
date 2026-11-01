@@ -1,3 +1,29 @@
+# NoteNarrate iOS 0.14.7 (49) — raccolte vuote e riaccesso YouTube Music
+
+La libreria gestisce i contenitori itemSectionRenderer usati anche dagli account
+senza album salvati. Gli stati vuoti riconosciuti, anche dentro sezioni annidate,
+non diventano errori di formato. Album e playlist restano raccolte distinte:
+«Nessun album salvato» offre il pulsante «Vai alle playlist». Le continuazioni
+annidate vengono conservate nell'ordine; schede inattive e menu non vengono letti.
+Messaggi di accesso scaduto, errori del servizio e formati sconosciuti restano
+errori, senza salvare raccolte parziali né includere dati account nel messaggio.
+
+Ogni connessione pubblica una nuova revisione anche se la sessione confermata
+è identica alla precedente: la raccolta selezionata e i Mi piace si ricaricano
+dopo il riaccesso. Aggiornare solo gli album continua a preservare le altre
+raccolte. Il pulsante facoltativo negli errori è «Cambia account».
+
+L'utente ha riportato la conferma del tester: aggiungendo brani o album in
+YouTube Music gli elementi compaiono nell'app. Il messaggio iniziale riguardava
+una raccolta vuota; non dimostra una sessione non valida.
+
+46 test Core superati, incluse sezioni annidate vuote/popolate, continuazioni,
+risposte sconosciute o scadute, protezione dei valori privati e riaccesso allo
+stesso account. Aggiunto test UI album vuoti → playlist → riaccesso; la prima
+esecuzione si è fermata prima dei test. Il controllo del computer ha poi
+confermato il Mac bloccato; verifica visiva in attesa dello sblocco.
+Toolchain Xcode 27.2 RC (27B48), SDK iOS 27.2, minimo iOS 17 invariato.
+
 # NoteNarrate iOS 0.14.6 (48) — recupero e diagnostica della narrazione
 
 L'interpretazione richiesta dal player o da CarPlay riceve il testo via SSE,

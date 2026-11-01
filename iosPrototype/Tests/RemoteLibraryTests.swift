@@ -219,6 +219,45 @@ final class RemoteLibraryTests: XCTestCase {
     XCTAssertTrue(model.state(.likes).loaded)
   }
 
+  func testReconnectingSameSessionInvalidatesLoadsAndPublishesANewAccountRevision() async {
+    actor Reads {
+      var count = 0
+      func next() -> Int { count += 1; return count }
+    }
+    let reads = Reads()
+    let account = self.account
+    let model = model(fetch: { _, _ in
+      let n = await reads.next()
+      return [DiscoveryItem(kind: .playlist, mediaId: "VL\(n)", title: "Playlist \(n)", subtitle: "", artwork: nil)]
+    })
+    await model.load(.playlists)
+    let previous = model.accountRevision
+    model.showLogin = true
+    model.connect(account)
+    XCTAssertEqual(model.session, account)
+    XCTAssertNotEqual(model.accountRevision, previous)
+    XCTAssertFalse(model.showLogin)
+    XCTAssertFalse(model.state(.playlists).loaded)
+    await model.load(.playlists)
+    XCTAssertEqual(model.state(.playlists).items.map(\.mediaId), ["VL2"])
+    XCTAssertNil(model.state(.playlists).error)
+  }
+
+  func testWrappedPlaylistGridAndEmptyMessagesUseTheSameLibraryEnvelope() async throws {
+    for rows in [
+      [["gridRenderer": ["items": [HomeFixture.item("VLpersonal")]]]],
+      [["messageRenderer": ["text": ["simpleText": "No playlists in your library"]]]],
+    ] as [[[String: Any]]] {
+      let data = try JSONSerialization.data(withJSONObject: ["contents": [
+        "singleColumnBrowseResultsRenderer": ["tabs": [["tabRenderer": ["selected": true,
+          "content": ["sectionListRenderer": ["contents": [["itemSectionRenderer": ["contents": rows]]]]]]]]]]])
+      let normalized = try LibraryBrowseEnvelope.normalize(data)
+      let page = try await HomePage(YouTubeMusicClient().decodeDiscoveryPage(from: normalized, strictItems: true))
+      let items = page.shelves.flatMap(\.items)
+      XCTAssertEqual(items.map(\.mediaId), rows.first?["gridRenderer"] != nil ? ["VLpersonal"] : [])
+    }
+  }
+
   func testLibraryGridContinuationAndCreateTile() async throws {
     let json: [String: Any] = [
       "contents": [

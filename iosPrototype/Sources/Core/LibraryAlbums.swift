@@ -65,6 +65,118 @@ public struct LibraryAlbum: Identifiable, Codable, Sendable, Equatable {
   }
 }
 
+/// Normalize only the selected library page. Never search menus, inactive tabs or recommendations.
+enum LibraryBrowseEnvelope {
+  static func normalize(_ data: Data) throws -> Data {
+    guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      throw LibraryError.malformed
+    }
+    if root["error"] != nil { throw LibraryError.authentication }
+    let context = root["responseContext"] as? [String: Any]
+    for tracking in context?["serviceTrackingParams"] as? [[String: Any]] ?? [] {
+      for parameter in tracking["params"] as? [[String: Any]] ?? [] {
+        if parameter["key"] as? String == "logged_in", parameter["value"] as? String == "0" {
+          throw LibraryError.authentication
+        }
+      }
+    }
+    func message(_ value: [String: Any]) throws {
+      func signIn(_ value: Any) -> Bool {
+        if let list = value as? [Any] { return list.contains(where: signIn) }
+        guard let object = value as? [String: Any] else { return false }
+        return object["signInEndpoint"] != nil || object.values.contains(where: signIn)
+      }
+      if signIn(value) { throw LibraryError.authentication }
+      let field = value["text"] as? [String: Any] ?? [:]
+      let raw = (field["runs"] as? [[String: Any]])?.compactMap { $0["text"] as? String }.joined()
+        ?? field["simpleText"] as? String ?? value["text"] as? String ?? ""
+      let text = String(raw.prefix(2000)).folding(options: [.caseInsensitive, .diacriticInsensitive],
+        locale: Locale(identifier: "it_IT")).replacingOccurrences(of: "’", with: "'")
+      if ["sign in", "log in", "accedi", "effettua l'accesso", "esegui l'accesso"].contains(where: text.contains) {
+        throw LibraryError.authentication
+      }
+      if ["error", "errore", "riprova", "try again", "unavailable", "non disponibile", "cannot load"]
+        .contains(where: text.contains) { throw LibraryError.rejected }
+      let empty = ["no albums", "no liked albums", "no saved albums", "no playlists", "no songs",
+        "no liked songs", "no saved songs", "no artists", "nothing here", "library is empty",
+        "nessun album", "nessuna playlist", "nessun brano", "nessuna canzone",
+        "nessun artista", "libreria e vuota", "raccolta e vuota",
+        "appariranno qui", "verranno visualizzati qui", "saranno visualizzati qui"]
+      let collection = ["album", "playlist", "brani", "canzon", "artist", "libreria", "raccolta", "song", "music"]
+        .contains(where: text.contains)
+      let emptyContext = ["haven't added", "haven't saved", "haven't liked", "don't have any", "do not have any",
+        "appear here", "show up here", "non hai ancora", "non ci sono"].contains(where: text.contains)
+      guard empty.contains(where: text.contains) || (collection && emptyContext) else {
+        // No provider message, identifiers or account details enter diagnostics.
+        throw LibraryError.unsupported("messageRenderer:stato-raccolta-non-riconosciuto")
+      }
+    }
+    func rows(_ values: [[String: Any]], depth: Int) throws -> [[String: Any]] {
+      guard depth < 24 else { throw LibraryError.malformed }
+      var result: [[String: Any]] = []
+      let supported = ["gridRenderer", "musicShelfRenderer", "musicPlaylistShelfRenderer",
+        "musicCarouselShelfRenderer", "musicDescriptionShelfRenderer", "musicResponsiveListItemRenderer",
+        "musicTwoRowItemRenderer", "musicMultiRowListItemRenderer", "continuationItemRenderer"]
+      for value in values {
+        let rendererKeys = value.keys.filter { $0.hasSuffix("Renderer") }
+        guard rendererKeys.allSatisfy({ supported.contains($0) || ["itemSectionRenderer", "messageRenderer"].contains($0) }) else {
+          throw LibraryError.unsupported("library-section:unknown-renderer")
+        }
+        if let section = value["itemSectionRenderer"] as? [String: Any] {
+          guard let contents = section["contents"] as? [[String: Any]] else { throw LibraryError.malformed }
+          result += try rows(contents, depth: depth + 1)
+          if let raw = section["continuations"] {
+            guard let continuations = raw as? [[String: Any]] else { throw LibraryError.malformed }
+            for entry in continuations {
+              guard let next = (entry["nextContinuationData"] ?? entry["reloadContinuationData"]) as? [String: Any],
+                let token = next["continuation"] as? String, !token.isEmpty else { throw LibraryError.malformed }
+              result.append(["continuationItemRenderer": ["continuationEndpoint": ["continuationCommand": ["token": token]]]])
+            }
+          }
+        } else if let notice = value["messageRenderer"] as? [String: Any] {
+          try message(notice)
+          result.append(value)
+        } else if supported.contains(where: { value[$0] != nil }) {
+          result.append(try rewrite(value, depth: depth + 1))
+        } else {
+          throw LibraryError.unsupported("library-section:unknown-renderer")
+        }
+      }
+      return result
+    }
+    func rewrite(_ object: [String: Any], depth: Int) throws -> [String: Any] {
+      guard depth < 24 else { throw LibraryError.malformed }
+      var output = object
+      if var tabs = object["tabs"] as? [[String: Any]] {
+        let selected = tabs.firstIndex { ($0["tabRenderer"] as? [String: Any])?["selected"] as? Bool == true }
+          ?? tabs.firstIndex { ($0["tabRenderer"] as? [String: Any])?["content"] != nil }
+        if let selected { tabs[selected] = try rewrite(tabs[selected], depth: depth + 1) }
+        output["tabs"] = tabs
+      }
+      for key in ["sectionListRenderer", "sectionListContinuation", "gridRenderer", "gridContinuation",
+        "singleColumnBrowseResultsRenderer", "twoColumnBrowseResultsRenderer", "tabRenderer", "content",
+        "continuationContents", "appendContinuationItemsAction", "reloadContinuationItemsCommand"] {
+        if let child = object[key] as? [String: Any] { output[key] = try rewrite(child, depth: depth + 1) }
+      }
+      for key in ["contents", "items", "continuationItems"] {
+        if let children = object[key] as? [[String: Any]] {
+          let normalized = try rows(children, depth: depth + 1)
+          output[key] = key == "items" ? normalized.filter { $0["messageRenderer"] == nil } : normalized
+        } else if let child = object[key] as? [String: Any] {
+          output[key] = try rewrite(child, depth: depth + 1)
+        }
+      }
+      for key in ["onResponseReceivedActions", "onResponseReceivedEndpoints"] {
+        if let children = object[key] as? [[String: Any]] {
+          output[key] = try children.map { try rewrite($0, depth: depth + 1) }
+        }
+      }
+      return output
+    }
+    return try JSONSerialization.data(withJSONObject: rewrite(root, depth: 0))
+  }
+}
+
 /// Adapts the same grid/section envelopes handled by Android LibraryAlbumsPage.
 /// SDK album initializers are internal and expect flattened dictionaries, not InnerTube renderers.
 public struct LibraryAlbumsPage: Sendable {
@@ -72,6 +184,7 @@ public struct LibraryAlbumsPage: Sendable {
   public let continuations: [String]
 
   public static func parse(_ data: Data) throws -> Self {
+    let data = try LibraryBrowseEnvelope.normalize(data)
     guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
       throw LibraryError.malformed
     }
@@ -182,6 +295,10 @@ public struct LibraryAlbumsPage: Sendable {
             throw unsupported("section-contents", section)
           }
           for content in contents {
+            if let entry = content as? [String: Any], entry["continuationItemRenderer"] != nil || entry["musicTwoRowItemRenderer"] != nil {
+              try item(entry)
+              continue
+            }
             guard let entry = content as? [String: Any],
               entry["gridRenderer"] != nil || entry["messageRenderer"] != nil
                 || entry["musicDescriptionShelfRenderer"] != nil

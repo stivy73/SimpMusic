@@ -239,7 +239,7 @@ struct RootView: View {
     .sheet(isPresented: $library.showLogin) {
       YouTubeLoginScreen(library: library)
     }
-    .task(id: library.session) { await library.load(.likes) }
+    .task(id: library.accountRevision) { await library.load(.likes) }
     .alert(
       "Sincronizzazione YouTube Music",
       isPresented: Binding(

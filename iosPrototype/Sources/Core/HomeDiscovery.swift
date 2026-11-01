@@ -204,7 +204,8 @@ public struct HomeDiscovery: Sendable {
     -> HomePage
   {
     let data = try await browse.request(browseId: kind.browseID, token: continuation)
-    return try await HomePage(parser.decodeDiscoveryPage(from: data, strictItems: true))
+    let normalized = try LibraryBrowseEnvelope.normalize(data)
+    return try await HomePage(parser.decodeDiscoveryPage(from: normalized, strictItems: true))
   }
 }
 

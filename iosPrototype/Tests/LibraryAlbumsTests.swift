@@ -55,6 +55,54 @@ final class LibraryAlbumsTests: XCTestCase {
     XCTAssertEqual(result.continuations, ["next"])
   }
   func testEmptyLibrary() throws { XCTAssertTrue(try page([], initial: true).albums.isEmpty) }
+
+  private func wrapped(_ rows: [[String: Any]], continuation: String? = nil) throws -> Data {
+    var section: [String: Any] = ["contents": rows]
+    if let continuation {
+      section["continuations"] = [["nextContinuationData": ["continuation": continuation]]]
+    }
+    return try JSONSerialization.data(withJSONObject: ["contents": [
+      "singleColumnBrowseResultsRenderer": ["tabs": [["tabRenderer": ["selected": true,
+        "content": ["sectionListRenderer": ["contents": [["itemSectionRenderer": section]]]]]]]]]])
+  }
+
+  func testEmptyAlbumMessageInsideItemSectionIsAValidEmptyCollection() throws {
+    for text in ["Non hai ancora salvato album nella tua libreria", "Albums you save will appear here", "Albums you save will show up here", "No liked albums"] {
+      let data = try wrapped([["messageRenderer": ["text": ["runs": [["text": text]]]]]])
+      let page = try LibraryAlbumsPage.parse(data)
+      XCTAssertTrue(page.albums.isEmpty)
+      XCTAssertTrue(page.continuations.isEmpty)
+    }
+  }
+
+  func testNestedAlbumGridKeepsOrderAndWrapperContinuation() throws {
+    let data = try wrapped([["gridRenderer": ["items": [item("MPRE1"), item("MPRE2")]]]], continuation: "next")
+    let page = try LibraryAlbumsPage.parse(data)
+    XCTAssertEqual(page.albums.map(\.id), ["MPRE1", "MPRE2"])
+    XCTAssertEqual(page.continuations, ["next"])
+  }
+
+  func testWrappedUnknownOrServiceErrorCannotBecomeAnEmptyOrPartialLibrary() throws {
+    for row: [String: Any] in [
+      ["unknownRenderer": ["token": "PRIVATE_TOKEN"]],
+      ["messageRenderer": ["text": ["simpleText": "Private account PRIVATE_EMAIL"]]],
+      ["messageRenderer": ["text": ["simpleText": "Non ci sono album: errore del servizio, riprova"]]],
+      ["itemSectionRenderer": [:]],
+    ] {
+      let data = try wrapped([["gridRenderer": ["items": [item("MPRE1")]]], row])
+      XCTAssertThrowsError(try LibraryAlbumsPage.parse(data)) { error in
+        XCTAssertFalse(error.localizedDescription.contains("PRIVATE"))
+      }
+    }
+  }
+
+  func testWrappedSignInMessageStillRequiresAuthentication() throws {
+    let data = try wrapped([["messageRenderer": ["text": ["simpleText": "Sign in to see your albums"],
+      "button": ["buttonRenderer": ["navigationEndpoint": ["signInEndpoint": [:]]]]]]])
+    XCTAssertThrowsError(try LibraryAlbumsPage.parse(data)) { error in
+      guard case LibraryError.authentication = error else { return XCTFail("Expected authentication") }
+    }
+  }
   func testMultipleContinuationsDeduplicateAlbums() async throws {
     let first = try page(["A"], next: "one", initial: true)
     let second = try page(["A", "B"], next: "two")

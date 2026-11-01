@@ -983,6 +983,23 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
+  func testEmptyAlbumLibraryOpensPlaylistsAndSameAccountReconnectReloadsThem() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library", "--test-empty-library-albums", "--test-library-reconnect"]
+    app.launch()
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
+    let playlists = app.buttons["library-empty-open-playlists"]
+    XCTAssertTrue(playlists.waitForExistence(timeout: 15))
+    XCTAssertFalse(app.staticTexts["Libreria non disponibile"].exists)
+    playlists.tap()
+    XCTAssertTrue(app.staticTexts["Playlist di prova"].waitForExistence(timeout: 10))
+    app.buttons["library-reconnect-test"].tap()
+    XCTAssertTrue(app.staticTexts["Playlist di prova"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["1 · YouTube Music"].exists)
+    XCTAssertFalse(app.staticTexts["Libreria non disponibile"].exists)
+  }
+
+  @MainActor
   func testRemoteLibraryUsesOnlyYouTubeMusicLikes() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-remote-library"]

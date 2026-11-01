@@ -75,7 +75,7 @@ public final class LibraryModel: ObservableObject {
   @Published public var syncError: String?
   private var request: Task<Void, Never>?
   private var revision = UUID()
-  private var accountRevision = UUID()
+  @Published public private(set) var accountRevision = UUID()
   private var collectionRequests: [RemoteLibraryKind: Task<Void, Never>] = [:]
   private var collectionRevisions: [RemoteLibraryKind: UUID] = [:]
   public typealias FetchCollection =
