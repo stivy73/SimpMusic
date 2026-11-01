@@ -19,10 +19,19 @@ una raccolta vuota; non dimostra una sessione non valida.
 
 46 test Core superati, incluse sezioni annidate vuote/popolate, continuazioni,
 risposte sconosciute o scadute, protezione dei valori privati e riaccesso allo
-stesso account. Aggiunto test UI album vuoti → playlist → riaccesso; la prima
-esecuzione si è fermata prima dei test. Il controllo del computer ha poi
-confermato il Mac bloccato; verifica visiva in attesa dello sblocco.
+stesso account. Su iPhone simulato iOS 27.2 superati il nuovo test UI album
+vuoti → playlist → riaccesso e la regressione dei Mi piace remoti. Il controllo
+manuale aggiuntivo con Device Hub non è stato completato: acquisizione della
+finestra riuscita, input rifiutati con noWindowsAvailable.
+Nessuna nuova prova su Duo fisico o con la sessione personale del tester.
 Toolchain Xcode 27.2 RC (27B48), SDK iOS 27.2, minimo iOS 17 invariato.
+
+Archivio, IPA, firma, profili CarPlay, Siri ed estensioni verificati. Upload via
+API riuscito il 1 novembre 2026 alle 19:21 Europe/Rome. Apple VALID /
+IN_BETA_TESTING; relazioni con Team interno e Stivy73 rilette, note beta italiane
+salvate e verificate. Sorgenti prodotto della build: d82c89db, su GitHub.
+IPA, validazione e stato Apple conservati in deliveries. Le letture API scadute
+sono state ripetute verificando prima lo stato, senza duplicare le assegnazioni.
 
 # NoteNarrate iOS 0.14.6 (48) — recupero e diagnostica della narrazione
 
