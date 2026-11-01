@@ -27,6 +27,18 @@ actor ProbeSpeechStart {
 do {
   let args = Array(CommandLine.arguments.dropFirst())
   if try await probeCipherIfRequested(args) { exit(0) }
+  if args.first == "--shared-catalog", args.count >= 2 {
+    guard case .catalog(let link) = SharedMusicTarget.parse([args[1]]) else { throw SharedCatalogError.malformed }
+    let start = Date()
+    let collection = try await SharedCatalogResolver().resolve(link)
+    print("Shared \(collection.link.provider.title) \(collection.link.kind.rawValue): \(collection.title); tracks=\(collection.tracks.count), total=\(collection.total.map(String.init) ?? "unknown"), cover=\(collection.artwork != nil), partialWarning=\(collection.warning != nil), seconds=\(Date().timeIntervalSince(start))")
+    if args.contains("--match-first"), let track = collection.tracks.first {
+      let results = try await HomeDiscovery(session: nil).search(query: track.query, filter: .songs)
+      let match = track.match(results)
+      print("First track: \(track.title) / \(track.artist); verified YouTube match=\(match != nil)")
+    }
+    exit(0)
+  }
   if args.first == "--album-detail" {
     let query = args.dropFirst().joined(separator: " ")
     let albums = try await HomeDiscovery(session: nil).search(

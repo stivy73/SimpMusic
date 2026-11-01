@@ -1,16 +1,18 @@
 import Foundation
 
 /// Only a validated catalogue identifier or an explicit search query crosses the app boundary.
-/// Never stores the source URL (which may contain tokens), cookies, keys or arbitrary attachments.
+/// Never stores raw source URLs (which may contain tokens), cookies, keys or arbitrary attachments.
 public enum SharedMusicTarget: Codable, Equatable, Sendable {
   case search(String)
   case video(String)
   case playlist(String)
+  case catalog(SharedCatalogLink)
   public var label: String {
     switch self {
     case .search(let value): value
     case .video: "Brano YouTube condiviso"
     case .playlist: "Playlist YouTube condivisa"
+    case .catalog(let link): "\(link.kind.title) · \(link.provider.title)"
     }
   }
   public var valid: Bool {
@@ -18,6 +20,7 @@ public enum SharedMusicTarget: Codable, Equatable, Sendable {
     case .search(let query): !query.isEmpty && query.count <= 300 && !query.contains("\n")
     case .video(let id): Self.matches(id, #"^[A-Za-z0-9_-]{11}$"#)
     case .playlist(let id): Self.matches(id, #"^[A-Za-z0-9_-]{10,180}$"#)
+    case .catalog(let link): link.valid
     }
   }
   private static func matches(_ value: String, _ pattern: String) -> Bool {
@@ -44,6 +47,7 @@ public enum SharedMusicTarget: Codable, Equatable, Sendable {
       guard let c = URLComponents(url: url, resolvingAgainstBaseURL: false),
         c.user == nil, c.password == nil, c.port == nil, let host = c.host?.lowercased()
       else { continue }
+      if let link = SharedCatalogLink.parse(url) { return .catalog(link) }
       let yt = ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"]
       guard yt.contains(host) else { continue }
       let parts = c.path.split(separator: "/").map(String.init)
@@ -90,6 +94,102 @@ public enum SharedMusicTarget: Codable, Equatable, Sendable {
       clean.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) })
     else { return nil }
     return clean
+  }
+}
+
+/// Persist only catalogue IDs and storefront, never tracking parameters or authentication data.
+/// Short links retain only an allowlisted host and opaque path until the main app expands them.
+public struct SharedCatalogLink: Codable, Hashable, Sendable {
+  public enum Provider: String, Codable, Sendable {
+    case appleMusic, spotify
+    public var title: String { self == .appleMusic ? "Apple Music" : "Spotify" }
+  }
+  public enum Kind: String, Codable, Sendable {
+    case track, album, playlist, shortLink
+    public var title: String {
+      switch self {
+      case .track: "Brano"
+      case .album: "Album"
+      case .playlist: "Playlist"
+      case .shortLink: "Link condiviso"
+      }
+    }
+  }
+  public let provider: Provider
+  public let kind: Kind
+  public let id: String
+  public let country: String
+  public init(provider: Provider, kind: Kind, id: String, country: String = "it") {
+    self.provider = provider
+    self.kind = kind
+    self.id = id
+    self.country = country
+  }
+  public var valid: Bool {
+    func matches(_ value: String, _ pattern: String) -> Bool {
+      value.range(of: pattern, options: .regularExpression) != nil
+    }
+    guard matches(country, "^[a-z]{2}$") else { return false }
+    if kind == .shortLink {
+      guard let url = URL(string: "https://" + id), Self.safe(url),
+        Self.shortHosts(provider).contains(url.host ?? ""),
+        matches(url.path, "^/[A-Za-z0-9_/-]{1,200}$"),
+        !url.path.contains("//"), !url.path.contains(".."), url.query == nil, url.fragment == nil
+      else { return false }
+      return true
+    }
+    if provider == .spotify { return matches(id, "^[A-Za-z0-9]{22}$") }
+    return matches(id, kind == .playlist ? "^pl\\.[A-Za-z0-9-]{10,100}$" : "^[0-9]{5,20}$")
+  }
+  public var url: URL {
+    if kind == .shortLink { return URL(string: "https://" + id)! }
+    if provider == .spotify {
+      return URL(string: "https://open.spotify.com/\(kind.rawValue)/\(id)")!
+    }
+    let path = kind == .track ? "song" : kind.rawValue
+    return URL(string: "https://music.apple.com/\(country)/\(path)/\(id)")!
+  }
+  public static func safe(_ url: URL) -> Bool {
+    guard let c = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
+    return c.scheme == "https" && c.user == nil && c.password == nil && c.port == nil
+  }
+  public static func shortHosts(_ provider: Provider) -> Set<String> {
+    provider == .spotify ? ["spotify.link", "spotify.app.link"] : ["apple.co", "www.apple.co"]
+  }
+  public static func parse(_ url: URL) -> Self? {
+    guard safe(url), let host = url.host?.lowercased(),
+      let c = URLComponents(url: url, resolvingAgainstBaseURL: false)
+    else { return nil }
+    var parts = c.path.split(separator: "/").map(String.init)
+    for provider in [Provider.appleMusic, .spotify] where shortHosts(provider).contains(host) {
+      let link = Self(provider: provider, kind: .shortLink, id: host + c.path)
+      return link.valid ? link : nil
+    }
+    if host == "open.spotify.com" {
+      if parts.first?.range(of: "^intl-[a-z]{2}$", options: .regularExpression) != nil {
+        parts.removeFirst()
+      }
+      if parts.first == "embed" { parts.removeFirst() }
+      guard parts.count == 2, let kind = Kind(rawValue: parts[0]), kind != .shortLink else {
+        return nil
+      }
+      let link = Self(provider: .spotify, kind: kind, id: parts[1])
+      return link.valid ? link : nil
+    }
+    guard ["music.apple.com", "geo.music.apple.com", "itunes.apple.com"].contains(host),
+      (3...4).contains(parts.count), let country = parts.first?.lowercased(),
+      ["song", "album", "playlist"].contains(parts[1])
+    else { return nil }
+    var kind: Kind = parts[1] == "song" ? .track : parts[1] == "album" ? .album : .playlist
+    var id = parts.last!.replacingOccurrences(of: "^id", with: "", options: .regularExpression)
+    let song = (c.queryItems ?? []).filter { $0.name == "i" }
+    if kind == .album, !song.isEmpty {
+      guard song.count == 1, let value = song[0].value else { return nil }
+      kind = .track
+      id = value
+    }
+    let link = Self(provider: .appleMusic, kind: kind, id: id, country: country)
+    return link.valid ? link : nil
   }
 }
 

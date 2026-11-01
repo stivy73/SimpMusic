@@ -117,7 +117,11 @@ struct RootView: View {
           SharedMusicScreen(request: request)
             .toolbar {
               Button("Chiudi") {
-                try? SharedMusicInbox.shared()?.remove(request.id)
+                // External collections remain in Ricevuti until played, saved or explicitly deleted.
+                switch request.target {
+                case .catalog: break
+                default: try? SharedMusicInbox.shared()?.remove(request.id)
+                }
                 model.sharedRequest = nil
               }.accessibilityIdentifier("shared-close")
             }
@@ -1429,10 +1433,22 @@ extension View {
   struct MusicShareTestActivity: UIViewControllerRepresentable {
     let complete: () -> Void
     func makeUIViewController(context: Context) -> UIActivityViewController {
+      let args = ProcessInfo.processInfo.arguments
+      let shared: [Any]
+      if args.contains("--test-shared-catalog") {
+        let provider = args.contains("--test-share-provider-apple")
+        let kind = args.contains("--test-share-kind-track") ? "track" : args.contains("--test-share-kind-album") ? "album" : "playlist"
+        let url = provider
+          ? "https://music.apple.com/it/\(kind == "track" ? "song" : kind)/\(kind == "playlist" ? "pl.f4d106fed2bd41149aaacabb233eb5eb" : "594061854")?app=music"
+          : "https://open.spotify.com/\(kind)/37i9dQZF1DXcBWIGoYBM5M?si=discard"
+        shared = [URL(string: url)!]
+      } else if args.contains("--test-shared-link") {
+        shared = [URL(string: "https://music.youtube.com/watch?v=dQw4w9WgXcQ&si=discard")!]
+      } else {
+        shared = ["\"Heroes\" di David Bowie\nhttps://www.google.com/search?q=Heroes"]
+      }
       let controller = UIActivityViewController(
-        activityItems: ProcessInfo.processInfo.arguments.contains("--test-shared-link")
-          ? [URL(string: "https://music.youtube.com/watch?v=dQw4w9WgXcQ&si=discard")!]
-          : ["\"Heroes\" di David Bowie\nhttps://www.google.com/search?q=Heroes"],
+        activityItems: shared,
         applicationActivities: nil)
       controller.completionWithItemsHandler = { _, _, _, _ in complete() }
       return controller

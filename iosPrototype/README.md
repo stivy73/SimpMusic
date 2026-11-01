@@ -1,6 +1,13 @@
-# NoteNarrate iOS — 0.13.4 (40)
+# NoteNarrate iOS
 
-Ultima beta interna: 0.13.4 (40), caricata, elaborata e assegnata via API al gruppo
+Implementata nel codice la ricezione di brani, album e playlist da Apple Music e
+Spotify, con anteprima, conversione su YouTube Music, scelta manuale delle versioni,
+coda e creazione di playlist private. [Uso, limiti e verifiche](SHARING.md).
+Questa modifica non indica un nuovo caricamento TestFlight.
+
+## Storico beta — 0.13.4 (40)
+
+Beta interna 0.13.4 (40), caricata, elaborata e assegnata via API al gruppo
 Team interno e Stivy73, preservando gli account già abilitati. Avvio audio con blocco da
 128 KiB e buffer iniziale da 5 secondi, controlli CDN mantenuti e parallelizzati.
 Radio progressiva: il cambio brano nella stessa coda non annulla più il completamento;

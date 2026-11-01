@@ -15,6 +15,8 @@ struct SharedMusicScreen: View {
         MusicSearchScreen(search: model.searchResults)
       } else if case .playlist(let id) = request.target {
         HomeBrowseView(title: "Playlist condivisa", target: BrowseTarget(browseId: "VL" + id))
+      } else if case .catalog(let link) = request.target {
+        SharedCatalogScreen(request: request, link: link)
       } else {
         Form {
           Section("Ricevuto da un’altra app") {
@@ -60,7 +62,7 @@ struct SharedMusicScreen: View {
     error = nil
     switch request.target {
     case .search(let text): query = text
-    case .playlist: break
+    case .playlist, .catalog: break
     case .video(let id):
       loading = true
       defer { loading = false }
@@ -109,9 +111,9 @@ struct SharedMusicInboxScreen: View {
     Group {
       if pending.isEmpty {
         ContentUnavailableView(
-          "Nessun brano ricevuto", systemImage: "square.and.arrow.down",
+          "Nessun contenuto ricevuto", systemImage: "square.and.arrow.down",
           description: Text(
-            "Usa Condividi → NoteNarrate da YouTube Music, YouTube o da un’app che condivide titolo e artista."
+            "Usa Condividi → NoteNarrate per brani, album e playlist di Apple Music, Spotify o YouTube Music."
           ))
       } else {
         List(pending) { request in

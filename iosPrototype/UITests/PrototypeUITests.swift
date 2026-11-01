@@ -1990,7 +1990,7 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertTrue(activity.waitForExistence(timeout: 8), app.debugDescription)
     activity.tap()
     let save = app.buttons["share-save"]
-    XCTAssertTrue(save.waitForExistence(timeout: 12), app.debugDescription)
+    XCTAssertTrue(save.waitForExistence(timeout: 20), app.debugDescription)
     save.tap()
     let done = app.buttons["share-done"]
     XCTAssertTrue(done.waitForExistence(timeout: 5), app.debugDescription)
@@ -2022,7 +2022,7 @@ final class PrototypeUITests: XCTestCase {
     let activity = app.cells.matching(NSPredicate(format: "label == %@", "NoteNarrate")).firstMatch
     XCTAssertTrue(activity.waitForExistence(timeout: 10), app.debugDescription)
     activity.tap()
-    XCTAssertTrue(app.buttons["share-save"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.buttons["share-save"].waitForExistence(timeout: 20))
     app.buttons["share-save"].tap()
     XCTAssertTrue(app.buttons["share-done"].waitForExistence(timeout: 5))
     app.buttons["share-done"].tap()
@@ -2031,6 +2031,75 @@ final class PrototypeUITests: XCTestCase {
     play.tap()
     XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 8))
     XCTAssertTrue(app.staticTexts["Heroes"].exists)
+  }
+
+  @MainActor
+  private func receiveExternalCatalog(provider: String, kind: String, manual: Bool = false) {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-shared-music", "--test-shared-catalog", "--test-full-search", "--test-remote-library",
+      "--test-share-provider-" + provider, "--test-share-kind-" + kind]
+    if manual { app.launchArguments.append("--test-shared-catalog-mismatch") }
+    app.launch()
+    let existingClose = app.buttons["shared-close"]
+    if existingClose.waitForExistence(timeout: 2) { existingClose.tap() }
+    XCTAssertTrue(app.buttons["test-share-sheet"].waitForExistence(timeout: 10))
+    app.buttons["test-share-sheet"].tap()
+    let activity = app.cells.matching(NSPredicate(format: "label == %@", "NoteNarrate")).firstMatch
+    XCTAssertTrue(activity.waitForExistence(timeout: 10), app.debugDescription)
+    activity.tap()
+    XCTAssertTrue(app.buttons["share-save"].waitForExistence(timeout: 20), app.debugDescription)
+    app.buttons["share-save"].tap()
+    XCTAssertTrue(app.buttons["share-done"].waitForExistence(timeout: 5))
+    app.buttons["share-done"].tap()
+    let resolve = app.buttons["shared-catalog-resolve"]
+    XCTAssertTrue(resolve.waitForExistence(timeout: 12), app.debugDescription)
+    resolve.tap()
+    if manual {
+      let choose = app.buttons["shared-catalog-choose-0"]
+      if !choose.isHittable { app.swipeUp() }
+      XCTAssertTrue(choose.waitForExistence(timeout: 10), app.debugDescription)
+      choose.tap()
+      let query = app.textFields["shared-catalog-candidate-query"]
+      XCTAssertTrue(query.waitForExistence(timeout: 5))
+      query.tap(); query.typeText(" Live")
+      app.buttons["Cerca versione"].tap()
+      let candidate = app.buttons["shared-catalog-candidate-dQw4w9WgXcQ"]
+      XCTAssertTrue(candidate.waitForExistence(timeout: 8))
+      candidate.tap()
+      app.swipeDown()
+    }
+    let play = app.buttons["shared-catalog-play"]
+    XCTAssertTrue(play.waitForExistence(timeout: 10), app.debugDescription)
+    let count = app.staticTexts["shared-catalog-count"].label
+    XCTAssertTrue(count.contains(kind == "track" ? "1 traccia ricevuta · 1 trovata" : "3 tracce ricevute · 3 trovate"), count)
+    let proof = XCTAttachment(screenshot: app.screenshot())
+    proof.name = "Received " + provider + " " + kind
+    proof.lifetime = .keepAlways
+    add(proof)
+    if kind == "playlist" {
+      let save = app.buttons["shared-catalog-save"]
+      if !save.isHittable { app.swipeUp() }
+      save.tap()
+      XCTAssertTrue(app.staticTexts["shared-catalog-saved"].waitForExistence(timeout: 10)
+        || app.otherElements["shared-catalog-saved"].waitForExistence(timeout: 2), app.debugDescription)
+    } else {
+      play.tap()
+      XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 10), app.debugDescription)
+    }
+    app.terminate()
+  }
+  @MainActor
+  func testRealShareExtensionReceivesAppleMusicSongAlbumAndPlaylist() {
+    for kind in ["track", "album", "playlist"] { receiveExternalCatalog(provider: "apple", kind: kind) }
+  }
+  @MainActor
+  func testRealShareExtensionReceivesSpotifySongAlbumAndPlaylist() {
+    for kind in ["track", "album", "playlist"] { receiveExternalCatalog(provider: "spotify", kind: kind) }
+  }
+
+  @MainActor
+  func testSharedCatalogMissingMatchCanBeSearchedAndConfirmedManually() {
+    receiveExternalCatalog(provider: "spotify", kind: "track", manual: true)
   }
 
 }

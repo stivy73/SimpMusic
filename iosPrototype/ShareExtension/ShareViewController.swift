@@ -79,14 +79,14 @@ final class ShareViewController: UIViewController {
       return
     }
     guard let inbox = SharedMusicInbox.shared() else {
-      error = "Impossibile ricevere il brano. Apri NoteNarrate e riprova."
+      error = "Impossibile ricevere il contenuto. Apri NoteNarrate e riprova."
       return
     }
     do {
       try inbox.save(SharedMusicRequest(target: value))
       saved = true
       error = nil
-    } catch { self.error = "Il brano non è stato salvato. Riprova." }
+    } catch { self.error = "Il contenuto non è stato salvato. Riprova." }
   }
 }
 struct MusicShareComposerView: View {
@@ -96,10 +96,10 @@ struct MusicShareComposerView: View {
     NavigationStack {
       Form {
         if model.loading {
-          ProgressView("Leggo il brano condiviso…")
+          ProgressView("Leggo il contenuto condiviso…")
         } else if model.saved {
           Section {
-            Label("Brano ricevuto", systemImage: "checkmark.circle.fill").font(.headline)
+            Label("Contenuto ricevuto", systemImage: "checkmark.circle.fill").font(.headline)
             Text(
               "Apri NoteNarrate: il contenuto condiviso è pronto per la ricerca o la riproduzione. Lo trovi anche in Libreria → Ricevuti."
             )
@@ -113,7 +113,7 @@ struct MusicShareComposerView: View {
             }
             TextField("Titolo e artista", text: $model.query, axis: .vertical).lineLimit(1...3)
               .accessibilityIdentifier("share-query")
-            Text("Puoi cercare un brano, oppure ricevere un link YouTube Music o YouTube.")
+            Text("Ricevi brani, album e playlist da Apple Music, Spotify e YouTube Music. Le tracce verranno cercate su YouTube Music nell’app.")
               .font(.caption).foregroundStyle(.secondary)
           }
           if let error = model.error { Text(error).foregroundStyle(.orange) }
