@@ -1,5 +1,34 @@
 # NoteNarrate iOS — audio in background e CarPlay
 
+
+## Mini player nativo come Vocalia — 2 novembre 2026
+
+Modifica successiva alla beta 0.15.0 (50), non ancora distribuita. Confronto in sola
+lettura con `PodcastPlayer-trasferimento/PodcastPlayer/iOS/PodcastPlayer/CarPlayScene.swift`,
+commit Vocalia `922f0745d9533c31ccde26ea37100d15aaa3bdec`.
+
+NoteNarrate impostava `CPNowPlayingTemplate.shared.allowsMiniPlayer = false` per
+aggirare la precedente segnalazione sul tocco della copertina. È stato rimosso
+l’opt-out: su iOS 27+ il mini player nativo resta esplicitamente abilitato.
+Come Vocalia, la scena configura il template Now Playing condiviso e l’osservatore
+prima del template principale, con pulsante **Coda**. Il sistema gestisce copertina,
+trasporto e apertura del player; nessuna sovrapposizione o gesto personalizzato.
+
+È stato riusato anche il controllo di presentazione `showNowPlaying`: la selezione
+di un brano usa il player condiviso e non lo inserisce di nuovo se è già in cima
+alla navigazione. I comandi e la sessione audio musicale/narrata restano quelli
+di NoteNarrate. Nessuna modifica al repository Vocalia.
+
+Compilazioni Debug/simulatore e Release/iPhone riuscite con Xcode 27.2 RC
+(27B48), SDK 27.2 e minimo iOS 17 conservato. Superati 14 test core mirati
+(`CarPlayContentTests`, `AudioRecoveryTests`) e tre test UI di regressione su
+pagine Home/Album e ripristino dell’orologio musicale dopo la voce. Questi non sostituiscono
+una prova del tocco nel mini player sul display dell’auto.
+
+In Device Hub 27.2 la voce **Device → CarPlay Simulator** risulta disabilitata;
+non è stata quindi verificata l’interazione con un display CarPlay simulato o
+fisico. Il collaudo in auto e un nuovo caricamento TestFlight restano separati.
+
 ## Album oltre la seconda riga, like, radio e volume — 0.13.0 (36), 29 ottobre 2026
 
 La pagina album conteneva 12 elementi e affidava le pagine successive alla barra

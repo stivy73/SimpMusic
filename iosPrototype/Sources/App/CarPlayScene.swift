@@ -130,12 +130,15 @@
       didConnect interfaceController: CPInterfaceController
     ) {
       controller = interfaceController
-      // Work around reported artwork taps not opening the iOS 27 system mini-player.
-      // Apple's supported fallback restores the native Now Playing navigation
-      // button, which presents the shared full-screen template.
+      // Use the same native mini-player/shared template setup as Vocalia.
+      // CarPlay owns artwork taps and transport controls; do not opt out of it.
+      let nowPlaying = CPNowPlayingTemplate.shared
       if #available(iOS 27.0, *) {
-        CPNowPlayingTemplate.shared.allowsMiniPlayer = false
+        nowPlaying.allowsMiniPlayer = true
       }
+      nowPlaying.upNextTitle = "Coda"
+      nowPlaying.add(self)
+      configureNowPlaying()
       home.tabTitle = "Home"
       home.tabImage = UIImage(systemName: "house.fill")
       albums.tabTitle = "Album"
@@ -149,8 +152,6 @@
       interfaceController.setRootTemplate(
         CPTabBarTemplate(templates: [home, albums, favorites, search]),
         animated: false, completion: { _, _ in })
-      CPNowPlayingTemplate.shared.add(self)
-      configureNowPlaying()
       app.library.$session.sink { [weak self] session in
         Task { @MainActor [weak self] in await self?.configureAccount(session) }
       }.store(in: &subscriptions)
@@ -707,7 +708,13 @@
 
     private func play(_ song: Song, queue: [Song], selectedIndex: Int? = nil) {
       app.music.play(song, queue: queue, selectedIndex: selectedIndex)
-      controller?.pushTemplate(CPNowPlayingTemplate.shared, animated: true, completion: { _, _ in })
+      showNowPlaying()
+    }
+
+    // Vocalia's presentation guard: reuse the system player instead of stacking it twice.
+    private func showNowPlaying() {
+      guard let controller, controller.topTemplate !== CPNowPlayingTemplate.shared else { return }
+      controller.pushTemplate(CPNowPlayingTemplate.shared, animated: true, completion: nil)
     }
 
     private func tiles(
