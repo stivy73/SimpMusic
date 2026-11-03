@@ -3,8 +3,9 @@
 
 ## Mini player nativo come Vocalia — 2 novembre 2026
 
-Modifica successiva alla beta 0.15.0 (50), non ancora distribuita. Confronto in sola
-lettura con `PodcastPlayer-trasferimento/PodcastPlayer/iOS/PodcastPlayer/CarPlayScene.swift`,
+Modifica distribuita nella beta interna 0.15.1 (51), il 3 novembre 2026.
+Confronto in sola lettura con
+`PodcastPlayer-trasferimento/PodcastPlayer/iOS/PodcastPlayer/CarPlayScene.swift`,
 commit Vocalia `922f0745d9533c31ccde26ea37100d15aaa3bdec`.
 
 NoteNarrate impostava `CPNowPlayingTemplate.shared.allowsMiniPlayer = false` per
@@ -27,7 +28,9 @@ una prova del tocco nel mini player sul display dell’auto.
 
 In Device Hub 27.2 la voce **Device → CarPlay Simulator** risulta disabilitata;
 non è stata quindi verificata l’interazione con un display CarPlay simulato o
-fisico. Il collaudo in auto e un nuovo caricamento TestFlight restano separati.
+fisico. Il collaudo in auto resta da eseguire. Caricamento TestFlight riuscito;
+Apple conferma **VALID** e **IN_BETA_TESTING**, con **Team interno** e **Stivy73**
+assegnati. [Consegna 0.15.1 (51)](RELEASE-0.15.1-51.md).
 
 ## Album oltre la seconda riga, like, radio e volume — 0.13.0 (36), 29 ottobre 2026
 

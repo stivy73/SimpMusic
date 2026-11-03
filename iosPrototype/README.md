@@ -3,8 +3,9 @@
 Implementata nel codice la ricezione di brani, album e playlist da Apple Music e
 Spotify, con anteprima, conversione su YouTube Music, scelta manuale delle versioni,
 coda e creazione di playlist private. [Uso, limiti e verifiche](SHARING.md).
-Beta interna **0.15.0 (50)** elaborata e in test per **Team interno** e **Stivy73**.
-[Consegna, sorgenti e prove](RELEASE-0.15.0-50.md).
+Beta interna **0.15.1 (51)** elaborata e in test per **Team interno** e **Stivy73**.
+Include il ripristino del mini player nativo CarPlay come in Vocalia.
+[Consegna, sorgenti e prove](RELEASE-0.15.1-51.md).
 
 ## Storico beta — 0.13.4 (40)
 
