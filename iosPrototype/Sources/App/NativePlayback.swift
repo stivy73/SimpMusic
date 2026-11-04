@@ -44,6 +44,14 @@
       didSet { UserDefaults.standard.set(audioResolutionReport, forKey: "lastAudioResolutionReport") }
     }
     private var audioReportFinalized = false
+    private var preparationBegan: TimeInterval?
+    private func recordPreparation(_ stage: String) {
+      guard let preparationBegan else { return }
+      let ms = Int(max(0, ProcessInfo.processInfo.systemUptime - preparationBegan) * 1000)
+      let lines = (audioResolutionReport + "\nPreparazione +\(ms)ms: " + stage)
+        .components(separatedBy: .newlines)
+      audioResolutionReport = lines.suffix(96).joined(separator: "\n")
+    }
     #if DEBUG
       @Published var diagnostic = "idle"
     #endif
@@ -100,7 +108,7 @@
           } else {
             let source = try await YouTubeAudio().resolve(
               videoID: videoID, session: accountProvider(),
-              quality: AudioPreferences.shared.currentQuality)
+              quality: AudioPreferences.shared.currentQuality, preferHLSForLongTracks: true)
             sourceURL = source.url
             let nextLoader = AudioRangeLoader(source: source)
             try await nextLoader.prepare()
@@ -109,18 +117,15 @@
             duration = source.duration
           }
           try Task.checkCancellation()
-          let timing = try await AudioPlaybackTiming.resolve(asset, source: duration)
+          let timing = try await AudioPlaybackTiming.prepare(asset, source: duration)
           duration = timing.duration
-          let item = AVPlayerItem(asset: asset)
+          let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
           if duration > 0 {
             item.forwardPlaybackEndTime = CMTime(seconds: duration, preferredTimescale: 600)
           }
           item.preferredForwardBufferDuration = 15
           let tap = AudioEffectsTap()
           tap.configure(AudioPreferences.shared.effects)
-          if let track = try? await asset.loadTracks(withMediaType: .audio).first {
-            tap.attach(to: item, track: track)
-          }
           try Task.checkCancellation()
           guard preparingID == videoID else { return }
           let deck = AVPlayer(playerItem: item)
@@ -155,6 +160,7 @@
       deferredRecovery = false
       startRecoveryWatch()
       currentTap = deck.tap
+      deck.tap.attach(to: deck.player.currentItem)
       prepared = nil
       preparingID = nil
       transitionRequest = nil
@@ -266,11 +272,15 @@
       let observedPlayer = nativePlayer
       rateObservation = nativePlayer.observe(\.timeControlStatus, options: [.new]) {
         @Sendable [weak self] player, _ in
-        let active = player.timeControlStatus == .playing
         Task { @MainActor [weak self] in
           guard let self, self.nativePlayer === observedPlayer else { return }
+          let active = observedPlayer.timeControlStatus == .playing
           self.playing = active
           if active {
+            if !self.isLoading, self.initialSeek == nil {
+              self.recordPreparation("riproduzione avviata")
+              self.preparationBegan = nil
+            }
             // Once audible, grow the forward buffer again for cellular resilience.
             self.nativePlayer.currentItem?.preferredForwardBufferDuration = 30
           }
@@ -307,6 +317,7 @@
     /// A repaired source is still the same queue occurrence. Keep loadID and the
     /// user's intent so narration, pause, seeks and track changes remain authoritative.
     private func startLoad(videoId: String, startAt: Double?, recovering: Bool) {
+      preparationBegan = ProcessInfo.processInfo.systemUptime
       restoredPosition = nil
       initialSeek = startAt
       cancelTransition()
@@ -377,7 +388,7 @@
             let source = try await YouTubeAudio().resolve(
               videoID: videoId, session: accountProvider(),
               quality: AudioPreferences.shared.currentQuality, excluding: rejectedSources,
-              preferHLS: recovering,
+              preferHLS: recovering, preferHLSForLongTracks: true,
               diagnostic: { [weak self] report in
                 Task { @MainActor [weak self] in
                   guard let self, self.intent.revision == expected, self.assetRevision == generation,
@@ -395,10 +406,16 @@
             sourceDiagnostic = source.accountDiagnostic
             audioReportFinalized = true
             audioResolutionReport = networkContext + source.resolutionReport
-            networkDiagnostic =
-              source.authenticated
-              ? "Flusso account YouTube Music; controllo finale superato"
-              : "Flusso pubblico; controlli oltre 1 MiB e finali superati"
+            recordPreparation("sorgente verificata")
+            if source.isHLS {
+              networkDiagnostic = (source.authenticated ? "Flusso account HLS" : "Flusso pubblico HLS")
+                + "; segmenti iniziale, oltre il minuto e finale verificati"
+            } else {
+              networkDiagnostic =
+                source.authenticated
+                ? "Flusso account YouTube Music; controllo finale superato"
+                : "Flusso pubblico; controlli oltre 1 MiB e finali superati"
+            }
             if recovering {
               networkDiagnostic =
                 "Nuova sorgente, recupero \(recovery.attempts)/2; " + networkDiagnostic
@@ -430,23 +447,21 @@
             try await loader.prepare()
             try Task.checkCancellation()
             guard intent.revision == expected, assetRevision == generation else { return }
+            recordPreparation("primo buffer pronto")
             asset = loader.asset()
           }
-          let item = AVPlayerItem(asset: asset)
+          // The default initializer automatically loads duration before readyToPlay,
+          // which scans long fragmented files even without an explicit load(.duration).
+          let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
           item.preferredForwardBufferDuration = 5
-          let timing = try await AudioPlaybackTiming.resolve(asset, source: sourceDuration)
+          let timing = try await AudioPlaybackTiming.prepare(asset, source: sourceDuration)
           try Task.checkCancellation()
           guard intent.revision == expected, assetRevision == generation else { return }
           timingDiagnostic = timing.diagnostic
+          recordPreparation("durata pronta")
           if timing.duration > 0 {
             item.forwardPlaybackEndTime = CMTime(seconds: timing.duration, preferredTimescale: 600)
           }
-          let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first
-          // Cancellation can make loadTracks return nil. Always reject an obsolete
-          // load before replacing the item, even when there is no effects track.
-          try Task.checkCancellation()
-          guard intent.revision == expected, assetRevision == generation else { return }
-          if let audioTrack { effectsTap.attach(to: item, track: audioTrack) }
           statusObservation = item.observe(\.status, options: [.initial, .new]) {
             @Sendable [weak owner = self] item, _ in
             let status = item.status
@@ -457,6 +472,8 @@
               else { return }
               switch status {
               case .readyToPlay:
+                self.effectsTap.attach(to: item)
+                self.recordPreparation("player pronto")
                 #if DEBUG
                   self.diagnostic = "ready intent \(self.intent.wantsPlayback)"
                 #endif
@@ -548,6 +565,7 @@
           }
           self.initialSeek = nil
           self.elapsed = position
+          self.recordPreparation("posizione ripristinata")
           self.recovery.resetStall()
           self.startPreparedPlayback()
         }
@@ -632,6 +650,7 @@
     }
 
     func clear() {
+      preparationBegan = nil
       recoveryWatch?.cancel()
       recoveryWatch = nil
       assetRevision = UUID()

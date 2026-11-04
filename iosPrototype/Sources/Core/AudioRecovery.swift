@@ -22,6 +22,17 @@ public struct AudioPlaybackTiming: Equatable, Sendable {
   private static func valid(_ value: Double) -> Double? {
     value.isFinite && value > 0 ? value : nil
   }
+  /// A fragmented remote MP4 may require scanning every media fragment to answer
+  /// duration/timeRange/segments. Its validated player response already identifies
+  /// this exact video and its end; do not turn startup into a whole-song download.
+  /// Local files and sources without a known end retain the precise timeline check.
+  public static func prepare(_ asset: AVURLAsset, source: Double = 0) async throws -> Self {
+    try Task.checkCancellation()
+    if !asset.url.isFileURL, valid(source) != nil {
+      return Self(source: source, container: 0, audioEnd: 0)
+    }
+    return try await resolve(asset, source: source)
+  }
   public static func resolve(_ asset: AVAsset, source: Double = 0) async throws -> Self {
     let container = try await asset.load(.duration).seconds
     guard let track = try await asset.loadTracks(withMediaType: .audio).first else {
@@ -34,7 +45,10 @@ public struct AudioPlaybackTiming: Equatable, Sendable {
     return Self(source: source, container: container, audioEnd: ends.max() ?? range.end.seconds)
   }
   public var diagnostic: String {
-    "sorgente \(Int(source)) s, contenitore \(Int(container)) s, audio \(Int(audioEnd)) s, fine \(Int(duration)) s"
+    if source > 0, container == 0, audioEnd == 0 {
+      return "sorgente \(Int(source)) s, fine \(Int(duration)) s; indice remoto non scandito all'avvio"
+    }
+    return "sorgente \(Int(source)) s, contenitore \(Int(container)) s, audio \(Int(audioEnd)) s, fine \(Int(duration)) s"
   }
 }
 

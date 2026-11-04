@@ -7,6 +7,11 @@ Beta interna **0.15.1 (51)** elaborata e in test per **Team interno** e **Stivy7
 Include il ripristino del mini player nativo CarPlay come in Vocalia.
 [Consegna, sorgenti e prove](RELEASE-0.15.1-51.md).
 
+Nel codice successivo alla beta: avvio dei brani lunghi con HLS verificato,
+playlist grandi accettate entro un limite, durata remota senza scansione iniziale
+e tempi di preparazione nella diagnostica. Su Oceanic Delta Waves la prova Mac
+passa da 7,98 a 3,65 secondi. [Misure e limiti](AUDIO_STARTUP.md).
+
 ## Storico beta — 0.13.4 (40)
 
 Beta interna 0.13.4 (40), caricata, elaborata e assegnata via API al gruppo

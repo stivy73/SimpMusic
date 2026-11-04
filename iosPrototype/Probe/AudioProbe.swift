@@ -4,6 +4,37 @@ import PrototypeCore
 import YouTubeSDK
 
 func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
+  if args.first == "--audio-layout" {
+    let query = args.dropFirst().joined(separator: " ")
+    guard let song = try await HomeDiscovery(session: nil).search(query: query, filter: .songs).first
+    else { throw AudioPlaybackError.unavailable }
+    let source = try await YouTubeAudio().resolve(videoID: song.mediaId)
+    print(source.resolutionReport)
+    guard !source.isHLS, let length = source.byteCount else { return true }
+    let session = URLSession(configuration: .ephemeral)
+    defer { session.invalidateAndCancel() }
+    var offset: Int64 = 0
+    for _ in 0..<24 {
+      guard offset + 16 <= length else { break }
+      var request = URLRequest(url: source.url, timeoutInterval: 20)
+      request.setValue(source.userAgent, forHTTPHeaderField: "User-Agent")
+      request.setValue("bytes=\(offset)-\(offset + 15)", forHTTPHeaderField: "Range")
+      let (data, response) = try await session.data(for: request)
+      guard (response as? HTTPURLResponse)?.statusCode == 206, data.count == 16 else {
+        throw AudioPlaybackError.unavailable
+      }
+      func uint(_ range: Range<Int>) -> UInt64 {
+        data[range].reduce(0) { ($0 << 8) | UInt64($1) }
+      }
+      var size = uint(0..<4)
+      let kind = String(bytes: data[4..<8], encoding: .ascii) ?? "unknown"
+      if size == 1 { size = uint(8..<16) }
+      print("MP4 atom offset=\(offset), type=\(kind), bytes=\(size)")
+      guard size >= 8, size <= UInt64(length - offset) else { break }
+      offset += Int64(size)
+    }
+    return true
+  }
   if args.first == "--apple-audio-full", args.count == 2 {
     let source = try await YouTubeAudio().resolve(videoID: args[1], quality: .normal)
     print(source.resolutionReport)
@@ -155,8 +186,11 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
     return true
   }
   if args.first == "--audio-timing" || args.first == "--audio-startup"
-    || args.first == "--audio-startup-id" {
-    let query = args.dropFirst().joined(separator: " ")
+    || args.first == "--audio-startup-id" || args.first == "--audio-startup-resume" {
+    let resuming = args.first == "--audio-startup-resume"
+    let resumeAt = resuming ? (args.dropFirst().first.flatMap(Double.init) ?? -1) : 0
+    guard resumeAt.isFinite, resumeAt >= 0 else { throw AudioPlaybackError.unavailable }
+    let query = args.dropFirst(resuming ? 2 : 1).joined(separator: " ")
     let videoID: String
     if args.first == "--audio-startup-id" {
       videoID = query
@@ -167,8 +201,9 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
       videoID = song.mediaId
     }
     let began = Date()
-    let source = try await YouTubeAudio().resolve(videoID: videoID)
-    if args.first == "--audio-startup-id" { print(source.resolutionReport) }
+    let source = try await YouTubeAudio().resolve(
+      videoID: videoID, preferHLSForLongTracks: args.first != "--audio-timing")
+    print(source.resolutionReport)
     print("Source safety checks complete: \(String(format: "%.2f", Date().timeIntervalSince(began)))s")
     print("Source duration: \(source.duration)s; HLS: \(source.isHLS)")
     let loader = AudioRangeLoader(source: source, diagnostic: { print($0) })
@@ -176,33 +211,52 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
     try await loader.prepare()
     print("Initial range ready: \(String(format: "%.2f", Date().timeIntervalSince(began)))s")
     let asset = loader.asset()
-    print("Asset duration: \(try await asset.load(.duration).seconds)s")
-    for track in try await asset.loadTracks(withMediaType: .audio) {
-      let range = try await track.load(.timeRange)
-      let segments = try await track.load(.segments)
-      print("Audio range: \(range.start.seconds)..<\(range.end.seconds); segments: \(segments.count)")
-      for segment in segments {
-        print("Segment empty: \(segment.isEmpty), target: \(segment.timeMapping.target.start.seconds)..<\(segment.timeMapping.target.end.seconds)")
+    if args.first == "--audio-timing" {
+      print("Asset duration: \(try await asset.load(.duration).seconds)s")
+      for track in try await asset.loadTracks(withMediaType: .audio) {
+        let range = try await track.load(.timeRange)
+        let segments = try await track.load(.segments)
+        print("Audio range: \(range.start.seconds)..<\(range.end.seconds); segments: \(segments.count)")
+        for segment in segments {
+          print("Segment empty: \(segment.isEmpty), target: \(segment.timeMapping.target.start.seconds)..<\(segment.timeMapping.target.end.seconds)")
+        }
       }
     }
-    if args.first == "--audio-startup" || args.first == "--audio-startup-id" {
-      let timing = try await AudioPlaybackTiming.resolve(asset, source: source.duration)
+    if args.first != "--audio-timing" {
+      let timing = try await AudioPlaybackTiming.prepare(asset, source: source.duration)
+      print("Playback metadata ready: \(String(format: "%.2f", Date().timeIntervalSince(began)))s; \(timing.diagnostic)")
       let player = await MainActor.run {
-        let item = AVPlayerItem(asset: asset)
+        let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
         item.preferredForwardBufferDuration = 5
         if timing.duration > 0 { item.forwardPlaybackEndTime = CMTime(seconds: timing.duration, preferredTimescale: 600) }
         let player = AVPlayer(playerItem: item)
         if args.first == "--audio-startup-id" { player.isMuted = true }
         player.volume = 0
-        player.playImmediately(atRate: 1)
+        if !resuming { player.playImmediately(atRate: 1) }
         return player
+      }
+      if resuming {
+        for _ in 0..<600 {
+          if await MainActor.run(body: { player.currentItem?.status == .readyToPlay }) { break }
+          try await Task.sleep(for: .milliseconds(50))
+        }
+        let sought = await withCheckedContinuation { continuation in
+          Task { @MainActor in
+            player.seek(to: CMTime(seconds: resumeAt, preferredTimescale: 600)) {
+              continuation.resume(returning: $0)
+            }
+          }
+        }
+        guard sought else { throw AudioPlaybackError.unavailable }
+        await MainActor.run { player.playImmediately(atRate: 1) }
       }
       var started = false
       for _ in 0..<60 {
         try await Task.sleep(for: .milliseconds(500))
         let position = await MainActor.run { player.currentTime().seconds }
-        if position > 0.2 {
-          print("Playback started after \(String(format: "%.2f", Date().timeIntervalSince(began)))s")
+        if position > resumeAt + 0.2 {
+          print("Playback started after \(String(format: "%.2f", Date().timeIntervalSince(began)))s; position \(String(format: "%.2f", position))s")
+          fflush(nil)
           started = true
           break
         }

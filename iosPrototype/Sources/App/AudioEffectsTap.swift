@@ -98,6 +98,14 @@
       mix.inputParameters = [parameters]
       item.audioMix = mix
     }
+    /// At readyToPlay the item's tracks are available without forcing a separate
+    /// AVAsset track/timeline scan before playback.
+    func attach(to item: AVPlayerItem?) {
+      guard let item,
+        let track = item.tracks.compactMap(\.assetTrack).first(where: { $0.mediaType == .audio })
+      else { return }
+      attach(to: item, track: track)
+    }
     func configure(_ settings: AudioEffects) { state.configure(settings) }
   }
 #endif

@@ -1,8 +1,39 @@
+import AVFoundation
 import XCTest
 
 @testable import PrototypeCore
 
 final class AudioRecoveryTests: XCTestCase {
+  func testRemoteStartupUsesValidatedEndWithoutReadingTheEntireAsset() async throws {
+    // No resource-loader delegate: any metadata access would fail. A validated
+    // source must be sufficient even for a one-hour fragmented remote file.
+    let asset = AVURLAsset(url: URL(string: "notenarrate-audio://unavailable/audio.m4a")!)
+    let timing = try await AudioPlaybackTiming.prepare(asset, source: 3839)
+    XCTAssertEqual(timing.duration, 3839)
+    XCTAssertEqual(timing.container, 0)
+    XCTAssertEqual(timing.audioEnd, 0)
+    XCTAssertTrue(timing.diagnostic.contains("indice remoto non scandito"))
+  }
+
+  func testLocalStartupStillUsesActualAudioEnd() async throws {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".m4a")
+    defer { try? FileManager.default.removeItem(at: file) }
+    try LocalPlaybackTests.audioFixture(file)
+    let timing = try await AudioPlaybackTiming.prepare(AVURLAsset(url: file), source: 120)
+    XCTAssertEqual(timing.duration, 4, accuracy: 0.2)
+    XCTAssertGreaterThan(timing.audioEnd, 0)
+  }
+
+  func testUnknownRemoteEndStillRequiresPlayableAssetMetadata() async {
+    let asset = AVURLAsset(url: URL(string: "notenarrate-audio://unavailable/audio.m4a")!)
+    for duration in [0.0, -1, .nan, .infinity] {
+      do {
+        _ = try await AudioPlaybackTiming.prepare(asset, source: duration)
+        XCTFail("An unknown source must not bypass the asset timeline check")
+      } catch {}
+    }
+  }
+
   func testDoubledContainerUsesLengthOfTheSameYouTubeSource() {
     let timing = AudioPlaybackTiming(source: 258, container: 515.58839, audioEnd: 515.58839)
     XCTAssertEqual(timing.duration, 258.25)

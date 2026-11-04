@@ -174,7 +174,7 @@ final class AudioPlaybackTests: XCTestCase {
     XCTAssertTrue(YouTubeAudio.candidates(video).isEmpty)
   }
 
-  private func validationVideo(hls: Bool = false) throws -> YouTubeVideo {
+  private func validationVideo(hls: Bool = false, seconds: Int = 180) throws -> YouTubeVideo {
     var streaming: [String: Any] = [
       "adaptiveFormats": [
         [
@@ -193,7 +193,7 @@ final class AudioPlaybackTests: XCTestCase {
       from: JSONSerialization.data(withJSONObject: [
         "videoDetails": [
           "videoId": "track", "title": "Song", "author": "Artist",
-          "channelId": "artist", "viewCount": "1", "lengthSeconds": "180",
+          "channelId": "artist", "viewCount": "1", "lengthSeconds": String(seconds),
         ],
         "streamingData": streaming,
       ]))
@@ -202,6 +202,98 @@ final class AudioPlaybackTests: XCTestCase {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [RangeStub.self]
     return URLSession(configuration: config)
+  }
+
+  func testLongPlaybackStartsWithValidatedHLSRatherThanScanningAAC() async throws {
+    let calls = RangeCalls()
+    RangeStub.handler = { request in
+      switch request.url!.lastPathComponent {
+      case "master.m3u8":
+        return (200, [:], Data("#EXTM3U\n#EXTINF:1280,\nhead.ts\n#EXTINF:1280,\nminute.ts\n#EXTINF:1280,\ntail.ts\n#EXT-X-ENDLIST\n".utf8))
+      case "head.ts", "minute.ts", "tail.ts":
+        _ = calls.add(request.url!.lastPathComponent == "head.ts" ? 0 : request.url!.lastPathComponent == "minute.ts" ? 60 : 3840)
+        return (206, [:], Data(repeating: 1, count: 1024))
+      default:
+        XCTFail("A long streaming track must not start by loading the fragmented AAC file")
+        return (403, [:], Data())
+      }
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let result = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(hls: true, seconds: 3840), userAgent: "Test", authenticated: false,
+      quality: .high, preferHLSForLongTracks: true)
+    XCTAssertTrue(result.isHLS)
+    for offset: Int64 in [0, 60, 3840] { XCTAssertEqual(calls.count(offset), 1) }
+  }
+
+  func testLongHLSFailureFallsBackToAACWithAllRangeChecks() async throws {
+    let calls = RangeCalls()
+    RangeStub.handler = { request in
+      if request.url!.lastPathComponent == "master.m3u8" {
+        return (200, [:], Data("#EXTM3U\n#EXTINF:1920,\nhead.ts\n#EXTINF:1920,\ntail.ts\n#EXT-X-ENDLIST\n".utf8))
+      }
+      if request.url!.pathExtension == "ts" { return (403, [:], Data()) }
+      let range = try XCTUnwrap(request.value(forHTTPHeaderField: "Range"))
+      _ = calls.add(Int64(range.dropFirst(6).split(separator: "-")[0])!)
+      return try self.validProbe(request)
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let result = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(hls: true, seconds: 3840), userAgent: "Test", authenticated: false,
+      quality: .high, preferHLSForLongTracks: true)
+    XCTAssertFalse(result.isHLS)
+    for offset: Int64 in [0, 1_048_576, 3_998_976] { XCTAssertEqual(calls.count(offset), 1) }
+  }
+
+  func testOfflineResolutionAndShortPlaybackKeepAACFirst() async throws {
+    for (seconds, streaming) in [(3840, false), (180, true)] {
+      RangeStub.handler = { request in
+        XCTAssertNotEqual(request.url!.pathExtension, "m3u8", "Downloads and short songs keep their AAC path")
+        return try self.validProbe(request)
+      }
+      let transport = validationTransport()
+      defer { transport.invalidateAndCancel() }
+      let result = try await YouTubeAudio(transport: transport).source(
+        video: validationVideo(hls: true, seconds: seconds), userAgent: "Test", authenticated: false,
+        quality: .high, preferHLSForLongTracks: streaming)
+      XCTAssertFalse(result.isHLS)
+    }
+  }
+
+  func testLongHLSAcceptsCompletePlaylistLargerThanOldLimit() async throws {
+    RangeStub.handler = { request in
+      if request.url!.lastPathComponent == "master.m3u8" {
+        // Signed segment URLs make real hour-long manifests exceed 512 KiB.
+        let padding = "#" + String(repeating: "x", count: 600_000) + "\n"
+        return (200, [:], Data(("#EXTM3U\n" + padding + "#EXTINF:1920,\nhead.ts\n#EXTINF:1920,\ntail.ts\n#EXT-X-ENDLIST\n").utf8))
+      }
+      if request.url!.pathExtension == "ts" { return (206, [:], Data(repeating: 1, count: 1024)) }
+      XCTFail("A complete bounded long playlist must not fall back to AAC")
+      return (403, [:], Data())
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let result = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(hls: true, seconds: 3840), userAgent: "Test", authenticated: false,
+      quality: .high, preferHLSForLongTracks: true)
+    XCTAssertTrue(result.isHLS)
+  }
+
+  func testOversizedHLSStillFallsBackToFullyValidatedAAC() async throws {
+    RangeStub.handler = { request in
+      if request.url!.lastPathComponent == "master.m3u8" {
+        return (200, [:], Data(("#EXTM3U\n#" + String(repeating: "x", count: 4_194_304)).utf8))
+      }
+      return try self.validProbe(request)
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let result = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(hls: true, seconds: 3840), userAgent: "Test", authenticated: false,
+      quality: .high, preferHLSForLongTracks: true)
+    XCTAssertFalse(result.isHLS)
   }
   private func validProbe(_ request: URLRequest) throws -> (Int, [String: String], Data) {
     let range = try XCTUnwrap(request.value(forHTTPHeaderField: "Range"))

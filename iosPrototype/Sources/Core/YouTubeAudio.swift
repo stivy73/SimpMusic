@@ -148,7 +148,7 @@ public struct YouTubeAudio: Sendable {
 
   public func resolve(
     videoID: String, session account: YouTubeSession? = nil, quality: AudioQuality = .high,
-    excluding: Set<URL> = [], preferHLS: Bool = false,
+    excluding: Set<URL> = [], preferHLS: Bool = false, preferHLSForLongTracks: Bool = false,
     diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws
     -> Source
@@ -172,6 +172,7 @@ public struct YouTubeAudio: Sendable {
         let selected = try await source(
           video: video, userAgent: ClientConfig.webRemix.userAgent, authenticated: true,
           quality: quality, excluding: excluding, preferHLS: preferHLS,
+          preferHLSForLongTracks: preferHLSForLongTracks,
           diagnostic: { trace.record("ACCOUNT_WEB " + $0) })
         return completed(selected, path: "ACCOUNT_WEB")
       } catch is CancellationError { throw CancellationError() } catch {
@@ -195,6 +196,7 @@ public struct YouTubeAudio: Sendable {
         diagnostic: { trace.record("PUBLIC_APPLE " + $0) })
       let fallback = try await source(video: video, userAgent: YouTubeApplePlayer.userAgent,
         authenticated: false, quality: quality, excluding: excluding, preferHLS: preferHLS,
+        preferHLSForLongTracks: preferHLSForLongTracks,
         diagnostic: { trace.record("PUBLIC_APPLE " + $0) })
       return completed(Source(url: fallback.url, duration: fallback.duration,
         userAgent: fallback.userAgent, byteCount: fallback.byteCount, isHLS: fallback.isHLS,
@@ -211,6 +213,7 @@ public struct YouTubeAudio: Sendable {
       let fallback = try await source(
         video: video, userAgent: ClientConfig.ios.userAgent, authenticated: false, quality: quality,
         excluding: excluding, preferHLS: preferHLS,
+        preferHLSForLongTracks: preferHLSForLongTracks,
         diagnostic: { trace.record("PUBLIC_IOS " + $0) })
       return completed(Source(
         url: fallback.url, duration: fallback.duration, userAgent: fallback.userAgent,
@@ -229,6 +232,7 @@ public struct YouTubeAudio: Sendable {
       let fallback = try await source(
         video: video, userAgent: ClientConfig.webRemix.userAgent, authenticated: false,
         quality: quality, excluding: excluding, preferHLS: preferHLS,
+        preferHLSForLongTracks: preferHLSForLongTracks,
         diagnostic: { trace.record("PUBLIC_WEB " + $0) })
       return completed(Source(
         url: fallback.url, duration: fallback.duration, userAgent: fallback.userAgent,
@@ -271,7 +275,7 @@ public struct YouTubeAudio: Sendable {
 
   func source(
     video: YouTubeVideo, userAgent: String, authenticated: Bool, quality: AudioQuality,
-    excluding: Set<URL> = [], preferHLS: Bool = false,
+    excluding: Set<URL> = [], preferHLS: Bool = false, preferHLSForLongTracks: Bool = false,
     diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws
     -> Source
@@ -281,9 +285,14 @@ public struct YouTubeAudio: Sendable {
     let transport = self.transport ?? URLSession(configuration: configuration)
     defer { if self.transport == nil { transport.invalidateAndCancel() } }
     var candidates = Self.candidates(video, quality: quality).filter { !excluding.contains($0) }
-    if preferHLS, let hls = video.hlsURL, candidates.contains(hls) {
+    // Long fragmented AAC files can make AVFoundation inspect the entire file
+    // before its first sample. A validated HLS timeline starts from a few segments.
+    // Playback opts in; offline downloads retain their AAC-first behavior.
+    let longStream = preferHLSForLongTracks && (Double(video.lengthInSeconds) ?? 0) >= 600
+    if preferHLS || longStream, let hls = video.hlsURL, candidates.contains(hls) {
       candidates.removeAll { $0 == hls }
       candidates.insert(hls, at: 0)
+      diagnostic?(longStream ? "long-track HLS preferred" : "recovery HLS preferred")
     }
     var lastError: Error = AudioPlaybackError.unavailable
     diagnostic?("player AAC=\((video.streamingData?.adaptiveFormats ?? []).filter { $0.mimeType.hasPrefix("audio/mp4") }.count), candidates=\(candidates.count), hls=\(video.hlsURL != nil)")
@@ -383,7 +392,9 @@ public struct YouTubeAudio: Sendable {
   ) async throws -> URL {
     guard depth < 3 else { throw AudioPlaybackError.unavailable }
     diagnostic?("HLS manifest depth=\(depth)")
-    let data = try await hlsData(url, userAgent: userAgent, transport: transport, limit: 512 * 1024,
+    // A one-hour playlist can exceed 512 KiB because every segment has a signed
+    // address. Keep a hard bound without rejecting valid long-form streaming.
+    let data = try await hlsData(url, userAgent: userAgent, transport: transport, limit: 4 * 1024 * 1024,
       diagnostic: diagnostic)
     guard let text = String(data: data, encoding: .utf8), text.hasPrefix("#EXTM3U") else {
       throw AudioPlaybackError.unavailable
@@ -514,7 +525,10 @@ public struct YouTubeAudio: Sendable {
       try Task.checkCancellation()
       data.append(byte)
       if data.count == limit {
-        guard range else { throw AudioPlaybackError.unavailable }
+        guard range else {
+          diagnostic?("manifest size limit reached: \(limit) bytes")
+          throw AudioPlaybackError.unavailable
+        }
         break
       }
     }
