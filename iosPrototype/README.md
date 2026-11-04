@@ -3,11 +3,11 @@
 Implementata nel codice la ricezione di brani, album e playlist da Apple Music e
 Spotify, con anteprima, conversione su YouTube Music, scelta manuale delle versioni,
 coda e creazione di playlist private. [Uso, limiti e verifiche](SHARING.md).
-Beta interna **0.15.1 (51)** elaborata e in test per **Team interno** e **Stivy73**.
-Include il ripristino del mini player nativo CarPlay come in Vocalia.
-[Consegna, sorgenti e prove](RELEASE-0.15.1-51.md).
+Beta interna **0.15.2 (52)** elaborata e in test per **Team interno** e **Stivy73**.
+Include l'avvio audio ottimizzato e il mini player nativo CarPlay della build 51.
+[Consegna, sorgenti e prove](RELEASE-0.15.2-52.md).
 
-Nel codice successivo alla beta: avvio dei brani lunghi con HLS verificato,
+Avvio dei brani lunghi con HLS verificato,
 playlist grandi accettate entro un limite, durata remota senza scansione iniziale
 e tempi di preparazione nella diagnostica. Su Oceanic Delta Waves la prova Mac
 passa da 7,98 a 3,65 secondi. [Misure e limiti](AUDIO_STARTUP.md).

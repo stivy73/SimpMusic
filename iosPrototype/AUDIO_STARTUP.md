@@ -1,6 +1,7 @@
 # Avvio audio e ripresa dei brani lunghi — 4 novembre 2026
 
-Ottimizzazione successiva alla beta 0.15.1 (51), ancora da distribuire.
+Ottimizzazione distribuita nella beta interna **0.15.2 (52)**, il 4 novembre 2026,
+per **Team interno** e **Stivy73**. [Consegna e sorgenti](RELEASE-0.15.2-52.md).
 
 La prova pubblica su **Oceanic Delta Waves / Jason Stephenson**, durata 3839 s,
 ha riprodotto due attese: scansione del file AAC frammentato da 62.132.786 byte
@@ -73,8 +74,9 @@ e Release/iPhone con Xcode 27.2 RC (27B48), SDK 27.2 e minimo iOS 17.
 Superate sei regressioni UI su iPhone 18 Pro / iOS 27.2: narrazione CarPlay,
 crossfade con pausa, continuità oltre il minuto con conteggio PCM degli effetti,
 sessione ripristinata in pausa, recupero alla posizione corrente e fine brano
-senza attesa della coda silenziosa. Nessuna nuova installazione fisica o beta
-TestFlight dichiarata; i tempi sul Duo e sul display dell'auto restano da provare.
+senza attesa della coda silenziosa. Caricamento TestFlight, elaborazione e gruppi
+verificati per la build 52. Nessuna nuova installazione fisica dichiarata;
+i tempi sul Duo e sul display dell'auto restano da provare.
 
 Log core: `/tmp/notenarrate-startup-core.log`.
 Log UI: `/tmp/notenarrate-startup-ui.log`.
