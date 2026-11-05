@@ -14,6 +14,7 @@
     private(set) var widgets: WidgetBridge!
     private(set) var releaseNotifications: ReleaseNotifications!
     private var media: AppleMediaSession!
+    private var watch: WatchPhoneBridge!
     private var radioSubscription: AnyCancellable?
     private var favoritesMigration: Task<Void, Never>?
     private init() {
@@ -21,6 +22,7 @@
       media = AppleMediaSession(model: music)
       widgets = WidgetBridge(music: music, library: library)
       releaseNotifications = ReleaseNotifications(music: music, library: library)
+      watch = WatchPhoneBridge(music: music)
       radioSubscription = library.$session.sink { [weak self] session in
         guard let self else { return }
         self.music.configureRadio(session: session)

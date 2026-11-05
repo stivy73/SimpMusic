@@ -1,5 +1,9 @@
 # NoteNarrate iOS
 
+Versione Apple Watch companion implementata nel codice successivo alla beta 52:
+player e copertina, comandi musicali, coda, significato narrato e radio tramite
+iPhone. [Configurazione, limiti e verifiche](WATCH.md). Non ancora su TestFlight.
+
 Implementata nel codice la ricezione di brani, album e playlist da Apple Music e
 Spotify, con anteprima, conversione su YouTube Music, scelta manuale delle versioni,
 coda e creazione di playlist private. [Uso, limiti e verifiche](SHARING.md).
