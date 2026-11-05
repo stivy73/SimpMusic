@@ -1,3 +1,30 @@
+# Correzione avvio Watch successiva alla beta 53
+
+Riprodotto su watchOS 27.2 con iPhone simulato abbinato: la beta 53 termina
+alla prima risposta di WatchConnectivity con EXC_BREAKPOINT/SIGTRAP,
+`_dispatch_assert_queue_fail` e `closure #2 in WatchSessionLink.send`.
+Le closure di reply/error, create nel contesto MainActor, ereditavano
+l’isolamento pur venendo richiamate dal framework su una coda non principale.
+La sola presenza di `Task { @MainActor ... }` nel corpo non elimina tale
+isolamento all’ingresso della closure. Ora entrambe sono esplicitamente
+`@Sendable`, con il passaggio dei risultati al MainActor preservato.
+
+Inoltre l’app adotta WKApplicationDelegate: attivazione della connessione dopo
+il completamento dell’avvio e completamento dei task WatchConnectivity/snapshot,
+con osservazione dello stato e gestione della scadenza. Le callback di sistema
+sono Sendable. Aggiunti marcatori Lifecycle senza titoli, account o credenziali.
+
+Runtime ufficiale watchOS 27.2 installato; Watch Series 12 42mm simulato abbinato
+a iPhone 18 Pro. Verificati avvio senza telefono, player con fixture, scambio reale
+con iPhone (brano locale ricevuto, nessun nuovo crash nello stesso percorso),
+e riaperture consecutive. Otto test core Watch superati, build Watch Simulator
+e Release iPhone/Watch riuscite. Prove in `deliveries/watch`.
+
+Correzione non ancora caricata su TestFlight: la beta 53 contiene il codice
+precedente. Resta da verificare il Watch fisico dell’utente.
+
+---
+
 # NoteNarrate per Apple Watch
 
 Prima versione **companion iPhone**, scelta dall'utente il 5 novembre 2026.
@@ -78,8 +105,8 @@ Log: `/tmp/notenarrate-watch-core.log`, `/tmp/notenarrate-watch-phone-ui.log`,
 `/tmp/notenarrate-watch-phone-build.log`, `/tmp/notenarrate-watch-release.log`.
 Risultati UI: `/tmp/NoteNarrate-Watch-Phone-UI.xcresult`.
 
-Sul Mac non è installato un runtime watchOS e non esistono coppie di simulatori
-Watch/iPhone. Compilazione per watchOS e controllo dell'embedded bundle sono
+Alla prima implementazione non era installato un runtime watchOS e non esistevano
+coppie Watch/iPhone; il collaudo della correzione riportato sopra ora li include. Compilazione per watchOS e controllo dell'embedded bundle sono
 verifiche distinte dal rendering sul quadrante e dal trasporto WatchConnectivity.
 Aggiornamento beta 0.16.0 (53): firma/provisioning di distribuzione del nuovo
 bundle, inclusione nell’IPA ed elaborazione TestFlight verificati. Non è stata

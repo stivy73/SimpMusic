@@ -1,9 +1,77 @@
+import OSLog
 import SwiftUI
+@preconcurrency import WatchConnectivity
 import WatchKit
 
 @main struct NoteNarrateWatchApp: App {
-  @StateObject private var link = WatchSessionLink()
-  var body: some Scene { WindowGroup { WatchPlayerView().environmentObject(link) } }
+  @WKApplicationDelegateAdaptor(WatchAppDelegate.self) private var delegate
+  var body: some Scene { WindowGroup { WatchPlayerView().environmentObject(delegate.link) } }
+}
+
+/// WatchConnectivity can launch the app without a visible scene. Always finish its runtime tasks.
+@MainActor final class WatchAppDelegate: NSObject, WKApplicationDelegate {
+  let link = WatchSessionLink()
+  private var connectivityTasks: [ObjectIdentifier: WKWatchConnectivityRefreshBackgroundTask] = [:]
+  private var observations: [NSKeyValueObservation] = []
+  private let logger = Logger(
+    subsystem: "com.stivy.simpmusic.prototype.watchapp", category: "Lifecycle")
+  override init() {
+    super.init()
+    let session = WCSession.default
+    observations = [
+      session.observe(\.activationState, options: [.new]) { @Sendable [weak self] _, _ in
+        Task { @MainActor in self?.finishConnectivityTasksIfReady() }
+      },
+      session.observe(\.hasContentPending, options: [.new]) { @Sendable [weak self] _, _ in
+        Task { @MainActor in self?.finishConnectivityTasksIfReady() }
+      },
+    ]
+    logger.info("Watch application initialized")
+    #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--watch-launch-fixture") {
+        var value = WatchSnapshot()
+        value.track = .init(id: "fixture-1", title: "Brano di prova", artist: "NoteNarrate")
+        value.duration = 261
+        value.elapsed = 45
+        value.queue = [value.track!]
+        value.queueTotal = 1
+        link.accept(value)
+      }
+    #endif
+  }
+  func applicationDidFinishLaunching() {
+    logger.info("Watch launch finished")
+    link.activate()
+  }
+  func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
+    logger.info("Watch background tasks received: \(backgroundTasks.count)")
+    for task in backgroundTasks {
+      if let connectivity = task as? WKWatchConnectivityRefreshBackgroundTask {
+        let id = ObjectIdentifier(connectivity)
+        connectivityTasks[id] = connectivity
+        connectivity.expirationHandler = { @Sendable [weak self] in
+          Task { @MainActor in self?.complete(id) }
+        }
+      } else if let snapshot = task as? WKSnapshotRefreshBackgroundTask {
+        snapshot.setTaskCompleted(
+          restoredDefaultState: false, estimatedSnapshotExpiration: .distantFuture, userInfo: nil)
+      } else {
+        task.setTaskCompletedWithSnapshot(false)
+      }
+    }
+    finishConnectivityTasksIfReady()
+  }
+  private func finishConnectivityTasksIfReady() {
+    guard WCSession.default.activationState == .activated, !WCSession.default.hasContentPending
+    else { return }
+    for id in Array(connectivityTasks.keys) { complete(id) }
+  }
+  private func complete(_ id: ObjectIdentifier) {
+    guard let task = connectivityTasks.removeValue(forKey: id) else { return }
+    task.expirationHandler = nil
+    task.setTaskCompletedWithSnapshot(false)
+    logger.info("Watch connectivity background task completed")
+  }
 }
 
 struct WatchPlayerView: View {
@@ -71,6 +139,10 @@ struct WatchPlayerView: View {
         }.padding(.horizontal, 4)
       }
       .navigationTitle("NoteNarrate")
+      .onAppear {
+        Logger(subsystem: "com.stivy.simpmusic.prototype.watchapp", category: "Lifecycle").info(
+          "Watch player appeared")
+      }
       .onChange(of: phase) { _, value in if value == .active { link.send(.refresh) } }
     }
   }

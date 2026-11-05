@@ -22,6 +22,12 @@
     private var receivedAt = Date.distantPast
     override init() {
       super.init()
+      #if os(iOS)
+        activate()
+      #endif
+    }
+    /// On Watch, called after the application has finished launching, not while SwiftUI constructs it.
+    func activate() {
       guard WCSession.isSupported() else { return }
       WCSession.default.delegate = self
       WCSession.default.activate()
@@ -65,12 +71,12 @@
       }
       session.sendMessage(
         ["command": data],
-        replyHandler: { [weak self] response in
+        replyHandler: { @Sendable [weak self] response in
           let data = response["snapshot"] as? Data
           let error = response["error"] as? String
           Task { @MainActor in self?.finished(command.id, data: data, error: error) }
         },
-        errorHandler: { [weak self] _ in
+        errorHandler: { @Sendable [weak self] _ in
           Task { @MainActor in
             self?.finished(
               command.id, data: nil, error: "Collegamento con iPhone interrotto. Riprova.")
