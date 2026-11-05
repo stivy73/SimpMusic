@@ -81,7 +81,8 @@ Risultati UI: `/tmp/NoteNarrate-Watch-Phone-UI.xcresult`.
 Sul Mac non è installato un runtime watchOS e non esistono coppie di simulatori
 Watch/iPhone. Compilazione per watchOS e controllo dell'embedded bundle sono
 verifiche distinte dal rendering sul quadrante e dal trasporto WatchConnectivity.
-Non è stato installato nulla su dispositivi fisici. Prima della distribuzione
-servono firma/provisioning del nuovo bundle e prova su Watch abbinato: app aperta
+Aggiornamento beta 0.16.0 (53): firma/provisioning di distribuzione del nuovo
+bundle, inclusione nell’IPA ed elaborazione TestFlight verificati. Non è stata
+verificata l’installazione su Watch fisico. Resta la prova su Watch abbinato: app aperta
 su entrambi i dispositivi, cambio brano, coda con duplicati, narrazione, radio,
 iPhone bloccato, allontanamento/riconnessione, risposta tardiva e passaggio CarPlay.
