@@ -123,6 +123,7 @@
     private var searchMessage = "Chiedi a Siri una canzone, un artista o un album in NoteNarrate"
     private var voiceQueryID: UUID?
     private let queueTemplate = CPListTemplate(title: "Coda", sections: [])
+    private let passengersTemplate = CPListTemplate(title: "Passeggeri", sections: [])
     private var queueOffset = 0
 
     func templateApplicationScene(
@@ -164,6 +165,11 @@
         }.store(in: &subscriptions)
       app.music.player.objectWillChange.debounce(for: .milliseconds(50), scheduler: RunLoop.main)
         .sink { [weak self] _ in self?.configureNowPlaying() }.store(in: &subscriptions)
+      app.passengers.link.objectWillChange.debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+        .sink { [weak self] _ in
+          self?.renderQueue()
+          self?.renderPassengers()
+        }.store(in: &subscriptions)
       render()
     }
 
@@ -832,6 +838,55 @@
       controller?.pushTemplate(queueTemplate, animated: true, completion: { _, _ in })
     }
 
+    private func renderPassengers() {
+      let link = app.passengers.link
+      guard link.mode == .hosting else {
+        let row = CPListItem(text: "Sessione terminata", detailText: nil)
+        row.isEnabled = false
+        passengersTemplate.updateSections([CPListSection(items: [row])])
+        return
+      }
+      var rows = link.peers.map { peer in
+        let row = CPListItem(text: peer.name, detailText: peer.approved ? "Autorizzato · tocca per scollegare" : "Richiede accesso alla musica dell’auto")
+        row.handler = { [weak self] _, done in
+          done()
+          guard let self, let controller = self.controller, controller.presentedTemplate == nil else { return }
+          let action = CPAlertAction(title: peer.approved ? "Scollega" : "Consenti", style: peer.approved ? .destructive : .default) { [weak self] _ in
+            self?.controller?.dismissTemplate(animated: true) { [weak self] success, _ in
+              guard let self, success else { return }
+              if peer.approved { self.app.passengers.link.remove(peer.id) } else { self.app.passengers.link.approve(peer.id) }
+            }
+          }
+          let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
+            self?.controller?.dismissTemplate(animated: true, completion: nil)
+          }
+          controller.presentTemplate(CPAlertTemplate(titleVariants: [peer.approved ? "Scollegare \(peer.name)?" : "\(peer.name) potrà aggiungere musica e cambiare il brano. Consentire?"], actions: [action, cancel]), animated: true, completion: nil)
+        }
+        return row
+      }
+      if rows.isEmpty {
+        let waiting = CPListItem(text: "Nessun passeggero collegato", detailText: "L’invito è nella schermata Sessione in auto dell’iPhone")
+        waiting.isEnabled = false
+        rows.append(waiting)
+      }
+      let close = CPListItem(text: "Chiudi la sessione per tutti", detailText: nil, image: UIImage(systemName: "xmark.circle"))
+      close.handler = { [weak self] _, done in
+        done()
+        guard let self, let controller = self.controller, controller.presentedTemplate == nil else { return }
+        let stop = CPAlertAction(title: "Termina", style: .destructive) { [weak self] _ in
+          self?.controller?.dismissTemplate(animated: true) { [weak self] success, _ in
+            if success { self?.app.passengers.link.stop() }
+          }
+        }
+        let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
+          self?.controller?.dismissTemplate(animated: true, completion: nil)
+        }
+        controller.presentTemplate(CPAlertTemplate(titleVariants: ["Terminare la sessione Passeggero? La musica continua."], actions: [stop, cancel]), animated: true, completion: nil)
+      }
+      rows.append(close)
+      passengersTemplate.updateSections([CPListSection(items: rows)])
+    }
+
     private func renderQueue() {
       let entries = app.music.queueRows
       let page = CarPlayPage(count: entries.count, offset: queueOffset, capacity: 20)
@@ -905,6 +960,20 @@
         self?.app.music.autoplayEnabled.toggle()
       }
       var radioRows = [automatic]
+      if app.passengers.link.mode == .hosting {
+        let link = app.passengers.link
+        let pending = link.peers.filter { !$0.approved }.count
+        let shared = CPListItem(text: "Passeggeri", detailText: pending > 0 ? "\(pending) in attesa di autorizzazione" : link.status,
+          image: UIImage(systemName: "person.2.fill"))
+        shared.accessoryType = .disclosureIndicator
+        shared.handler = { [weak self] _, done in
+          done()
+          guard let self else { return }
+          self.renderPassengers()
+          self.controller?.pushTemplate(self.passengersTemplate, animated: true, completion: nil)
+        }
+        radioRows.insert(shared, at: 0)
+      }
       if let song = app.music.current {
         let radio = CPListItem(
           text: "Radio del brano", detailText: song.title,

@@ -122,8 +122,11 @@ struct AlbumView: View {
         }
         ToolbarItem(placement: .platformTrailing) {
           Menu {
+            #if os(iOS)
+              PassengerActions(songs: songs)
+            #endif
             Button {
-              for song in songs { model.enqueue(song) }
+              model.enqueue(contentsOf: songs)
             } label: {
               Label("Aggiungi album alla coda", systemImage: "text.append")
             }

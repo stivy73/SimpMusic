@@ -1,5 +1,11 @@
 # NoteNarrate iOS
 
+Modalità Passeggero implementata nel codice successivo alla beta 52: invito con
+QR/codice, autorizzazione, invio di brani/album/playlist alla coda dell’auto e
+riproduzione immediata, con gestione passeggeri da iPhone e CarPlay. La musica
+resta sul telefono principale. [Uso, limiti e verifiche](PASSENGER.md).
+Non ancora distribuita; collegamento fra due iPhone nell’auto da collaudare.
+
 Versione Apple Watch companion implementata nel codice successivo alla beta 52:
 player e copertina, comandi musicali, coda, significato narrato e radio tramite
 iPhone. [Configurazione, limiti e verifiche](WATCH.md). Non ancora su TestFlight.

@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Collega i telefoni vicini per scegliere insieme la musica riprodotta dall’iPhone collegato a CarPlay.</string>
+	<key>NSBonjourServices</key>
+	<array><string>_nnpassenger._tcp</string></array>
+	<key>NSCameraUsageDescription</key>
+	<string>Scansiona il QR della sessione NoteNarrate nell’auto per collegare il telefono del passeggero.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.stivy.simpmusic.prototype.artist-releases</string>

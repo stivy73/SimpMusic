@@ -128,6 +128,13 @@ struct RootView: View {
         }.interactiveDismissDisabled()
       }
       .onOpenURL { url in
+        #if os(iOS)
+          if (try? PassengerInvitation(text: url.absoluteString)) != nil {
+            AppleAppSession.shared.passengers.incomingInvitation = url.absoluteString
+            AppleAppSession.shared.passengers.showing = true
+            return
+          }
+        #endif
         guard let route = AppRoute(url: url) else { return }
         if route == .player {
           model.showPlayer = model.current != nil
@@ -143,6 +150,9 @@ struct RootView: View {
         }
       }
       .modifier(RadioFeedback())
+      #if os(iOS)
+        .modifier(PassengerPresentation())
+      #endif
       #if DEBUG
         .overlay(alignment: .topLeading) {
           if ProcessInfo.processInfo.arguments.contains("--test-shared-music") {
@@ -155,6 +165,10 @@ struct RootView: View {
             }
           }
           #if os(iOS)
+            if ProcessInfo.processInfo.arguments.contains("--test-passenger-loopback") {
+              Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("passenger-loopback-qa")
+                .task { qaAlbumPaging = await AppleAppSession.shared.passengers.verifyLoopback() }
+            }
             if ProcessInfo.processInfo.arguments.contains("--test-carplay-home-pages") {
               Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("carplay-home-page-qa")
                 .task { qaAlbumPaging = await CarPlayScene().verifyHomePageHandlers() }
@@ -277,7 +291,7 @@ private struct SystemMiniPlayerAccessory: ViewModifier {
   @ViewBuilder func body(content: Content) -> some View {
     #if os(iOS)
       if #available(iOS 26.1, *) {
-        content.tabViewBottomAccessory(isEnabled: model.current != nil) {
+        content.tabViewBottomAccessory(isEnabled: model.current != nil && !model.isPassenger) {
           MiniPlayer(systemAccessory: true)
         }
       } else {
@@ -307,7 +321,7 @@ struct MiniPlayer: View {
   var systemAccessory = false
   @EnvironmentObject var model: MusicModel
   var body: some View {
-    if let song = model.current {
+    if let song = model.current, !model.isPassenger {
       HStack(spacing: 12) {
         Button {
           model.showPlayer = true
@@ -400,6 +414,9 @@ struct QueueActions: View {
   @EnvironmentObject var model: MusicModel
   let song: Song
   var body: some View {
+    #if os(iOS)
+      PassengerActions(songs: [song])
+    #endif
     DownloadAction(song: song)
     Button {
       model.enqueue(song, playNext: true)
@@ -1105,6 +1122,11 @@ struct SettingsView: View {
         if let error = library.error { Text(error).font(.caption).foregroundStyle(.orange) }
       }
       Section("Riproduzione") {
+        #if os(iOS)
+          Button("Sessione in auto", systemImage: "person.2.fill") {
+            AppleAppSession.shared.passengers.showing = true
+          }.accessibilityIdentifier("open-passenger-session")
+        #endif
         SleepTimerMenu()
         NavigationLink("Qualità audio ed effetti") { AudioSettingsScreen() }
           .accessibilityIdentifier("open-audio-settings")

@@ -81,6 +81,11 @@ struct RemotePlaylistView: View {
     }.disabled(deleteBusy).navigationTitle(title).inlineNavigationTitle()
       .refreshable { await model.reload() }
       .toolbar {
+        #if os(iOS)
+          if let detail = model.detail {
+            PassengerActions(songs: detail.entries.map { Song($0.item) })
+          }
+        #endif
         if model.detail?.editable == true {
           #if os(iOS)
             EditButton().disabled(model.loading || model.saving)

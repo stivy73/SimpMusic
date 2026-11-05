@@ -74,6 +74,13 @@ struct HomeView: View {
     .accessibilityIdentifier("home-scroll")
     .navigationTitle("NoteNarrate")
     .toolbar {
+      #if os(iOS)
+        ToolbarItem(placement: .platformTrailing) {
+          Button("Sessione in auto", systemImage: "person.2.fill") {
+            AppleAppSession.shared.passengers.showing = true
+          }.accessibilityIdentifier("open-passenger-session")
+        }
+      #endif
       ToolbarItem(placement: .platformTrailing) { DiscoveryMenu() }
       if library.session != nil {
         ToolbarItem(placement: .platformTrailing) {
@@ -139,6 +146,11 @@ struct HomeBrowseView: View {
     }.accessibilityIdentifier("home-browse-scroll")
       .navigationTitle(title).inlineNavigationTitle()
       .toolbar {
+        #if os(iOS)
+          if target.browseId.hasPrefix("VL") {
+            PassengerPlaylistActions(id: target.browseId)
+          }
+        #endif
         if target.browseId.hasPrefix("UC") {
           FollowArtistButton(
             artist: DiscoveryItem(

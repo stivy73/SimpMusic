@@ -32,6 +32,9 @@ struct SongOptionsSheet: View {
             Spacer(minLength: 0)
           }.padding(.vertical, 16)
           Divider().padding(.bottom, 10)
+          #if os(iOS)
+            PassengerActions(songs: [song]).padding(.vertical, 14)
+          #endif
           YouTubeLikeButton(song: song, identifier: "song-option-like").padding(.vertical, 14)
           Button {
             playlist = true

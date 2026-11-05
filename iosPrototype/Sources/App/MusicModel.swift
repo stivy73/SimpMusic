@@ -92,6 +92,36 @@ struct QueueRow: Identifiable {
 
 @MainActor
 final class MusicModel: NSObject, ObservableObject {
+  @Published private(set) var isPassenger = false
+  var passengerSelection: (([Song], PlaybackSelectionAction) -> Bool)?
+
+  func setPassenger(_ enabled: Bool) {
+    isPassenger = enabled
+    if enabled {
+      resetRadio()
+      stopMeaning(resume: false)
+      player.pause()
+      showPlayer = false
+    }
+  }
+
+  /// One queue mutation for a collection; retains the host's existing queue on enqueue.
+  func applySelection(_ songs: [Song], action: PlaybackSelectionAction) {
+    guard let first = songs.first else { return }
+    if action == .playNow || current == nil || queue.isEmpty {
+      play(first, queue: songs)
+    } else {
+      player.cancelTransition()
+      queue.append(contentsOf: songs)
+      queueIDs.append(contentsOf: songs.map { _ in UUID() })
+      for _ in songs { sequence.append(playNext: false) }
+      if waitingForRadio != nil {
+        waitingForRadio = nil
+        nextSong()
+      }
+    }
+    saveSession()
+  }
   let player = PlaybackPlayer()
   let downloads = MusicDownloads()
   let listening = ListeningHistory(
@@ -400,7 +430,9 @@ final class MusicModel: NSObject, ObservableObject {
       self?.objectWillChange.send()
     }
     player.onEnded = { [weak self] in self?.nextSong(automatic: true) }
-    player.beforePlay = { [weak self] in !(self?.checkSleepTimer() ?? false) }
+    player.beforePlay = { [weak self] in
+      self?.isPassenger != true && !(self?.checkSleepTimer() ?? false)
+    }
     if sessionEnabled, let saved = sessionStore.load() {
       queue = saved.tracks
       queueIDs = saved.occurrenceIDs
@@ -576,6 +608,7 @@ final class MusicModel: NSObject, ObservableObject {
   }
 
   func enqueue(_ song: Song, playNext: Bool = false) {
+    if passengerSelection?([song], .enqueue) == true { return }
     player.cancelTransition()
     guard current != nil, !queue.isEmpty else {
       play(song, queue: [song])
@@ -588,6 +621,12 @@ final class MusicModel: NSObject, ObservableObject {
       waitingForRadio = nil
       nextSong()
     }
+  }
+
+  func enqueue(contentsOf songs: [Song]) {
+    guard !songs.isEmpty else { return }
+    if passengerSelection?(songs, .enqueue) == true { return }
+    applySelection(songs, action: .enqueue)
   }
 
   func moveQueuedSongs(from offsets: IndexSet, to destination: Int) {
@@ -1036,6 +1075,11 @@ final class MusicModel: NSObject, ObservableObject {
     _ song: Song, queue newQueue: [Song]? = nil, selectedIndex: Int? = nil,
     preserveRadio: Bool = false, reusePlayback: Bool = false
   ) {
+    if passengerSelection?(newQueue.flatMap { tracks -> [Song]? in
+      guard !tracks.isEmpty else { return nil }
+      let start = selectedIndex ?? tracks.firstIndex { $0.id == song.id } ?? 0
+      return Array(tracks.dropFirst(max(0, start)))
+    } ?? [song], .playNow) == true { return }
     if !preserveRadio {
       if newQueue != nil || !queue.contains(where: { $0.id == song.id }) {
         resetRadio()

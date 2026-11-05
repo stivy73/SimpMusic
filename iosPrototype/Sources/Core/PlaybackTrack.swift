@@ -3,6 +3,8 @@ import YouTubeSDK
 
 public typealias TrackArtist = YouTubeMusicArtistReference
 
+public enum PlaybackSelectionAction: String, Codable, Sendable { case enqueue, playNow }
+
 public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
   public let id: String
   public let title: String

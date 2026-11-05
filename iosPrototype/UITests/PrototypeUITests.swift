@@ -3,6 +3,54 @@ import UIKit
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testPassengerTLSBridgeRoutesCollectionsAndKeepsPassengerSilent() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-passenger-loopback"]
+    app.launch()
+    let result = app.staticTexts["passenger-loopback-qa"]
+    XCTAssertTrue(result.waitForExistence(timeout: 20))
+    let finished = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+      result.label.hasPrefix("PASS") || result.label.hasPrefix("FAIL")
+    }, object: result)
+    XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 50), .completed)
+    XCTAssertTrue(result.label.hasPrefix("PASS"), result.label)
+  }
+  @MainActor
+  func testPassengerSessionCanBeOpenedAndHostCodeRotatesOnRestart() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library"]
+    app.launch()
+    let open = app.buttons["open-passenger-session"].firstMatch
+    XCTAssertTrue(open.waitForExistence(timeout: 15))
+    open.tap()
+    let host = app.buttons["passenger-host"]
+    XCTAssertTrue(host.waitForExistence(timeout: 5))
+    host.tap()
+    let permission = app.alerts.firstMatch
+    if permission.waitForExistence(timeout: 3) {
+      let allow = permission.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Allow' OR label CONTAINS[c] 'Consenti'")).firstMatch
+      if allow.exists { allow.tap() }
+    }
+    let code = app.staticTexts["passenger-code"]
+    XCTAssertTrue(code.waitForExistence(timeout: 8))
+    let first = code.label
+    XCTAssertEqual(first.replacingOccurrences(of: " ", with: "").count, 24)
+    app.swipeUp()
+    let end = app.buttons["passenger-end"]
+    if !end.isHittable { app.swipeUp() }
+    end.tap()
+    app.buttons["Termina"].tap()
+    app.swipeDown()
+    XCTAssertTrue(host.waitForExistence(timeout: 5))
+    host.tap()
+    XCTAssertTrue(code.waitForExistence(timeout: 5))
+    XCTAssertNotEqual(code.label, first)
+    let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    attachment.name = "Sessione Passeggero"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+  }
+  @MainActor
   func testPaddedAudioAdvancesAtSourceEndWithoutWaitingForSilentTail() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-local-playback", "--test-padded-audio-end"]

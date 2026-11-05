@@ -143,7 +143,7 @@ struct SharedCatalogScreen: View {
                 : "Aggiungi \(importer.matches.count) brani alla coda",
               systemImage: "text.line.last.and.arrowtriangle.forward"
             ) {
-              for item in importer.orderedMatches { music.enqueue(Song(item)) }
+              music.enqueue(contentsOf: importer.orderedMatches.map(Song.init))
               finish()
             }.disabled(saving).accessibilityIdentifier("shared-catalog-enqueue")
             if let createdPlaylist {
