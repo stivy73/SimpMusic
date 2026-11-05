@@ -5,6 +5,70 @@ import XCTest
 
 /// Real TLS sockets on loopback. Physical peer-to-peer Wi-Fi/CarPlay remain a separate device check.
 final class PassengerTransportTests: XCTestCase {
+  @MainActor func testListenerRecoveryKeepsQRAndReconnectsWithoutRestartingSession() async throws {
+    let host = PassengerLink()
+    let guest = PassengerLink()
+    defer {
+      host.stop()
+      guest.stop()
+    }
+    try await connect(host, guest)
+    let joined = await eventually { host.peers.count == 1 }
+    XCTAssertTrue(joined)
+    host.approve(try XCTUnwrap(host.peers.first?.id))
+    let connected = await eventually { guest.canSend }
+    XCTAssertTrue(connected)
+    let invite = try XCTUnwrap(host.invitation)
+    host.resumeHosting()
+    let listening = await eventually { host.listeningPort != nil }
+    XCTAssertTrue(listening)
+    XCTAssertEqual(host.invitation, invite)
+    host.publish(.init(title: "Dopo ripristino", queueCount: 17))
+    let stillConnected = await eventually { guest.playback.queueCount == 17 }
+    XCTAssertTrue(stillConnected, "Listener restart must preserve established TCP connections")
+    guest.stop()
+    let removed = await eventually { host.peers.isEmpty }
+    XCTAssertTrue(removed)
+    guest.connect(
+      invitation: invite,
+      endpoint: .hostPort(host: .ipv4(.loopback), port: try XCTUnwrap(host.listeningPort)))
+    let rejoined = await eventually { host.peers.count == 1 }
+    XCTAssertTrue(rejoined)
+    XCTAssertFalse(guest.canSend)
+    host.approve(try XCTUnwrap(host.peers.first?.id))
+    let reapproved = await eventually { guest.canSend }
+    XCTAssertTrue(reapproved)
+  }
+
+  @MainActor func testSameQRCanBeScannedAgainAfterDisconnectUsingBonjour() async throws {
+    let host = PassengerLink()
+    let guest = PassengerLink()
+    defer {
+      host.stop()
+      guest.stop()
+    }
+    host.startHosting()
+    let listening = await eventually { host.listeningPort != nil }
+    XCTAssertTrue(listening)
+    let qr = try XCTUnwrap(host.invitation).text
+    for _ in 0..<2 {
+      guest.join(text: qr, name: "Passeggero")
+      let joined = await eventually({ host.peers.count == 1 }, timeout: 20)
+      XCTAssertTrue(joined, guest.error ?? "Bonjour discovery failed")
+      host.approve(try XCTUnwrap(host.peers.first?.id))
+      let connected = await eventually { guest.canSend }
+      XCTAssertTrue(connected)
+      host.remove(try XCTUnwrap(host.peers.first?.id))
+      let disconnected = await eventually { guest.mode == .idle }
+      XCTAssertTrue(disconnected)
+      let removed = await eventually { host.peers.isEmpty }
+      XCTAssertTrue(removed)
+      host.resumeHosting()
+      let recovered = await eventually { host.listeningPort != nil }
+      XCTAssertTrue(recovered)
+      XCTAssertEqual(host.invitation?.text, qr)
+    }
+  }
   @MainActor private func eventually(_ predicate: () -> Bool, timeout: Double = 12) async -> Bool {
     let end = Date().addingTimeInterval(timeout)
     while Date() < end {

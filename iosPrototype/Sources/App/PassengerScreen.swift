@@ -56,6 +56,10 @@ import SwiftUI
             invitationField
           }
         case .hosting:
+          Section {
+            Button("Ripristina collegamento", systemImage: "arrow.clockwise") { link.resumeHosting() }
+            Text("Riapre il collegamento mantenendo lo stesso QR e la coda musicale.").font(.caption)
+          }
           if let invitation = link.invitation {
             Section("Invita un passeggero · " + String(invitation.sessionID.uuidString.prefix(6))) {
               if let image = Self.qr(invitation.text) {

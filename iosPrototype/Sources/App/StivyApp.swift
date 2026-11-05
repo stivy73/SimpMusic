@@ -97,6 +97,7 @@ struct RootView: View {
         #if os(iOS)
           AppleAppSession.shared.widgets.publish()
           if phase == .active {
+            AppleAppSession.shared.passengers.link.resumeHosting()
             model.receiveSharedMusic()
             Task { await AppleAppSession.shared.releaseNotifications.refresh() }
           } else {

@@ -134,6 +134,7 @@
       // Use the same native mini-player/shared template setup as Vocalia.
       // CarPlay owns artwork taps and transport controls; do not opt out of it.
       let nowPlaying = CPNowPlayingTemplate.shared
+      app.passengers.link.resumeHosting()
       if #available(iOS 27.0, *) {
         nowPlaying.allowsMiniPlayer = true
       }

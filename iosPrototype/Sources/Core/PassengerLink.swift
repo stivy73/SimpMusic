@@ -29,6 +29,10 @@ public final class PassengerLink: ObservableObject {
   @Published public var error: String?
   public var onSelection: ((PassengerSelection) -> PassengerReceipt)?
   private var listener: NWListener?
+  private var listenerRevision = UUID()
+  private var recovery: Task<Void, Never>?
+  private var discoveryTimeout: Task<Void, Never>?
+  private var recoveryAttempts = 0
   private var browser: NWBrowser?
   private var endpoints: [UUID: NWEndpoint] = [:]
   private var links: [UUID: Link] = [:]
@@ -75,14 +79,33 @@ public final class PassengerLink: ObservableObject {
     let invite = PassengerInvitation()
     invitation = invite
     mode = .hosting
+    openListener(invite)
+    startHeartbeat()
+  }
+
+  /// Re-advertise the same invitation after a foreground/CarPlay network transition.
+  /// Established connections and the deduplication ledger stay intact.
+  public func resumeHosting() {
+    guard mode == .hosting, let invite = invitation else { return }
+    recoveryAttempts = 0
+    openListener(invite)
+  }
+
+  private func openListener(_ invite: PassengerInvitation) {
+    recovery?.cancel()
+    listenerRevision = UUID()
+    let listenerID = listenerRevision
+    listener?.cancel()
+    listeningPort = nil
     let generation = revision
     do {
       let listener = try NWListener(using: Self.parameters(invite))
       self.listener = listener
       listener.service = .init(name: invite.serviceName, type: Self.serviceType)
-      listener.newConnectionHandler = { [weak self] connection in
+      listener.newConnectionHandler = { @Sendable [weak self] connection in
         Task { @MainActor in
-          guard let self, self.revision == generation, self.mode == .hosting,
+          guard let self, self.revision == generation, self.listenerRevision == listenerID,
+            self.mode == .hosting,
             self.links.count < 4
           else {
             connection.cancel()
@@ -91,25 +114,46 @@ public final class PassengerLink: ObservableObject {
           self.accept(connection)
         }
       }
-      listener.stateUpdateHandler = { [weak self, weak listener] state in
+      listener.stateUpdateHandler = { @Sendable [weak self, weak listener] state in
         Task { @MainActor in
-          guard let self, self.revision == generation else { return }
+          guard let self, self.revision == generation, self.listenerRevision == listenerID else {
+            return
+          }
           if case .ready = state {
+            self.recovery?.cancel()
+            self.recoveryAttempts = 0
             self.listeningPort = listener?.port
             self.error = nil
           }
           if case .failed = state {
-            self.fail("Impossibile aprire la sessione. Verifica Wi-Fi e il permesso Rete locale.")
+            self.error = "Collegamento locale interrotto. Ripristino la sessione…"
+            self.scheduleRecovery()
           }
           if case .waiting = state {
             self.error =
               "Sessione in attesa della rete. Verifica Wi-Fi e Rete locale nelle impostazioni di iOS."
+            self.scheduleRecovery()
           }
         }
       }
       listener.start(queue: .main)
-      startHeartbeat()
-    } catch { fail("Impossibile aprire la sessione locale. Riprova.") }
+    } catch {
+      self.error = "Impossibile riaprire il collegamento locale. Usa Ripristina collegamento."
+      scheduleRecovery()
+    }
+  }
+
+  private func scheduleRecovery() {
+    guard recoveryAttempts < 3 else { return }
+    recoveryAttempts += 1
+    recovery?.cancel()
+    recovery = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(2))
+      guard !Task.isCancelled, let self, self.mode == .hosting, let invite = self.invitation else {
+        return
+      }
+      self.openListener(invite)
+    }
   }
 
   public func browse(name: String) {
@@ -123,7 +167,7 @@ public final class PassengerLink: ObservableObject {
     do {
       let invite = try PassengerInvitation(text: text)
       browse(name: name)
-      desiredInvitation = invite
+      waitForHost(invite)
       connectIfDiscovered()
     } catch { self.error = error.localizedDescription }
   }
@@ -132,9 +176,22 @@ public final class PassengerLink: ObservableObject {
     do {
       let invite = try PassengerInvitation(sessionID: host.id, code: code)
       ownName = Self.safeName(name)
-      desiredInvitation = invite
+      waitForHost(invite)
       connectIfDiscovered()
     } catch { self.error = error.localizedDescription }
+  }
+
+  private func waitForHost(_ invite: PassengerInvitation) {
+    desiredInvitation = invite
+    discoveryTimeout?.cancel()
+    discoveryTimeout = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(25))
+      guard !Task.isCancelled, let self, self.mode == .browsing,
+        self.desiredInvitation == invite
+      else { return }
+      self.error =
+        "Auto non trovata. Sul telefono principale apri Sessione in auto e premi Ripristina collegamento, poi scansiona il QR attualmente mostrato."
+    }
   }
 
   private func startBrowser() {
@@ -143,7 +200,7 @@ public final class PassengerLink: ObservableObject {
     parameters.includePeerToPeer = true
     let browser = NWBrowser(for: .bonjour(type: Self.serviceType, domain: nil), using: parameters)
     self.browser = browser
-    browser.browseResultsChangedHandler = { [weak self] results, _ in
+    browser.browseResultsChangedHandler = { @Sendable [weak self] results, _ in
       Task { @MainActor in
         guard let self, self.revision == generation else { return }
         var found: [UUID: NWEndpoint] = [:]
@@ -158,7 +215,7 @@ public final class PassengerLink: ObservableObject {
         self.connectIfDiscovered()
       }
     }
-    browser.stateUpdateHandler = { [weak self] state in
+    browser.stateUpdateHandler = { @Sendable [weak self] state in
       Task { @MainActor in
         guard let self, self.revision == generation else { return }
         if case .failed = state {
@@ -182,6 +239,7 @@ public final class PassengerLink: ObservableObject {
 
   // Internal for loopback transport integration tests; production endpoints come only from Bonjour.
   func connect(invitation invite: PassengerInvitation, endpoint: NWEndpoint) {
+    discoveryTimeout?.cancel()
     mode = .connecting
     error = nil
     invitation = invite
@@ -198,7 +256,7 @@ public final class PassengerLink: ObservableObject {
     let link = Link(connection)
     links[id] = link
     let generation = revision
-    connection.stateUpdateHandler = { [weak self] state in
+    connection.stateUpdateHandler = { @Sendable [weak self] state in
       Task { @MainActor in
         guard let self, self.revision == generation, self.links[id] != nil else { return }
         switch state {
@@ -235,7 +293,7 @@ public final class PassengerLink: ObservableObject {
   private func receive(_ id: UUID) {
     guard let link = links[id] else { return }
     link.connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) {
-      [weak self] data, _, complete, error in
+      @Sendable [weak self] data, _, complete, error in
       Task { @MainActor in
         guard let self, let live = self.links[id] else { return }
         do {
@@ -369,7 +427,7 @@ public final class PassengerLink: ObservableObject {
     link.sentBytes += data.count
     link.connection.send(
       content: data,
-      completion: .contentProcessed { [weak self] error in
+      completion: .contentProcessed { @Sendable [weak self] error in
         Task { @MainActor in
           guard let self, let live = self.links[id] else { return }
           live.sentBytes = max(0, live.sentBytes - data.count)
@@ -413,6 +471,9 @@ public final class PassengerLink: ObservableObject {
   }
   public func stop() {
     revision = UUID()
+    recovery?.cancel()
+    discoveryTimeout?.cancel()
+    recoveryAttempts = 0
     heartbeat?.cancel()
     requestTimer?.cancel()
     listener?.cancel()

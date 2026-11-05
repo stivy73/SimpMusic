@@ -1,3 +1,28 @@
+# Correzione riconnessione successiva alla beta 53
+
+Ripristino del listener mantenendo invito, collegamenti attivi, stato musicale e
+registro delle richieste già eseguite. I callback del listener sostituito sono
+ignorati tramite una generazione dedicata, senza invalidare le connessioni TCP
+ancora attive. Un errore del listener non cancella più il QR: vengono tentati
+fino a tre ripristini e resta disponibile il comando manuale.
+
+Il ripristino viene richiesto anche quando l’app torna attiva e quando si collega
+la scena CarPlay. Nella schermata del telefono principale è presente **Ripristina
+collegamento**. La ricerca dell’auto dopo una scansione QR ha un limite di 25 secondi,
+con istruzioni di recupero se Bonjour non ritrova la sessione. Chiudere esplicitamente
+la sessione continua a invalidare il vecchio invito.
+
+Verifiche: 12 test protocollo/trasporto superati, inclusi due abbinamenti consecutivi
+con lo stesso QR via Bonjour dopo disconnessione e ripristino listener, nuova
+approvazione obbligatoria e conservazione di un collegamento TLS già attivo durante
+il ripristino. Build Release iPhone/Watch riuscita. Il cambio di rete del veicolo
+su due telefoni fisici resta da collaudare. Correzione non ancora su TestFlight.
+
+Per la beta 53: chiudere la sessione su entrambi i telefoni, aprirne una nuova sul
+telefono principale e scansionare il nuovo QR con entrambe le app in primo piano.
+
+---
+
 # Sessione in auto — modalità Passeggero
 
 Distribuita nella beta interna 0.16.0 (53) su TestFlight. Entrambi gli iPhone devono installare una versione con questa funzione.
