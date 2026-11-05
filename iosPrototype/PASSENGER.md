@@ -1,7 +1,6 @@
 # Sessione in auto — modalità Passeggero
 
-Implementata nel sorgente successivo alla beta 0.15.2 (52). Non ancora distribuita
-su TestFlight. Entrambi gli iPhone devono installare una versione con questa funzione.
+Distribuita nella beta interna 0.16.0 (53) su TestFlight. Entrambi gli iPhone devono installare una versione con questa funzione.
 
 ## Uso
 
@@ -90,5 +89,5 @@ Riferimenti Apple:
 
 I test locali non dimostrano la scoperta Bonjour fra due iPhone reali, la lettura
 con fotocamera, il comportamento sul Wi-Fi dell’auto o l’esecuzione con schermo
-spento. Firma di distribuzione, nuova beta e assegnazione ai gruppi non eseguite
-per questa implementazione. Le prove sono elencate in `deliveries/passenger`.
+spento. Firma, upload, elaborazione e assegnazioni della beta 53 verificate separatamente
+in RELEASE-0.16.0-53.md. Le prove sono elencate in `deliveries/passenger`.

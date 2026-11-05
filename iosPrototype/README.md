@@ -1,14 +1,18 @@
 # NoteNarrate iOS
 
+Beta interna corrente **0.16.0 (53)**, VALID / IN_BETA_TESTING, assegnata a
+**Team interno** e **Stivy73**. Include Passeggero e Apple Watch companion.
+[Consegna verificata](RELEASE-0.16.0-53.md). Collaudo fisico ancora necessario.
+
 Modalità Passeggero implementata nel codice successivo alla beta 52: invito con
 QR/codice, autorizzazione, invio di brani/album/playlist alla coda dell’auto e
 riproduzione immediata, con gestione passeggeri da iPhone e CarPlay. La musica
 resta sul telefono principale. [Uso, limiti e verifiche](PASSENGER.md).
-Non ancora distribuita; collegamento fra due iPhone nell’auto da collaudare.
+Distribuita nella beta 53; collegamento fra due iPhone nell’auto da collaudare.
 
 Versione Apple Watch companion implementata nel codice successivo alla beta 52:
 player e copertina, comandi musicali, coda, significato narrato e radio tramite
-iPhone. [Configurazione, limiti e verifiche](WATCH.md). Non ancora su TestFlight.
+iPhone. [Configurazione, limiti e verifiche](WATCH.md). Distribuita nella beta 53.
 
 Implementata nel codice la ricezione di brani, album e playlist da Apple Music e
 Spotify, con anteprima, conversione su YouTube Music, scelta manuale delle versioni,
