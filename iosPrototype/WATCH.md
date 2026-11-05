@@ -20,7 +20,7 @@ con iPhone (brano locale ricevuto, nessun nuovo crash nello stesso percorso),
 e riaperture consecutive. Otto test core Watch superati, build Watch Simulator
 e Release iPhone/Watch riuscite. Prove in `deliveries/watch`.
 
-Correzione non ancora caricata su TestFlight: la beta 53 contiene il codice
+Correzione distribuita in TestFlight 0.16.1 (54); la beta 53 contiene il codice
 precedente. Resta da verificare il Watch fisico dell’utente.
 
 ---

@@ -1,6 +1,10 @@
 # NoteNarrate iOS
 
-Beta interna corrente **0.16.0 (53)**, VALID / IN_BETA_TESTING, assegnata a
+Beta corrente **0.16.1 (54)**, Test in corso per **Team interno** e **Stivy73**.
+Corregge il crash di avvio Watch e la riconnessione Passeggero con lo stesso QR.
+[Consegna e verifiche](RELEASE-0.16.1-54.md). Aggiornare entrambi gli iPhone e l’app Watch.
+
+Beta interna precedente **0.16.0 (53)**, VALID / IN_BETA_TESTING, assegnata a
 **Team interno** e **Stivy73**. Include Passeggero e Apple Watch companion.
 [Consegna verificata](RELEASE-0.16.0-53.md). Collaudo fisico ancora necessario.
 

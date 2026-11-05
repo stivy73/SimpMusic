@@ -16,7 +16,7 @@ Verifiche: 12 test protocollo/trasporto superati, inclusi due abbinamenti consec
 con lo stesso QR via Bonjour dopo disconnessione e ripristino listener, nuova
 approvazione obbligatoria e conservazione di un collegamento TLS già attivo durante
 il ripristino. Build Release iPhone/Watch riuscita. Il cambio di rete del veicolo
-su due telefoni fisici resta da collaudare. Correzione non ancora su TestFlight.
+su due telefoni fisici resta da collaudare. Correzione distribuita in TestFlight 0.16.1 (54).
 
 Per la beta 53: chiudere la sessione su entrambi i telefoni, aprirne una nuova sul
 telefono principale e scansionare il nuovo QR con entrambe le app in primo piano.
