@@ -1,4 +1,6 @@
-# Collegamento alternativo Bluetooth — candidata 56
+# Collegamento alternativo Bluetooth — 0.16.3 (56)
+
+Distribuita in TestFlight per Team interno e Stivy73; Tommaso incluso nel Team interno.
 
 I report della 55 mostrano il listener principale pronto e l’annuncio Bonjour
 pubblicato, ma nessun risultato sul passeggero. L’utente conferma che, scollegando

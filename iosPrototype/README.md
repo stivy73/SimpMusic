@@ -1,10 +1,15 @@
 # NoteNarrate iOS
 
-Beta corrente **0.16.2 (55)**: VALID / IN_BETA_TESTING, assegnata a **Team interno** (Tommaso incluso) e **Stivy73**.
-Include messaggi espliciti per credito Gemini esaurito e ulteriori correzioni
-alla scoperta Bonjour Passeggero, con diagnostica condivisibile.
-[Consegna e verifiche](RELEASE-0.16.2-55.md). Aggiornare entrambi gli iPhone;
-il collegamento nel veicolo con CarPlay wireless resta da collaudare.
+Beta corrente **0.16.3 (56)**, **VALID / IN_BETA_TESTING**, assegnata a
+**Team interno** (Tommaso incluso) e **Stivy73**. Aggiunge un collegamento Bluetooth
+protetto dal QR quando la scoperta Wi-Fi non raggiunge il principale con CarPlay
+wireless. Aggiornare entrambi gli iPhone, attivare/autorizzare Bluetooth e tenere
+le app aperte durante l’abbinamento. [Consegna e verifiche](RELEASE-0.16.3-56.md).
+Radio Bluetooth e collegamento nel veicolo reale ancora da collaudare.
+
+Beta precedente **0.16.2 (55)**, assegnata a **Team interno** e **Stivy73**.
+Messaggi espliciti per credito Gemini esaurito e correzione Bonjour per annunci
+rinominati. [Consegna e verifiche](RELEASE-0.16.2-55.md).
 
 Beta interna precedente **0.16.0 (53)**, VALID / IN_BETA_TESTING, assegnata a
 **Team interno** e **Stivy73**. Include Passeggero e Apple Watch companion.
