@@ -144,7 +144,7 @@ import Foundation
   private func drain(_ peer: Peer) {
     guard peers[peer.id] === peer else { return }
     if let central = peer.central, let manager = peripheralManager, let downstream {
-      while let chunk = peer.output.next(maximum: central.maximumUpdateValueLength) {
+      while let chunk = peer.output.next(maximum: min(180, central.maximumUpdateValueLength)) {
         guard manager.updateValue(chunk, for: downstream, onSubscribedCentrals: [central]) else {
           return
         }
@@ -154,9 +154,11 @@ import Foundation
     } else if let peripheral = peer.peripheral, let characteristic = peer.upstream,
       !peer.writing
     {
-      if let chunk = peer.output.next(
-        maximum: peripheral.maximumWriteValueLength(for: .withResponse))
-      {
+      // Stay within one ATT packet, without using prepared long writes with nonzero offsets.
+      let maximum = min(
+        180, peripheral.maximumWriteValueLength(for: .withResponse),
+        peripheral.maximumWriteValueLength(for: .withoutResponse))
+      if let chunk = peer.output.next(maximum: maximum) {
         peer.writing = true
         peer.output.consume(chunk.count)
         peripheral.writeValue(chunk, for: characteristic, type: .withResponse)
@@ -280,7 +282,7 @@ extension PassengerBluetooth: @preconcurrency CBPeripheralManagerDelegate {
     _ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]
   ) {
     guard peripheral === peripheralManager, let first = requests.first else { return }
-    guard
+    guard requests.count == 1,
       requests.allSatisfy({
         $0.characteristic.uuid == Self.upstream && $0.offset == 0 && $0.value != nil
           && $0.value!.count <= 65_536 && peers[$0.central.identifier]?.closing == false
