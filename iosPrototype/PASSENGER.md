@@ -1,3 +1,39 @@
+# Collegamento alternativo Bluetooth — candidata 56
+
+I report della 55 mostrano il listener principale pronto e l’annuncio Bonjour
+pubblicato, ma nessun risultato sul passeggero. L’utente conferma che, scollegando
+CarPlay e usando una rete Wi-Fi comune, gli stessi telefoni si abbinano: il difetto
+osservato dipende quindi dal contesto di rete con CarPlay wireless attivo.
+
+La 56 aggiunge un canale **Core Bluetooth**, indipendente da Bonjour e dalla rete
+IP dell’auto. Il principale lo pubblica quando viene aperta la sessione. Dopo un QR
+valido, il passeggero preferisce Wi-Fi e avvia la ricerca Bluetooth dopo 4 secondi
+se non ha trovato l’auto. Entrambi devono aggiornare alla 56, attivare Bluetooth e
+consentire il permesso a NoteNarrate. Tenere le due app aperte per l’abbinamento.
+La ricerca manuale per numero continua a usare Bonjour: in auto usare il QR.
+
+Il QR rimane invariato: autenticazione reciproca HMAC-SHA256 con due nonce casuali,
+chiavi direzionali nuove per ogni connessione tramite HKDF-SHA256 e AES-GCM con
+contatori contro replay/riordino. Nessuna selezione viene eseguita prima della
+conferma del principale. Continuano a viaggiare solo identificatori catalogo,
+metadati e comandi; account, audio e chiavi dei servizi restano separati. La chiave
+del QR non viene trasmessa né memorizzata. Coda Bluetooth con limiti di memoria,
+frammentazione e controllo di flusso; le raccolte fino a 500 brani restano atomiche.
+
+Diagnostica con stato del permesso/radio Bluetooth, scoperta, autenticazione e
+conteggio dei collegamenti attivi per trasporto. Nessun identificativo dei
+periferici, indirizzo o contenuto musicale nei report. I tempi ripartono dalla
+nuova sessione/ricerca, evitando valori accumulati di ore.
+
+Verifiche automatiche: crypto, QR errato, replay, manomissione, contatori,
+frammentazione BLE da 20 byte di una selezione di 500 brani, limiti di coda;
+integrazione PassengerLink con adattatore radio di test e vera crittografia,
+senza risultato Bonjour, approvazione e due riabbinamenti con lo stesso QR.
+I test dell’adattatore non sono una prova della radio fisica Core Bluetooth:
+**abbinamento su iOS 18.7.7/iOS 27.2 con CarPlay wireless ancora da collaudare**.
+
+Riferimento Apple: https://developer.apple.com/documentation/corebluetooth/transferring-data-between-bluetooth-low-energy-devices .
+
 ## Correzione Bonjour e diagnostica — build 55
 
 Il filtro ora riconosce lo stesso identificatore anche quando Bonjour rinomina

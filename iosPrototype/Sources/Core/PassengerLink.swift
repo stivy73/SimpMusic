@@ -3,7 +3,7 @@ import Foundation
 @preconcurrency import Network
 import Security
 
-/// A local, TLS-PSK authenticated star: only the host plays audio. No remote server or login.
+/// A local, QR-authenticated star: TLS over Wi-Fi or encrypted Bluetooth. Only the host plays audio.
 @MainActor
 public final class PassengerLink: ObservableObject {
   public enum Mode: Equatable {
@@ -35,6 +35,7 @@ public final class PassengerLink: ObservableObject {
     let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "test"
     return
       "NoteNarrate \(version) (\(build))\n\(ProcessInfo.processInfo.operatingSystemVersionString)\n\(status)\n"
+      + "Collegamenti attivi: Wi-Fi \(links.values.filter { $0.connection != nil }.count), Bluetooth \(links.values.filter { $0.connection == nil }.count)\n"
       + diagnostics.joined(separator: "\n")
   }
   private func record(_ event: String) {
@@ -53,6 +54,8 @@ public final class PassengerLink: ObservableObject {
   public var onSelection: ((PassengerSelection) -> PassengerReceipt)?
   #if DEBUG
     var serviceNameOverride: ((PassengerInvitation) -> String)?
+    var bluetoothFactory: (() -> any PassengerBluetoothTransport)?
+    var bluetoothFallbackDelay: Double = 4
   #endif
   private var listener: NWListener?
   private var listenerRevision = UUID()
@@ -60,6 +63,8 @@ public final class PassengerLink: ObservableObject {
   private var discoveryTimeout: Task<Void, Never>?
   private var recoveryAttempts = 0
   private var browser: NWBrowser?
+  private var bluetooth: (any PassengerBluetoothTransport)?
+  private var bluetoothFallback: Task<Void, Never>?
   private var endpoints: [UUID: NWEndpoint] = [:]
   private var links: [UUID: Link] = [:]
   private var guestID: UUID?
@@ -75,13 +80,13 @@ public final class PassengerLink: ObservableObject {
   private(set) var listeningPort: NWEndpoint.Port?
 
   private final class Link {
-    let connection: NWConnection
+    let connection: NWConnection?
     var buffer = PassengerFrameBuffer()
     var joined = false
     var approved = false
     var sentBytes = 0
     var deadline: Task<Void, Never>?
-    init(_ connection: NWConnection) { self.connection = connection }
+    init(_ connection: NWConnection? = nil) { self.connection = connection }
   }
 
   public init() {}
@@ -96,17 +101,23 @@ public final class PassengerLink: ObservableObject {
     case .browsing: "Cerco le auto vicine…"
     case .connecting: "Collegamento protetto…"
     case .awaitingApproval: "Attendi la conferma sul telefono principale"
-    case .connected: "Collegato all’auto · audio sul telefono principale"
+    case .connected:
+      "Collegato all’auto via \(guestID.flatMap { links[$0] }?.connection == nil ? "Bluetooth" : "Wi-Fi") · audio sul telefono principale"
     }
   }
 
   public func startHosting() {
     stop()
+    resetDiagnostics()
     record("Principale: apertura sessione")
     let invite = PassengerInvitation()
     invitation = invite
     mode = .hosting
     openListener(invite)
+    if bluetoothAvailable {
+      bluetooth = makeBluetooth()
+      bluetooth?.host(invite)
+    }
     startHeartbeat()
   }
 
@@ -211,6 +222,7 @@ public final class PassengerLink: ObservableObject {
 
   public func browse(name: String) {
     stop()
+    resetDiagnostics()
     record("Passeggero: avvio ricerca Bonjour")
     ownName = Self.safeName(name)
     mode = .browsing
@@ -238,6 +250,22 @@ public final class PassengerLink: ObservableObject {
   private func waitForHost(_ invite: PassengerInvitation) {
     record("QR/invito valido: attendo annuncio dell’auto")
     desiredInvitation = invite
+    bluetoothFallback?.cancel()
+    // Prefer existing Wi-Fi peers, but do not wait for a Wi-Fi discovery timeout in the car.
+    // Core Bluetooth remains usable even when the phones have no shared IP network.
+    #if DEBUG
+      let fallbackDelay = bluetoothFallbackDelay
+    #else
+      let fallbackDelay: Double = 4
+    #endif
+    bluetoothFallback = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(fallbackDelay))
+      guard !Task.isCancelled, let self, self.mode == .browsing,
+        self.desiredInvitation == invite, self.bluetoothAvailable
+      else { return }
+      self.bluetooth = self.makeBluetooth()
+      self.bluetooth?.join(invite)
+    }
     discoveryTimeout?.cancel()
     discoveryTimeout = Task { [weak self] in
       try? await Task.sleep(for: .seconds(25))
@@ -245,9 +273,77 @@ public final class PassengerLink: ObservableObject {
         self.desiredInvitation == invite
       else { return }
       self.error =
-        "Auto non trovata. Sul telefono principale apri Sessione in auto e premi Ripristina collegamento, poi scansiona il QR attualmente mostrato."
+        "Auto non raggiungibile. Attiva Bluetooth e consenti l’accesso a NoteNarrate su entrambi gli iPhone. Tieni le app aperte e scansiona il QR attuale. Con CarPlay wireless il solo Wi-Fi acceso può non bastare."
       self.record("Timeout scoperta: auto richiesta non trovata")
     }
+  }
+
+  private func resetDiagnostics() {
+    diagnosticStart = ProcessInfo.processInfo.systemUptime
+    diagnostics = []
+  }
+
+  private var bluetoothAvailable: Bool {
+    #if os(iOS)
+      true
+    #elseif DEBUG
+      bluetoothFactory != nil
+    #else
+      false
+    #endif
+  }
+
+  private func makeBluetooth() -> any PassengerBluetoothTransport {
+    #if DEBUG
+      let transport: any PassengerBluetoothTransport = bluetoothFactory?() ?? PassengerBluetooth()
+    #else
+      let transport = PassengerBluetooth()
+    #endif
+    let generation = revision
+    transport.onDiagnostic = { [weak self] event in
+      guard let self, self.revision == generation else { return }
+      self.record(event)
+    }
+    transport.onReady = { [weak self] id in
+      guard let self, self.revision == generation else { return false }
+      if self.mode == .hosting {
+        guard self.links.count < 4 else { return false }
+        self.links[id] = Link()
+        self.setDeadline(id, seconds: 90)
+        self.record("Principale: collegamento Bluetooth ricevuto")
+        return true
+      }
+      guard self.mode == .browsing, let invite = self.desiredInvitation else { return false }
+      self.discoveryTimeout?.cancel()
+      self.browser?.cancel()
+      self.browser = nil
+      self.invitation = invite
+      self.desiredInvitation = nil
+      self.guestID = id
+      self.links[id] = Link()
+      self.error = nil
+      self.mode = .awaitingApproval
+      self.setDeadline(id, seconds: 90)
+      self.record("Richiesta Bluetooth inviata: attendo autorizzazione del principale")
+      self.send(.hello(self.ownName), to: id)
+      return true
+    }
+    transport.onData = { [weak self] id, data in
+      guard let self, self.revision == generation, let link = self.links[id] else { return }
+      do {
+        for frame in try link.buffer.append(data) {
+          guard self.links[id] != nil else { return }
+          try self.handle(PassengerMessage.decode(frame).body, from: id)
+        }
+      } catch {
+        self.disconnect(id, message: "Richiesta Bluetooth non valida. Riconnettiti con il QR.")
+      }
+    }
+    transport.onClose = { [weak self] id in
+      guard let self, self.revision == generation, self.links[id] != nil else { return }
+      self.disconnect(id)
+    }
+    return transport
   }
 
   private func startBrowser() {
@@ -277,7 +373,7 @@ public final class PassengerLink: ObservableObject {
     }
     browser.stateUpdateHandler = { @Sendable [weak self] state in
       Task { @MainActor in
-        guard let self, self.revision == generation else { return }
+        guard let self, self.revision == generation, self.mode == .browsing else { return }
         if case .ready = state { self.record("Passeggero: ricerca pronta") }
         if case .failed(let reason) = state {
           self.record("Passeggero: ricerca fallita, " + Self.networkError(reason))
@@ -304,6 +400,9 @@ public final class PassengerLink: ObservableObject {
   func connect(invitation invite: PassengerInvitation, endpoint: NWEndpoint) {
     record("Auto trovata: avvio connessione TLS")
     discoveryTimeout?.cancel()
+    bluetoothFallback?.cancel()
+    bluetooth?.stop()
+    bluetooth = nil
     mode = .connecting
     error = nil
     invitation = invite
@@ -362,8 +461,8 @@ public final class PassengerLink: ObservableObject {
   }
 
   private func receive(_ id: UUID) {
-    guard let link = links[id] else { return }
-    link.connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) {
+    guard let link = links[id], let connection = link.connection else { return }
+    connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) {
       @Sendable [weak self] data, _, complete, error in
       Task { @MainActor in
         guard let self, let live = self.links[id] else { return }
@@ -471,8 +570,9 @@ public final class PassengerLink: ObservableObject {
       receipt = nil
       error = nil
       send(.selection(request), to: id)
+      let timeout: Double = links[id]?.connection == nil ? 60 : 15
       requestTimer = Task { [weak self] in
-        try? await Task.sleep(for: .seconds(15))
+        try? await Task.sleep(for: .seconds(timeout))
         guard !Task.isCancelled, let self, self.pendingRequest == request.id else { return }
         // No automatic replay: a missing acknowledgement does not prove the host rejected the music.
         self.error =
@@ -492,12 +592,16 @@ public final class PassengerLink: ObservableObject {
   }
   func send(_ body: PassengerBody, to id: UUID) {
     guard let link = links[id], let data = try? PassengerMessage(body).encoded() else { return }
+    guard let connection = link.connection else {
+      if bluetooth?.send(data, to: id) != true { disconnect(id) }
+      return
+    }
     guard link.sentBytes + data.count <= PassengerFrameBuffer.maximum * 2 else {
       disconnect(id)
       return
     }
     link.sentBytes += data.count
-    link.connection.send(
+    connection.send(
       content: data,
       completion: .contentProcessed { @Sendable [weak self] error in
         Task { @MainActor in
@@ -529,8 +633,9 @@ public final class PassengerLink: ObservableObject {
     record("Connessione chiusa")
     guard let link = links.removeValue(forKey: id) else { return }
     link.deadline?.cancel()
-    link.connection.stateUpdateHandler = nil
-    link.connection.cancel()
+    link.connection?.stateUpdateHandler = nil
+    link.connection?.cancel()
+    if link.connection == nil { bluetooth?.close(id) }
     peers.removeAll { $0.id == id }
     lastRequest.removeValue(forKey: id)
     if id == guestID {
@@ -546,6 +651,9 @@ public final class PassengerLink: ObservableObject {
     revision = UUID()
     recovery?.cancel()
     discoveryTimeout?.cancel()
+    bluetoothFallback?.cancel()
+    bluetooth?.stop()
+    bluetooth = nil
     recoveryAttempts = 0
     heartbeat?.cancel()
     requestTimer?.cancel()
@@ -553,8 +661,8 @@ public final class PassengerLink: ObservableObject {
     browser?.cancel()
     for link in links.values {
       link.deadline?.cancel()
-      link.connection.stateUpdateHandler = nil
-      link.connection.cancel()
+      link.connection?.stateUpdateHandler = nil
+      link.connection?.cancel()
     }
     links = [:]
     peers = []
