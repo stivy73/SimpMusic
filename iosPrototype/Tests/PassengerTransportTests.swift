@@ -19,7 +19,7 @@ final class PassengerTransportTests: XCTestCase {
     let connected = await eventually { guest.canSend }
     XCTAssertTrue(connected)
     let invite = try XCTUnwrap(host.invitation)
-    host.resumeHosting()
+    host.resumeHosting(force: true)
     let listening = await eventually { host.listeningPort != nil }
     XCTAssertTrue(listening)
     XCTAssertEqual(host.invitation, invite)
@@ -63,12 +63,47 @@ final class PassengerTransportTests: XCTestCase {
       XCTAssertTrue(disconnected)
       let removed = await eventually { host.peers.isEmpty }
       XCTAssertTrue(removed)
-      host.resumeHosting()
+      host.resumeHosting(force: true)
       let recovered = await eventually { host.listeningPort != nil }
       XCTAssertTrue(recovered)
       XCTAssertEqual(host.invitation?.text, qr)
     }
   }
+  @MainActor func testQRDiscoversBonjourServiceAfterAutomaticNameSuffix() async throws {
+    let host = PassengerLink()
+    let guest = PassengerLink()
+    defer {
+      host.stop()
+      guest.stop()
+    }
+    host.serviceNameOverride = { $0.serviceName + " (2)" }
+    host.startHosting()
+    let ready = await eventually { host.listeningPort != nil }
+    XCTAssertTrue(ready)
+    guest.join(text: try XCTUnwrap(host.invitation).text, name: "Passeggero")
+    let found = await eventually({ host.peers.count == 1 }, timeout: 12)
+    XCTAssertTrue(
+      found, "QR must identify the same TLS session even after Bonjour renames its advertisement")
+    if found {
+      host.approve(try XCTUnwrap(host.peers.first?.id))
+      let connected = await eventually { guest.canSend }
+      XCTAssertTrue(connected)
+    }
+  }
+
+  @MainActor func testConnectionDiagnosticsDoNotContainInvitationSecretsOrMusic() {
+    let host = PassengerLink()
+    defer { host.stop() }
+    host.startHosting()
+    host.publish(.init(title: "Private song title", artist: "Private artist"))
+    let report = host.diagnosticReport
+    XCTAssertFalse(report.contains(host.invitation!.code))
+    XCTAssertFalse(report.contains(host.invitation!.text))
+    XCTAssertFalse(report.contains("Private song title"))
+    XCTAssertFalse(report.contains("Private artist"))
+    XCTAssertTrue(report.contains("apertura sessione"))
+  }
+
   @MainActor private func eventually(_ predicate: () -> Bool, timeout: Double = 12) async -> Bool {
     let end = Date().addingTimeInterval(timeout)
     while Date() < end {

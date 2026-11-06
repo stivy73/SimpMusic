@@ -19,6 +19,18 @@ public struct PassengerInvitation: Equatable, Sendable {
     self.code = value
   }
   public var serviceName: String { "NN-" + sessionID.uuidString }
+  /// Bonjour can append a collision suffix when an advertisement is reopened.
+  public static func advertisedSession(_ name: String) -> (id: UUID, suffix: Int)? {
+    guard name.hasPrefix("NN-"), name.utf8.count <= 63 else { return nil }
+    let remainder = String(name.dropFirst(3))
+    guard let id = UUID(uuidString: String(remainder.prefix(36))) else { return nil }
+    let suffix = String(remainder.dropFirst(36))
+    if suffix.isEmpty { return (id, 0) }
+    guard suffix.range(of: #"^ \([0-9]{1,6}\)$"#, options: .regularExpression) != nil,
+      let number = Int(suffix.dropFirst(2).dropLast())
+    else { return nil }
+    return (id, number)
+  }
   public var displayCode: String {
     stride(from: 0, to: 24, by: 4).map { offset in
       String(Array(code)[offset..<offset + 4])

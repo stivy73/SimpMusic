@@ -1,3 +1,22 @@
+## Correzione Bonjour e diagnostica — candidata 55
+
+Il filtro ora riconosce lo stesso identificatore anche quando Bonjour rinomina
+l’annuncio con un suffisso numerico, ad esempio `(2)`. Un test con annuncio
+rinominato riproduce il mancato abbinamento del vecchio codice e passa con la
+correzione, usando vere connessioni Bonjour/TLS. Non è ancora confermato che il
+veicolo dell’utente presenti questa specifica rinomina.
+
+Il ritorno in primo piano conserva il listener se è già pronto, evitando riaperture
+superflue. Ripristino manuale e collegamento CarPlay possono ancora forzarlo.
+La risoluzione del servizio non viene vincolata all’interfaccia osservata dal browser.
+
+In **Sessione in auto → Diagnostica connessione in auto** sono disponibili stato
+listener, pubblicazione Bonjour, conteggio annunci, attesa/errori DNS/TLS/POSIX,
+scoperta, richiesta e autorizzazione. Il report non include invito, QR, nomi dei
+passeggeri, indirizzi, chiavi o contenuti musicali. Se il problema continua con
+CarPlay wireless, raccogliere il report da entrambi i telefoni subito dopo il
+fallimento; il QR da solo non garantisce un percorso Wi-Fi tra i dispositivi.
+
 # Correzione riconnessione successiva alla beta 53
 
 Ripristino del listener mantenendo invito, collegamenti attivi, stato musicale e

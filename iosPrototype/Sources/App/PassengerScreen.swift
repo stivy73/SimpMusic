@@ -57,7 +57,7 @@ import SwiftUI
           }
         case .hosting:
           Section {
-            Button("Ripristina collegamento", systemImage: "arrow.clockwise") { link.resumeHosting() }
+            Button("Ripristina collegamento", systemImage: "arrow.clockwise") { link.resumeHosting(force: true) }
             Text("Riapre il collegamento mantenendo lo stesso QR e la coda musicale.").font(.caption)
           }
           if let invitation = link.invitation {
@@ -160,6 +160,13 @@ import SwiftUI
             ) {
               ending = true
             }.accessibilityIdentifier("passenger-end")
+          }
+        }
+        Section {
+          DisclosureGroup("Diagnostica connessione in auto") {
+            Text(link.diagnosticReport).font(.caption2).textSelection(.enabled)
+            ShareLink(item: link.diagnosticReport) { Label("Condividi diagnostica", systemImage: "square.and.arrow.up") }
+            Text("Non include codice QR, chiavi, account o titoli musicali.").font(.caption2).foregroundStyle(.secondary)
           }
         }
         Section {

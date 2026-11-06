@@ -27,7 +27,33 @@ public final class PassengerLink: ObservableObject {
   @Published public private(set) var pendingRequest: UUID?
   @Published public private(set) var receipt: PassengerReceipt?
   @Published public var error: String?
+  @Published public private(set) var diagnostics: [String] = []
+  private var diagnosticStart = ProcessInfo.processInfo.systemUptime
+  public var diagnosticReport: String {
+    let version =
+      Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "test"
+    let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "test"
+    return
+      "NoteNarrate \(version) (\(build))\n\(ProcessInfo.processInfo.operatingSystemVersionString)\n\(status)\n"
+      + diagnostics.joined(separator: "\n")
+  }
+  private func record(_ event: String) {
+    diagnostics.append(
+      "+\(Int(max(0, ProcessInfo.processInfo.systemUptime - diagnosticStart)))s \(event)")
+    if diagnostics.count > 60 { diagnostics.removeFirst(diagnostics.count - 60) }
+  }
+  private static func networkError(_ error: NWError) -> String {
+    switch error {
+    case .posix(let code): "POSIX \(code.rawValue)"
+    case .dns(let code): "DNS \(code)"
+    case .tls(let code): "TLS \(code)"
+    default: "rete non disponibile"
+    }
+  }
   public var onSelection: ((PassengerSelection) -> PassengerReceipt)?
+  #if DEBUG
+    var serviceNameOverride: ((PassengerInvitation) -> String)?
+  #endif
   private var listener: NWListener?
   private var listenerRevision = UUID()
   private var recovery: Task<Void, Never>?
@@ -76,6 +102,7 @@ public final class PassengerLink: ObservableObject {
 
   public func startHosting() {
     stop()
+    record("Principale: apertura sessione")
     let invite = PassengerInvitation()
     invitation = invite
     mode = .hosting
@@ -85,8 +112,10 @@ public final class PassengerLink: ObservableObject {
 
   /// Re-advertise the same invitation after a foreground/CarPlay network transition.
   /// Established connections and the deduplication ledger stay intact.
-  public func resumeHosting() {
+  public func resumeHosting(force: Bool = false) {
     guard mode == .hosting, let invite = invitation else { return }
+    if !force, let listener, case .ready = listener.state { return }
+    record("Principale: ripristino annuncio")
     recoveryAttempts = 0
     openListener(invite)
   }
@@ -101,7 +130,27 @@ public final class PassengerLink: ObservableObject {
     do {
       let listener = try NWListener(using: Self.parameters(invite))
       self.listener = listener
-      listener.service = .init(name: invite.serviceName, type: Self.serviceType)
+      #if DEBUG
+        let serviceName = serviceNameOverride?(invite) ?? invite.serviceName
+      #else
+        let serviceName = invite.serviceName
+      #endif
+      listener.service = .init(name: serviceName, type: Self.serviceType)
+      listener.serviceRegistrationUpdateHandler = { @Sendable [weak self] change in
+        Task { @MainActor in
+          guard let self, self.listenerRevision == listenerID else { return }
+          switch change {
+          case .add(let endpoint):
+            if case .service(let name, _, _, _) = endpoint {
+              self.record(
+                "Bonjour: annuncio pubblicato; suffisso \(PassengerInvitation.advertisedSession(name)?.suffix ?? -1)"
+              )
+            }
+          case .remove: self.record("Bonjour: annuncio rimosso")
+          @unknown default: break
+          }
+        }
+      }
       listener.newConnectionHandler = { @Sendable [weak self] connection in
         Task { @MainActor in
           guard let self, self.revision == generation, self.listenerRevision == listenerID,
@@ -112,6 +161,7 @@ public final class PassengerLink: ObservableObject {
             return
           }
           self.accept(connection)
+          self.record("Principale: connessione ricevuta")
         }
       }
       listener.stateUpdateHandler = { @Sendable [weak self, weak listener] state in
@@ -120,16 +170,19 @@ public final class PassengerLink: ObservableObject {
             return
           }
           if case .ready = state {
+            self.record("Principale: listener pronto")
             self.recovery?.cancel()
             self.recoveryAttempts = 0
             self.listeningPort = listener?.port
             self.error = nil
           }
-          if case .failed = state {
+          if case .failed(let reason) = state {
+            self.record("Principale: listener fallito, " + Self.networkError(reason))
             self.error = "Collegamento locale interrotto. Ripristino la sessione…"
             self.scheduleRecovery()
           }
-          if case .waiting = state {
+          if case .waiting(let reason) = state {
+            self.record("Principale: listener in attesa, " + Self.networkError(reason))
             self.error =
               "Sessione in attesa della rete. Verifica Wi-Fi e Rete locale nelle impostazioni di iOS."
             self.scheduleRecovery()
@@ -158,6 +211,7 @@ public final class PassengerLink: ObservableObject {
 
   public func browse(name: String) {
     stop()
+    record("Passeggero: avvio ricerca Bonjour")
     ownName = Self.safeName(name)
     mode = .browsing
     startBrowser()
@@ -182,6 +236,7 @@ public final class PassengerLink: ObservableObject {
   }
 
   private func waitForHost(_ invite: PassengerInvitation) {
+    record("QR/invito valido: attendo annuncio dell’auto")
     desiredInvitation = invite
     discoveryTimeout?.cancel()
     discoveryTimeout = Task { [weak self] in
@@ -191,6 +246,7 @@ public final class PassengerLink: ObservableObject {
       else { return }
       self.error =
         "Auto non trovata. Sul telefono principale apri Sessione in auto e premi Ripristina collegamento, poi scansiona il QR attualmente mostrato."
+      self.record("Timeout scoperta: auto richiesta non trovata")
     }
   }
 
@@ -204,12 +260,16 @@ public final class PassengerLink: ObservableObject {
       Task { @MainActor in
         guard let self, self.revision == generation else { return }
         var found: [UUID: NWEndpoint] = [:]
+        var ranks: [UUID: Int] = [:]
         for result in results {
-          guard case .service(let name, _, _, _) = result.endpoint, name.hasPrefix("NN-"),
-            let id = UUID(uuidString: String(name.dropFirst(3)))
+          guard case .service(let name, let type, let domain, _) = result.endpoint,
+            let session = PassengerInvitation.advertisedSession(name)
           else { continue }
-          found[id] = result.endpoint
+          guard session.suffix >= (ranks[session.id] ?? -1) else { continue }
+          ranks[session.id] = session.suffix
+          found[session.id] = .service(name: name, type: type, domain: domain, interface: nil)
         }
+        self.record("Bonjour: \(results.count) annunci; \(found.count) sessioni riconosciute")
         self.endpoints = found
         self.hosts = found.keys.sorted { $0.uuidString < $1.uuidString }.map { NearbyHost(id: $0) }
         self.connectIfDiscovered()
@@ -218,10 +278,13 @@ public final class PassengerLink: ObservableObject {
     browser.stateUpdateHandler = { @Sendable [weak self] state in
       Task { @MainActor in
         guard let self, self.revision == generation else { return }
-        if case .failed = state {
+        if case .ready = state { self.record("Passeggero: ricerca pronta") }
+        if case .failed(let reason) = state {
+          self.record("Passeggero: ricerca fallita, " + Self.networkError(reason))
           self.error = "Ricerca non disponibile. Abilita Wi-Fi e Rete locale per NoteNarrate."
         }
-        if case .waiting = state {
+        if case .waiting(let reason) = state {
+          self.record("Passeggero: ricerca in attesa, " + Self.networkError(reason))
           self.error =
             "Ricerca in attesa della rete. Verifica il permesso Rete locale nelle impostazioni di iOS."
         }
@@ -239,6 +302,7 @@ public final class PassengerLink: ObservableObject {
 
   // Internal for loopback transport integration tests; production endpoints come only from Bonjour.
   func connect(invitation invite: PassengerInvitation, endpoint: NWEndpoint) {
+    record("Auto trovata: avvio connessione TLS")
     discoveryTimeout?.cancel()
     mode = .connecting
     error = nil
@@ -261,13 +325,20 @@ public final class PassengerLink: ObservableObject {
         guard let self, self.revision == generation, self.links[id] != nil else { return }
         switch state {
         case .ready:
+          self.record("Connessione TLS pronta")
           self.setDeadline(id, seconds: 90)
           self.receive(id)
           if id == self.guestID {
+            self.record("Richiesta inviata: attendo autorizzazione del principale")
             self.mode = .awaitingApproval
             self.send(.hello(self.ownName), to: id)
           }
-        case .failed, .cancelled, .waiting:
+        case .failed(let reason), .waiting(let reason):
+          self.record("Connessione interrotta, " + Self.networkError(reason))
+          self.disconnect(
+            id,
+            message: "Collegamento interrotto o codice errato. Riapri la sessione e riconnettiti.")
+        case .cancelled:
           self.disconnect(
             id,
             message: "Collegamento interrotto o codice errato. Riapri la sessione e riconnettiti.")
@@ -379,6 +450,7 @@ public final class PassengerLink: ObservableObject {
     guard mode == .hosting, let link = links[id], link.joined, !link.approved,
       let index = peers.firstIndex(where: { $0.id == id })
     else { return }
+    record("Principale: passeggero autorizzato")
     link.approved = true
     link.deadline?.cancel()
     peers[index].approved = true
@@ -454,6 +526,7 @@ public final class PassengerLink: ObservableObject {
     }
   }
   private func disconnect(_ id: UUID, message: String? = nil) {
+    record("Connessione chiusa")
     guard let link = links.removeValue(forKey: id) else { return }
     link.deadline?.cancel()
     link.connection.stateUpdateHandler = nil

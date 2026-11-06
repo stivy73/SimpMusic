@@ -3,6 +3,17 @@ import XCTest
 @testable import PrototypeCore
 
 final class PassengerSessionTests: XCTestCase {
+  func testBonjourNamesAcceptOnlyUUIDAndNumericCollisionSuffix() {
+    let invitation = PassengerInvitation()
+    XCTAssertEqual(
+      PassengerInvitation.advertisedSession(invitation.serviceName)?.id, invitation.sessionID)
+    XCTAssertEqual(
+      PassengerInvitation.advertisedSession(invitation.serviceName + " (2)")?.id,
+      invitation.sessionID)
+    for suffix in [" (x)", " garbage", " (2)evil", " (1234567)"] {
+      XCTAssertNil(PassengerInvitation.advertisedSession(invitation.serviceName + suffix))
+    }
+  }
   private let track = PassengerTrack(id: "abcdefghijk", title: "Brano", artist: "Artista")
   func testInvitationRoundTripAndRotation() throws {
     let first = PassengerInvitation()
