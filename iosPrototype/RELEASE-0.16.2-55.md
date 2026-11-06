@@ -9,8 +9,18 @@ non sono memorizzati o mostrati integralmente. Verifiche: 21 test Gemini superat
 Riferimenti: https://ai.google.dev/gemini-api/docs/api-errors e
 https://ai.google.dev/gemini-api/docs/billing/ .
 
-Distribuzione interna prevista: Team interno (Tommaso incluso), preservando Stivy73.
-Upload, elaborazione e associazioni da verificare separatamente in deliveries.
+Distribuzione verificata: upload Apple riuscito, elaborazione **VALID** e stato
+**IN_BETA_TESTING**. Associazione riletta via API per **Team interno** (Tommaso incluso)
+e **Stivy73**, con note italiane confermate. Non è una pubblicazione App Store.
+
+Sorgente della build: `95048bd971ec60b031ba922da330d1d21b2a2350` su
+`stivy73/SimpMusic`, branch `feature/youtube-library-albums`.
+IPA: `deliveries/NoteNarrate-iOS-0.16.2-build55.ipa`.
+Ricevuta: `deliveries/NoteNarrate-iOS-0.16.2-build55-AppStore-status.json`.
+SHA-256: `5677f3902c8ba3499745ec40b96e2cbf0ebde0f9c1be192c8949b9578428c6cc`.
+Firma iPhone/Watch, entitlement CarPlay e controlli IPA superati. Build con
+Xcode 27.2 RC (27B48), SDK iOS 27.2. Nessuna conferma di installazione della 55
+sui due telefoni o di collegamento nel veicolo reale.
 
 Inclusa ulteriore correzione scoperta Passeggero: riconosciuti gli annunci Bonjour
 con suffisso numerico di collisione, senza invalidare l’identità TLS del QR.

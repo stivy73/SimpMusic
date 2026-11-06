@@ -1,4 +1,4 @@
-## Correzione Bonjour e diagnostica — candidata 55
+## Correzione Bonjour e diagnostica — build 55
 
 Il filtro ora riconosce lo stesso identificatore anche quando Bonjour rinomina
 l’annuncio con un suffisso numerico, ad esempio `(2)`. Un test con annuncio

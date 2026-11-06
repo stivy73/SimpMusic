@@ -1,8 +1,10 @@
 # NoteNarrate iOS
 
-Beta corrente **0.16.1 (54)**, Test in corso per **Team interno** e **Stivy73**.
-Corregge il crash di avvio Watch e la riconnessione Passeggero con lo stesso QR.
-[Consegna e verifiche](RELEASE-0.16.1-54.md). Aggiornare entrambi gli iPhone e l’app Watch.
+Beta corrente **0.16.2 (55)**: VALID / IN_BETA_TESTING, assegnata a **Team interno** (Tommaso incluso) e **Stivy73**.
+Include messaggi espliciti per credito Gemini esaurito e ulteriori correzioni
+alla scoperta Bonjour Passeggero, con diagnostica condivisibile.
+[Consegna e verifiche](RELEASE-0.16.2-55.md). Aggiornare entrambi gli iPhone;
+il collegamento nel veicolo con CarPlay wireless resta da collaudare.
 
 Beta interna precedente **0.16.0 (53)**, VALID / IN_BETA_TESTING, assegnata a
 **Team interno** e **Stivy73**. Include Passeggero e Apple Watch companion.
