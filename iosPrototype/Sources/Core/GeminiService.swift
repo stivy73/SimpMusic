@@ -246,6 +246,7 @@ public struct GeminiAPIError: LocalizedError, Sendable {
   public let googleStatus: String?
   public let reason: String?
   public let freeQuota: Bool
+  public let creditExhausted: Bool
 
   public init(status: Int, body: Data) {
     self.status = status
@@ -255,6 +256,9 @@ public struct GeminiAPIError: LocalizedError, Sendable {
       "RESOURCE_EXHAUSTED", "DEADLINE_EXCEEDED", "UNAVAILABLE", "INTERNAL", "FAILED_PRECONDITION"]
     let value = error?["status"] as? String ?? ""
     googleStatus = knownStatus.contains(value) ? value : nil
+    let message = (error?["message"] as? String ?? "").lowercased()
+    creditExhausted = status == 402 || message.contains("prepayment credits are depleted")
+      || message.contains("prepay credit balance is depleted")
     let details = error?["details"] as? [[String: Any]] ?? []
     let knownReasons = ["API_KEY_INVALID", "API_KEY_EXPIRED", "API_KEY_SERVICE_BLOCKED",
       "API_KEY_IP_ADDRESS_BLOCKED", "API_KEY_HTTP_REFERRER_BLOCKED", "SERVICE_DISABLED",
@@ -268,15 +272,24 @@ public struct GeminiAPIError: LocalizedError, Sendable {
 
   public var diagnostic: String {
     (["HTTP \(status)"] + [googleStatus, reason].compactMap { $0 }
-      + (freeQuota ? ["quota gratuita"] : [])).joined(separator: "; ")
+      + (freeQuota ? ["quota gratuita"] : [])
+      + (creditExhausted ? ["credito esaurito"] : [])).joined(separator: "; ")
   }
   public var errorDescription: String? {
     let help: String
+    if creditExhausted {
+      return "Credito API Gemini esaurito per il progetto associato alla chiave configurata. Ricarica il saldo o verifica la fatturazione in Google AI Studio, poi riprova. (\(diagnostic))"
+    }
     switch status {
     case 429:
-      help = "Limite o quota Gemini raggiunti\(freeQuota ? " sul livello gratuito" : ""). Verifica la quota del progetto in Google AI Studio e riprova quando disponibile."
-    case 402: help = "Credito API del progetto Gemini esaurito. Verifica la fatturazione in Google AI Studio."
-    case 401, 403: help = "Google ha rifiutato l'accesso. Verifica la chiave API e i permessi del progetto Gemini."
+      help = freeQuota
+        ? "Quota gratuita Gemini esaurita o limite di richieste raggiunto. Attendi il rinnovo della quota oppure abilita la fatturazione del progetto in Google AI Studio."
+        : "Gemini non può completare la richiesta: il credito del progetto potrebbe essere esaurito oppure è stato raggiunto un limite di utilizzo. Controlla saldo, fatturazione e quote in Google AI Studio; ricarica il credito se necessario e riprova."
+    case 402: help = "Credito API del progetto Gemini esaurito. Ricarica il credito o aggiorna il metodo di pagamento in Google AI Studio, poi riprova. Il saldo da verificare è quello del progetto associato alla chiave API configurata."
+    case 401, 403:
+      help = reason == "BILLING_DISABLED"
+        ? "Fatturazione del progetto Gemini non attiva. Verifica credito e metodo di pagamento in Google AI Studio, poi riprova."
+        : "Google ha rifiutato l'accesso. Verifica la chiave API e i permessi del progetto Gemini."
     case 404: help = "Modello Gemini non disponibile per questa chiave. Verifica il modello nelle Impostazioni."
     case 408, 500, 502, 503, 504: help = "Gemini non ha completato la richiesta. Il servizio potrebbe essere temporaneamente lento o non disponibile; riprova."
     default: help = "Richiesta Gemini non riuscita. Verifica chiave, modello e configurazione del progetto."
