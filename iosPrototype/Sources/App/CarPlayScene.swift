@@ -124,7 +124,7 @@
     private var voiceQueryID: UUID?
     private let queueTemplate = CPListTemplate(title: "Coda", sections: [])
     private let passengersTemplate = CPListTemplate(title: "Passeggeri", sections: [])
-    private let passengerQRTemplate = CPListTemplate(title: "Invita un passeggero", sections: [])
+    private var passengerQRVisible = false
     private var passengerQRInvitation: PassengerInvitation?
     private var passengerQRImage: UIImage?
     private var queueOffset = 0
@@ -843,7 +843,13 @@
     }
 
     private func renderPassengers() {
-      renderPassengerQR()
+      if passengerQRVisible {
+        renderPassengerQR()
+        return
+      }
+      if #available(iOS 26.4, *) { passengersTemplate.listHeader = nil }
+      passengerQRInvitation = nil
+      passengerQRImage = nil
       let link = app.passengers.link
       guard link.mode == .hosting else {
         let row = CPListItem(text: "Sessione terminata", detailText: nil)
@@ -859,8 +865,8 @@
       invite.handler = { [weak self] _, done in
         done()
         guard let self else { return }
-        self.renderPassengerQR()
-        self.controller?.pushTemplate(self.passengerQRTemplate, animated: true, completion: nil)
+        self.passengerQRVisible = true
+        self.renderPassengers()
       }
       rows.insert(invite, at: 0)
       if link.peers.isEmpty {
@@ -935,13 +941,14 @@
     private func renderPassengerQR() {
       let link = app.passengers.link
       guard link.mode == .hosting, let invitation = link.invitation else {
+        passengerQRVisible = false
         passengerQRInvitation = nil
         passengerQRImage = nil
-        if #available(iOS 26.4, *) { passengerQRTemplate.listHeader = nil }
+        if #available(iOS 26.4, *) { passengersTemplate.listHeader = nil }
         let ended = CPListItem(
           text: "Sessione terminata", detailText: "Il precedente QR non è più valido")
         ended.isEnabled = false
-        passengerQRTemplate.updateSections([CPListSection(items: [ended])])
+        passengersTemplate.updateSections([CPListSection(items: [ended])])
         return
       }
       if passengerQRInvitation != invitation {
@@ -950,7 +957,7 @@
           UIImage(cgImage: $0).withRenderingMode(.alwaysOriginal)
         }
         if #available(iOS 26.4, *), let image = passengerQRImage {
-          passengerQRTemplate.listHeader = CPListTemplateDetailsHeader(
+          passengersTemplate.listHeader = CPListTemplateDetailsHeader(
             thumbnail: CPThumbnailImage(image: image), title: "Scansiona con NoteNarrate",
             subtitle: "Da fermi · Bluetooth attivo su entrambi gli iPhone", actionButtons: [])
         }
@@ -972,6 +979,13 @@
         items.append(row)
       }
       items.append(contentsOf: link.peers.map { passengerRow($0) })
+      let hide = CPListItem(text: "Nascondi QR", detailText: "Torna all’elenco passeggeri")
+      hide.handler = { [weak self] _, done in
+        done()
+        self?.passengerQRVisible = false
+        self?.renderPassengers()
+      }
+      items.append(hide)
       if passengerQRImage == nil {
         let unavailable = CPListItem(
           text: "QR non disponibile", detailText: "Apri Sessione in auto sull’iPhone")
@@ -983,7 +997,7 @@
         detailText: "Sessione in auto → Scansiona QR. Conferma qui la richiesta di accesso.")
       hint.isEnabled = false
       items.append(hint)
-      passengerQRTemplate.updateSections([CPListSection(items: items)])
+      passengersTemplate.updateSections([CPListSection(items: items)])
     }
 
     private func renderQueue() {

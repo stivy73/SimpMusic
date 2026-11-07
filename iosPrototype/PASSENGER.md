@@ -1,7 +1,8 @@
 # Invito QR su CarPlay — candidata 57
 
 Da **player CarPlay → Coda → Passeggeri → Mostra QR**, il principale mostra
-l’invito della sessione già aperta. Visualizzarlo o tornare indietro non riapre
+l’invito della sessione già aperta. Il QR si espande nello stesso pannello, senza aggiungere livelli alla navigazione;
+**Nascondi QR** ripristina l’elenco. Visualizzarlo o tornare indietro non riapre
 la sessione e non interrompe musica o collegamenti Bluetooth. Le richieste di
 accesso e i passeggeri autorizzati sono gestibili anche nella schermata QR.
 
