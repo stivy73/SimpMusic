@@ -124,6 +124,9 @@
     private var voiceQueryID: UUID?
     private let queueTemplate = CPListTemplate(title: "Coda", sections: [])
     private let passengersTemplate = CPListTemplate(title: "Passeggeri", sections: [])
+    private let passengerQRTemplate = CPListTemplate(title: "Invita un passeggero", sections: [])
+    private var passengerQRInvitation: PassengerInvitation?
+    private var passengerQRImage: UIImage?
     private var queueOffset = 0
 
     func templateApplicationScene(
@@ -840,6 +843,7 @@
     }
 
     private func renderPassengers() {
+      renderPassengerQR()
       let link = app.passengers.link
       guard link.mode == .hosting else {
         let row = CPListItem(text: "Sessione terminata", detailText: nil)
@@ -847,33 +851,33 @@
         passengersTemplate.updateSections([CPListSection(items: [row])])
         return
       }
-      var rows = link.peers.map { peer in
-        let row = CPListItem(text: peer.name, detailText: peer.approved ? "Autorizzato · tocca per scollegare" : "Richiede accesso alla musica dell’auto")
-        row.handler = { [weak self] _, done in
-          done()
-          guard let self, let controller = self.controller, controller.presentedTemplate == nil else { return }
-          let action = CPAlertAction(title: peer.approved ? "Scollega" : "Consenti", style: peer.approved ? .destructive : .default) { [weak self] _ in
-            self?.controller?.dismissTemplate(animated: true) { [weak self] success, _ in
-              guard let self, success else { return }
-              if peer.approved { self.app.passengers.link.remove(peer.id) } else { self.app.passengers.link.approve(peer.id) }
-            }
-          }
-          let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
-            self?.controller?.dismissTemplate(animated: true, completion: nil)
-          }
-          controller.presentTemplate(CPAlertTemplate(titleVariants: [peer.approved ? "Scollegare \(peer.name)?" : "\(peer.name) potrà aggiungere musica e cambiare il brano. Consentire?"], actions: [action, cancel]), animated: true, completion: nil)
-        }
-        return row
+      var rows = link.peers.map { passengerRow($0) }
+      let invite = CPListItem(
+        text: "Mostra QR", detailText: "Invita dal display dell’auto · da fermi",
+        image: UIImage(systemName: "qrcode"))
+      invite.accessoryType = .disclosureIndicator
+      invite.handler = { [weak self] _, done in
+        done()
+        guard let self else { return }
+        self.renderPassengerQR()
+        self.controller?.pushTemplate(self.passengerQRTemplate, animated: true, completion: nil)
       }
-      if rows.isEmpty {
-        let waiting = CPListItem(text: "Nessun passeggero collegato", detailText: "L’invito è nella schermata Sessione in auto dell’iPhone")
+      rows.insert(invite, at: 0)
+      if link.peers.isEmpty {
+        let waiting = CPListItem(
+          text: "Nessun passeggero collegato",
+          detailText: "Tocca Mostra QR per invitare un passeggero")
         waiting.isEnabled = false
         rows.append(waiting)
       }
-      let close = CPListItem(text: "Chiudi la sessione per tutti", detailText: nil, image: UIImage(systemName: "xmark.circle"))
+      let close = CPListItem(
+        text: "Chiudi la sessione per tutti", detailText: nil,
+        image: UIImage(systemName: "xmark.circle"))
       close.handler = { [weak self] _, done in
         done()
-        guard let self, let controller = self.controller, controller.presentedTemplate == nil else { return }
+        guard let self, let controller = self.controller, controller.presentedTemplate == nil else {
+          return
+        }
         let stop = CPAlertAction(title: "Termina", style: .destructive) { [weak self] _ in
           self?.controller?.dismissTemplate(animated: true) { [weak self] success, _ in
             if success { self?.app.passengers.link.stop() }
@@ -882,10 +886,104 @@
         let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
           self?.controller?.dismissTemplate(animated: true, completion: nil)
         }
-        controller.presentTemplate(CPAlertTemplate(titleVariants: ["Terminare la sessione Passeggero? La musica continua."], actions: [stop, cancel]), animated: true, completion: nil)
+        controller.presentTemplate(
+          CPAlertTemplate(
+            titleVariants: ["Terminare la sessione Passeggero? La musica continua."],
+            actions: [stop, cancel]), animated: true, completion: nil)
       }
       rows.append(close)
       passengersTemplate.updateSections([CPListSection(items: rows)])
+    }
+
+    private func passengerRow(_ peer: PassengerLink.Peer) -> CPListItem {
+      let row = CPListItem(
+        text: peer.name,
+        detailText: peer.approved
+          ? "Autorizzato · tocca per scollegare" : "Richiede accesso alla musica dell’auto")
+      row.handler = { [weak self] _, done in
+        done()
+        guard let self, let controller = self.controller, controller.presentedTemplate == nil else {
+          return
+        }
+        let action = CPAlertAction(
+          title: peer.approved ? "Scollega" : "Consenti",
+          style: peer.approved ? .destructive : .default
+        ) { [weak self] _ in
+          self?.controller?.dismissTemplate(animated: true) { [weak self] success, _ in
+            guard let self, success else { return }
+            if peer.approved {
+              self.app.passengers.link.remove(peer.id)
+            } else {
+              self.app.passengers.link.approve(peer.id)
+            }
+          }
+        }
+        let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
+          self?.controller?.dismissTemplate(animated: true, completion: nil)
+        }
+        controller.presentTemplate(
+          CPAlertTemplate(
+            titleVariants: [
+              peer.approved
+                ? "Scollegare \(peer.name)?"
+                : "\(peer.name) potrà aggiungere musica e cambiare il brano. Consentire?"
+            ], actions: [action, cancel]), animated: true, completion: nil)
+      }
+      return row
+    }
+
+    private func renderPassengerQR() {
+      let link = app.passengers.link
+      guard link.mode == .hosting, let invitation = link.invitation else {
+        passengerQRInvitation = nil
+        passengerQRImage = nil
+        if #available(iOS 26.4, *) { passengerQRTemplate.listHeader = nil }
+        let ended = CPListItem(
+          text: "Sessione terminata", detailText: "Il precedente QR non è più valido")
+        ended.isEnabled = false
+        passengerQRTemplate.updateSections([CPListSection(items: [ended])])
+        return
+      }
+      if passengerQRInvitation != invitation {
+        passengerQRInvitation = invitation
+        passengerQRImage = PassengerQRCode.image(for: invitation).map {
+          UIImage(cgImage: $0).withRenderingMode(.alwaysOriginal)
+        }
+        if #available(iOS 26.4, *), let image = passengerQRImage {
+          passengerQRTemplate.listHeader = CPListTemplateDetailsHeader(
+            thumbnail: CPThumbnailImage(image: image), title: "Scansiona con NoteNarrate",
+            subtitle: "Da fermi · Bluetooth attivo su entrambi gli iPhone", actionButtons: [])
+        }
+      }
+      var items: [any CPListTemplateItem] = []
+      if #available(iOS 26.4, *) {
+        // The native header gives the square QR more room than a list-row icon.
+      } else if let image = passengerQRImage {
+        let row: CPListImageRowItem
+        if #available(iOS 26.0, *) {
+          let element = CPListImageRowItemRowElement(
+            image: image, title: "Scansiona QR", subtitle: nil)
+          row = CPListImageRowItem(text: nil, elements: [element], allowsMultipleLines: false)
+        } else {
+          row = CPListImageRowItem(text: "Scansiona con NoteNarrate", images: [image])
+        }
+        row.handler = { _, done in done() }
+        row.listImageRowHandler = { _, _, done in done() }
+        items.append(row)
+      }
+      items.append(contentsOf: link.peers.map { passengerRow($0) })
+      if passengerQRImage == nil {
+        let unavailable = CPListItem(
+          text: "QR non disponibile", detailText: "Apri Sessione in auto sull’iPhone")
+        unavailable.isEnabled = false
+        items.append(unavailable)
+      }
+      let hint = CPListItem(
+        text: "Sul telefono del passeggero",
+        detailText: "Sessione in auto → Scansiona QR. Conferma qui la richiesta di accesso.")
+      hint.isEnabled = false
+      items.append(hint)
+      passengerQRTemplate.updateSections([CPListSection(items: items)])
     }
 
     private func renderQueue() {

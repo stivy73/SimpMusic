@@ -1,3 +1,22 @@
+# Invito QR su CarPlay — candidata 57
+
+Da **player CarPlay → Coda → Passeggeri → Mostra QR**, il principale mostra
+l’invito della sessione già aperta. Visualizzarlo o tornare indietro non riapre
+la sessione e non interrompe musica o collegamenti Bluetooth. Le richieste di
+accesso e i passeggeri autorizzati sono gestibili anche nella schermata QR.
+
+Su iOS 26.4 e successivi il codice occupa la miniatura quadrata del nuovo header
+nativo del template lista; sui sistemi precedenti usa una singola immagine di
+lista. CarPlay determina la dimensione finale. QR nero su bianco, bordo libero,
+moduli allineati ai pixel. Lo stesso generatore è usato su iPhone. L’immagine
+resta solo in memoria, viene aggiornata se cambia invito e rimossa a sessione
+terminata. Non è salvata nella diagnostica o sul disco.
+
+Verifica automatica con Vision: lettura del contenuto completo a 128, 160, 180,
+240, 360 e 720 pixel e dopo riduzione con interpolazione a 160/200/240 pixel.
+Rotazione dell’invito verificata. Leggibilità con la fotocamera sul display
+fisico dell’auto ancora da confermare; usare l’invito da fermi.
+
 # Collegamento alternativo Bluetooth — 0.16.3 (56)
 
 Distribuita in TestFlight per Team interno e Stivy73; Tommaso incluso nel Team interno.
@@ -32,7 +51,8 @@ frammentazione BLE da 20 byte di una selezione di 500 brani, limiti di coda;
 integrazione PassengerLink con adattatore radio di test e vera crittografia,
 senza risultato Bonjour, approvazione e due riabbinamenti con lo stesso QR.
 I test dell’adattatore non sono una prova della radio fisica Core Bluetooth:
-**abbinamento su iOS 18.7.7/iOS 27.2 con CarPlay wireless ancora da collaudare**.
+**abbinamento Bluetooth con CarPlay wireless confermato funzionante dall’utente dopo la beta 56**.
+La lettura del nuovo QR sul display CarPlay della 57 resta invece da collaudare.
 
 Riferimento Apple: https://developer.apple.com/documentation/corebluetooth/transferring-data-between-bluetooth-low-energy-devices .
 

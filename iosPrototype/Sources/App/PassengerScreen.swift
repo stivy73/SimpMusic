@@ -1,7 +1,6 @@
 import SwiftUI
 
 #if os(iOS)
-  import CoreImage.CIFilterBuiltins
   import VisionKit
 
   struct PassengerScreen: View {
@@ -66,7 +65,7 @@ import SwiftUI
           }
           if let invitation = link.invitation {
             Section("Invita un passeggero · " + String(invitation.sessionID.uuidString.prefix(6))) {
-              if let image = Self.qr(invitation.text) {
+              if let image = PassengerQRCode.image(for: invitation).map({ UIImage(cgImage: $0) }) {
                 Image(uiImage: image).interpolation(.none).resizable().scaledToFit()
                   .frame(maxWidth: 240, maxHeight: 240).padding(12).background(.white)
                   .frame(maxWidth: .infinity).accessibilityLabel("QR della sessione Passeggero")
@@ -237,17 +236,6 @@ import SwiftUI
         }
         .disabled(code.isEmpty)
       }
-    }
-    private static func qr(_ text: String) -> UIImage? {
-      let filter = CIFilter.qrCodeGenerator()
-      filter.message = Data(text.utf8)
-      filter.correctionLevel = "M"
-      guard let output = filter.outputImage,
-        let image = CIContext().createCGImage(
-          output.transformed(by: .init(scaleX: 7, y: 7)),
-          from: output.extent.applying(.init(scaleX: 7, y: 7)))
-      else { return nil }
-      return UIImage(cgImage: image)
     }
   }
 
