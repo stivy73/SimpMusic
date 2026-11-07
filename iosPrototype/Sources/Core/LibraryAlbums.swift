@@ -114,15 +114,29 @@ enum LibraryBrowseEnvelope {
     func rows(_ values: [[String: Any]], depth: Int) throws -> [[String: Any]] {
       guard depth < 24 else { throw LibraryError.malformed }
       var result: [[String: Any]] = []
+      // Playlist pages (including VLLM) can put metadata in the primary column
+      // and tracks in secondaryContents. Metadata is not an unknown media row;
+      // keep it opaque so buttons, menus and recommendations are never imported.
+      let headers = ["musicResponsiveHeaderRenderer", "musicEditablePlaylistDetailHeaderRenderer",
+        "musicDetailHeaderRenderer"]
+      func unsupported(_ value: [String: Any]) -> LibraryError {
+        let names = value.keys.filter {
+          $0.range(of: #"^[A-Za-z]{1,80}Renderer$"#, options: .regularExpression) != nil
+        }.sorted().prefix(6).joined(separator: ",")
+        return .unsupported("library-section:" + (names.isEmpty ? "unknown-renderer" : names))
+      }
       let supported = ["gridRenderer", "musicShelfRenderer", "musicPlaylistShelfRenderer",
         "musicCarouselShelfRenderer", "musicDescriptionShelfRenderer", "musicResponsiveListItemRenderer",
         "musicTwoRowItemRenderer", "musicMultiRowListItemRenderer", "continuationItemRenderer"]
       for value in values {
         let rendererKeys = value.keys.filter { $0.hasSuffix("Renderer") }
-        guard rendererKeys.allSatisfy({ supported.contains($0) || ["itemSectionRenderer", "messageRenderer"].contains($0) }) else {
-          throw LibraryError.unsupported("library-section:unknown-renderer")
+        guard rendererKeys.allSatisfy({ supported.contains($0) || headers.contains($0)
+          || ["itemSectionRenderer", "messageRenderer"].contains($0) }) else {
+          throw unsupported(value)
         }
-        if let section = value["itemSectionRenderer"] as? [String: Any] {
+        if headers.contains(where: { value[$0] is [String: Any] }) {
+          result.append(value)
+        } else if let section = value["itemSectionRenderer"] as? [String: Any] {
           guard let contents = section["contents"] as? [[String: Any]] else { throw LibraryError.malformed }
           result += try rows(contents, depth: depth + 1)
           if let raw = section["continuations"] {
@@ -139,7 +153,7 @@ enum LibraryBrowseEnvelope {
         } else if supported.contains(where: { value[$0] != nil }) {
           result.append(try rewrite(value, depth: depth + 1))
         } else {
-          throw LibraryError.unsupported("library-section:unknown-renderer")
+          throw unsupported(value)
         }
       }
       return result
@@ -154,7 +168,7 @@ enum LibraryBrowseEnvelope {
         output["tabs"] = tabs
       }
       for key in ["sectionListRenderer", "sectionListContinuation", "gridRenderer", "gridContinuation",
-        "singleColumnBrowseResultsRenderer", "twoColumnBrowseResultsRenderer", "tabRenderer", "content",
+        "singleColumnBrowseResultsRenderer", "twoColumnBrowseResultsRenderer", "tabRenderer", "content", "secondaryContents",
         "continuationContents", "appendContinuationItemsAction", "reloadContinuationItemsCommand"] {
         if let child = object[key] as? [String: Any] { output[key] = try rewrite(child, depth: depth + 1) }
       }

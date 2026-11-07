@@ -215,11 +215,10 @@ public final class LibraryModel: ObservableObject {
       }
     }
     collectionRequests[kind] = task
-    await withTaskCancellationHandler {
-      await task.value
-    } onCancel: {
-      task.cancel()
-    }
+    // This collection belongs to the account, not to the first screen awaiting it.
+    // A disappearing SwiftUI view must not cancel the shared request for album,
+    // player or CarPlay hearts. invalidate() still cancels it on account changes.
+    await task.value
   }
 
   public func isLiked(_ id: String) -> Bool {
@@ -296,7 +295,8 @@ public final class LibraryModel: ObservableObject {
     await load(.likes)
     guard self.accountRevision == accountRevision, !Task.isCancelled else { return false }
     guard self.session == session, state(.likes).loaded, state(.likes).error == nil else {
-      syncError = "Non posso verificare i Mi piace. Aggiorna la raccolta e riprova."
+      let reason = state(.likes).error ?? "Il caricamento è stato interrotto. Riprova."
+      syncError = "Non posso verificare i Mi piace.\n" + reason
       return false
     }
     // Recheck after the awaited fetch: two taps may both have been waiting for it.

@@ -123,6 +123,31 @@ final class RemoteLibraryTests: XCTestCase {
     XCTAssertNotNil(model.syncError)
   }
 
+  func testLeavingScreenDoesNotCancelSharedLikesLoad() async {
+    let library = model(fetch: { _, _ in
+      try await Task.sleep(for: .milliseconds(40))
+      return []
+    })
+    let screen = Task { await library.load(.likes) }
+    while !library.state(.likes).loading { await Task.yield() }
+    // A SwiftUI .task is cancelled when its screen disappears. This is a
+    // model-owned collection request, also used by the album/player hearts.
+    screen.cancel()
+    await screen.value
+    XCTAssertTrue(library.state(.likes).loaded)
+    XCTAssertNil(library.state(.likes).error)
+    await library.toggleLike(song("album-track"))
+    XCTAssertTrue(library.isLiked("album-track"))
+    XCTAssertNil(library.syncError)
+  }
+
+  func testLikeFailureReportsOriginalCollectionError() async {
+    let library = model(fetch: { _, _ in throw LibraryError.http(403) })
+    await library.toggleLike(song("album-track"))
+    XCTAssertTrue(library.syncError?.contains("HTTP 403") == true)
+    XCTAssertFalse(library.isLiked("album-track"))
+  }
+
   func testConfirmedLikeAndUnlikeUpdateCollection() async {
     actor Writes {
       var values: [Bool] = []
@@ -295,6 +320,73 @@ final class RemoteLibraryTests: XCTestCase {
       YouTubeMusicClient().decodeDiscoveryPage(from: data, strictItems: true))
     XCTAssertEqual(page.shelves.flatMap(\.items).map(\.mediaId), ["VLpersonal"])
     XCTAssertEqual(page.continuation, "page2")
+  }
+
+  func testLikedPlaylistHeadersKeepTracksAndContinuation() async throws {
+    let header: [String: Any] = ["title": HomeFixture.text("Mi piace"),
+      "menu": ["privateMenuRenderer": ["value": "DO_NOT_READ"]]]
+    for wrapper in [
+      ["musicResponsiveHeaderRenderer": header],
+      ["musicEditablePlaylistDetailHeaderRenderer": ["header": ["musicResponsiveHeaderRenderer": header]]],
+    ] as [[String: Any]] {
+      for twoColumns in [false, true] {
+        let trackSection: [String: Any] = [
+          "musicPlaylistShelfRenderer": [
+            "contents": [HomeFixture.item("song1"), HomeFixture.item("song2")],
+            "continuations": [["nextContinuationData": ["continuation": "page2"]]],
+          ]
+        ]
+        let main: [String: Any] = [
+          "sectionListRenderer": ["contents": twoColumns ? [wrapper] : [wrapper, trackSection]]
+        ]
+        var browse: [String: Any] = [
+          "tabs": [["tabRenderer": ["selected": true, "content": main]]]
+        ]
+        if twoColumns {
+          browse["secondaryContents"] = ["sectionListRenderer": ["contents": [trackSection]]]
+        }
+        let data = try JSONSerialization.data(withJSONObject: ["contents": [
+          twoColumns ? "twoColumnBrowseResultsRenderer" : "singleColumnBrowseResultsRenderer": browse
+        ]])
+        let result = try await RemoteLibraryCollection.completed(kind: .likes) { token in
+          if token != nil { return try await HomeFixture.page(["song2", "song3"]) }
+          return try await HomePage(YouTubeMusicClient().decodeDiscoveryPage(
+            from: LibraryBrowseEnvelope.normalize(data), strictItems: true))
+        }
+        XCTAssertEqual(result.map(\.mediaId), ["song1", "song2", "song3"])
+      }
+    }
+  }
+
+  func testHeaderWithoutTrackCollectionIsNotAnEmptyLikesList() async throws {
+    let data = try HomeFixture.data(rows: [["musicResponsiveHeaderRenderer": ["title": HomeFixture.text("Mi piace")]]])
+    let normalized = try LibraryBrowseEnvelope.normalize(data)
+    do {
+      _ = try await YouTubeMusicClient().decodeDiscoveryPage(from: normalized, strictItems: true)
+      XCTFail("Header-only response was accepted as a complete empty collection")
+    } catch {}
+  }
+
+  func testUnknownRendererReportsSchemaNameWithoutValues() throws {
+    let data = try HomeFixture.data(rows: [["newLibraryShelfRenderer": ["token": "PRIVATE_TOKEN"]]])
+    XCTAssertThrowsError(try LibraryBrowseEnvelope.normalize(data)) { error in
+      XCTAssertTrue(error.localizedDescription.contains("newLibraryShelfRenderer"))
+      XCTAssertFalse(error.localizedDescription.contains("PRIVATE_TOKEN"))
+    }
+  }
+
+  func testUnknownSecondaryColumnCannotBecomePartialLikes() throws {
+    let data = try JSONSerialization.data(withJSONObject: ["contents": ["twoColumnBrowseResultsRenderer": [
+      "tabs": [["tabRenderer": ["selected": true, "content": ["sectionListRenderer": ["contents": [
+        ["musicResponsiveHeaderRenderer": ["title": HomeFixture.text("Mi piace")]]]]]]]],
+      "secondaryContents": ["sectionListRenderer": ["contents": [
+        ["musicPlaylistShelfRenderer": ["contents": [HomeFixture.item("song1")]]],
+        ["newLibraryShelfRenderer": ["token": "PRIVATE_TOKEN"]],
+      ]]],
+    ]]])
+    XCTAssertThrowsError(try LibraryBrowseEnvelope.normalize(data)) { error in
+      XCTAssertTrue(error.localizedDescription.contains("newLibraryShelfRenderer"))
+    }
   }
 
   func testUnknownLibraryMediaIsNotSilentlyMarkedEmpty() async throws {
