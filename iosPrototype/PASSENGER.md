@@ -1,4 +1,4 @@
-# Invito QR su CarPlay — candidata 57
+# Invito QR su CarPlay — 0.16.4 (57)
 
 Da **player CarPlay → Coda → Passeggeri → Mostra QR**, il principale mostra
 l’invito della sessione già aperta. Il QR si espande nello stesso pannello, senza aggiungere livelli alla navigazione;

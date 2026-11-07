@@ -1,11 +1,15 @@
 # NoteNarrate iOS
 
-Beta corrente **0.16.3 (56)**, **VALID / IN_BETA_TESTING**, assegnata a
-**Team interno** (Tommaso incluso) e **Stivy73**. Aggiunge un collegamento Bluetooth
-protetto dal QR quando la scoperta Wi-Fi non raggiunge il principale con CarPlay
-wireless. Aggiornare entrambi gli iPhone, attivare/autorizzare Bluetooth e tenere
-le app aperte durante l’abbinamento. [Consegna e verifiche](RELEASE-0.16.3-56.md).
-Radio Bluetooth e collegamento nel veicolo reale ancora da collaudare.
+Beta corrente **0.16.4 (57)**, **VALID / IN_BETA_TESTING**, assegnata a
+**Team interno** (Tommaso incluso) e **Stivy73**. QR della sessione nel pannello
+Passeggeri di CarPlay: **player → Coda → Passeggeri → Mostra QR**. Nascondi QR
+ripristina l’elenco; richieste e autorizzazioni disponibili anche nella vista QR.
+[Consegna e verifiche](RELEASE-0.16.4-57.md). 28 test superati, incluso il riconoscimento
+Vision del QR ridotto; scansione del display fisico ancora da verificare.
+
+Beta precedente **0.16.3 (56)**: collegamento Bluetooth per la sessione Passeggero
+con CarPlay wireless, confermato funzionante dall’utente.
+[Consegna e verifiche](RELEASE-0.16.3-56.md).
 
 Beta precedente **0.16.2 (55)**, assegnata a **Team interno** e **Stivy73**.
 Messaggi espliciti per credito Gemini esaurito e correzione Bonjour per annunci
