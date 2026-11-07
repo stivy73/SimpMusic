@@ -143,7 +143,7 @@ final class PassengerBluetoothTests: XCTestCase {
     XCTAssertThrowsError(try queue.append(Data([1])))
   }
 
-  @MainActor func testNoBonjourFallbackRequiresApprovalAndReconnectsWithSameQR() async throws {
+  @MainActor func testNoBonjourFallbackAutomaticallyConnectsAndReconnectsWithSameQR() async throws {
     let bus = BluetoothTestBus()
     let host = PassengerLink()
     let guest = PassengerLink()
@@ -167,10 +167,7 @@ final class PassengerBluetoothTests: XCTestCase {
       guest.join(text: qr, name: "Tommy")
       let joined = await eventually { host.peers.count == 1 }
       XCTAssertTrue(joined)
-      XCTAssertFalse(guest.canSend)
-      guest.submit(action: .playNow, tracks: [.init(id: "abcdefghijk", title: "T", artist: "A")])
       XCTAssertEqual(applied, 0)
-      host.approve(try XCTUnwrap(host.peers.first?.id))
       let approved = await eventually { guest.canSend }
       XCTAssertTrue(approved)
       host.activateForCarPlay()
@@ -185,7 +182,8 @@ final class PassengerBluetoothTests: XCTestCase {
     guest.join(text: qr, name: "Tommy")
     let joined = await eventually { host.peers.count == 1 }
     XCTAssertTrue(joined)
-    host.approve(try XCTUnwrap(host.peers.first?.id))
+    let ready = await eventually { guest.canSend }
+    XCTAssertTrue(ready)
     guest.submit(action: .enqueue, tracks: [.init(id: "abcdefghijk", title: "T", artist: "A")])
     XCTAssertEqual(applied, 1)
     XCTAssertEqual(guest.receipt?.success, true)
@@ -222,7 +220,6 @@ final class PassengerBluetoothTests: XCTestCase {
       endpoint: .hostPort(host: .ipv4(.loopback), port: try XCTUnwrap(host.listeningPort)))
     let joined = await eventually { host.peers.count == 1 }
     XCTAssertTrue(joined)
-    host.approve(try XCTUnwrap(host.peers.first?.id))
     let approved = await eventually { guest.canSend }
     XCTAssertTrue(approved)
     try await Task.sleep(for: .milliseconds(200))

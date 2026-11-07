@@ -7,7 +7,7 @@ import Security
 @MainActor
 public final class PassengerLink: ObservableObject {
   public enum Mode: Equatable {
-    case idle, hosting, browsing, connecting, awaitingApproval, connected
+    case idle, hosting, browsing, connecting, joining, connected
   }
   public struct NearbyHost: Identifiable, Equatable {
     public let id: UUID
@@ -92,7 +92,7 @@ public final class PassengerLink: ObservableObject {
   public init() {}
   public var canSend: Bool { mode == .connected && pendingRequest == nil }
   public var isPassenger: Bool {
-    mode == .connecting || mode == .awaitingApproval || mode == .connected
+    mode == .connecting || mode == .joining || mode == .connected
   }
   public var status: String {
     switch mode {
@@ -100,7 +100,7 @@ public final class PassengerLink: ObservableObject {
     case .hosting: "Telefono principale · \(peers.filter(\.approved).count) passeggeri"
     case .browsing: "Cerco le auto vicine…"
     case .connecting: "Collegamento protetto…"
-    case .awaitingApproval: "Attendi la conferma sul telefono principale"
+    case .joining: "Completo il collegamento all’auto…"
     case .connected:
       "Collegato all’auto via \(guestID.flatMap { links[$0] }?.connection == nil ? "Bluetooth" : "Wi-Fi") · audio sul telefono principale"
     }
@@ -243,6 +243,11 @@ public final class PassengerLink: ObservableObject {
   public func join(text: String, name: String) {
     do {
       let invite = try PassengerInvitation(text: text)
+      // Opening our own invitation, or scanning again while already linked, is a no-op.
+      if invitation == invite, mode == .hosting || isPassenger {
+        error = nil
+        return
+      }
       browse(name: name)
       waitForHost(invite)
       connectIfDiscovered()
@@ -333,9 +338,9 @@ public final class PassengerLink: ObservableObject {
       self.guestID = id
       self.links[id] = Link()
       self.error = nil
-      self.mode = .awaitingApproval
+      self.mode = .joining
       self.setDeadline(id, seconds: 90)
-      self.record("Richiesta Bluetooth inviata: attendo autorizzazione del principale")
+      self.record("Bluetooth: invio identità del passeggero")
       self.send(.hello(self.ownName), to: id)
       return true
     }
@@ -439,8 +444,8 @@ public final class PassengerLink: ObservableObject {
           self.setDeadline(id, seconds: 90)
           self.receive(id)
           if id == self.guestID {
-            self.record("Richiesta inviata: attendo autorizzazione del principale")
-            self.mode = .awaitingApproval
+            self.record("Invio identità del passeggero")
+            self.mode = .joining
             self.send(.hello(self.ownName), to: id)
           }
         case .failed(let reason), .waiting(let reason):
@@ -467,7 +472,7 @@ public final class PassengerLink: ObservableObject {
       try? await Task.sleep(for: .seconds(seconds))
       guard !Task.isCancelled, let self, self.links[id]?.approved == false else { return }
       self.disconnect(
-        id, message: "Collegamento o autorizzazione scaduti. Verifica il codice e riconnettiti.")
+        id, message: "Collegamento scaduto. Verifica il QR e riconnettiti.")
     }
   }
 
@@ -500,7 +505,13 @@ public final class PassengerLink: ObservableObject {
       case .hello(let name):
         guard !link.joined, !name.isEmpty, name.count <= 40 else { throw PassengerError.malformed }
         link.joined = true
-        peers.append(Peer(id: id, name: Self.safeName(name), approved: false))
+        link.approved = true
+        link.deadline?.cancel()
+        peers.append(Peer(id: id, name: Self.safeName(name), approved: true))
+        record("Principale: passeggero collegato automaticamente con invito valido")
+        // Legacy wire name: this is the ready acknowledgement for authenticated older guests.
+        send(.approved, to: id)
+        send(.state(playback), to: id)
       case .selection(let request):
         guard link.approved, let invite = invitation else { throw PassengerError.notApproved }
         try request.validate(sessionID: invite.sessionID)
@@ -532,7 +543,7 @@ public final class PassengerLink: ObservableObject {
       lastResponse = Date()
       switch body {
       case .approved:
-        guard mode == .awaitingApproval else { throw PassengerError.malformed }
+        guard mode == .joining else { throw PassengerError.malformed }
         link.approved = true
         link.deadline?.cancel()
         error = nil
@@ -556,17 +567,6 @@ public final class PassengerLink: ObservableObject {
     }
   }
 
-  public func approve(_ id: UUID) {
-    guard mode == .hosting, let link = links[id], link.joined, !link.approved,
-      let index = peers.firstIndex(where: { $0.id == id })
-    else { return }
-    record("Principale: passeggero autorizzato")
-    link.approved = true
-    link.deadline?.cancel()
-    peers[index].approved = true
-    send(.approved, to: id)
-    send(.state(playback), to: id)
-  }
   public func remove(_ id: UUID) { disconnect(id) }
 
   public func submit(action: PassengerSelection.Action, tracks: [PassengerTrack]) {

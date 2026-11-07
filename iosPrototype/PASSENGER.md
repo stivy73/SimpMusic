@@ -1,3 +1,20 @@
+# Collegamento automatico con QR — candidata 59
+
+Un invito valido è sufficiente per collegarsi: dopo scansione e autenticazione
+crittografica il principale accetta il passeggero automaticamente, sia su TLS/Wi-Fi
+sia su Bluetooth. Rimossi Consenti/Rifiuta da iPhone e CarPlay e l’apertura forzata
+del pannello sul principale. Il passeggero può scegliere subito la musica.
+
+Anche aprendo il link del QR dalla fotocamera di sistema l’app si collega senza
+un secondo pulsante di conferma. Il nome opzionale già inserito è mantenuto.
+Il token di protocollo `approved` resta come acknowledgement per i client precedenti;
+non rappresenta più un’approvazione manuale. Il principale può scollegare il singolo
+passeggero o chiudere la sessione, invalidando l’invito. La cifratura e la verifica
+del codice restano necessarie prima di accettare il messaggio iniziale.
+
+I permessi Bluetooth/fotocamera/rete locale di iOS restano gestiti dal sistema.
+Le note storiche sotto descrivono il comportamento delle build precedenti.
+
 # Avvio automatico CarPlay — 0.16.5 (58)
 
 Ogni collegamento CarPlay attiva il telefono principale: apre una sessione se

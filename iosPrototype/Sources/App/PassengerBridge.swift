@@ -9,7 +9,7 @@
   @MainActor final class PassengerBridge: ObservableObject {
     let link = PassengerLink()
     @Published var showing = false
-    @Published var incomingInvitation: String?
+    @Published var passengerName = "Passeggero"
     private let music: MusicModel
     private var subscriptions = Set<AnyCancellable>()
     init(music: MusicModel) {
@@ -45,16 +45,17 @@
       }
       link.$mode.receive(on: RunLoop.main).sink { [weak self] mode in
         guard let self else { return }
-        let passenger = mode == .connecting || mode == .awaitingApproval || mode == .connected
+        let passenger = mode == .connecting || mode == .joining || mode == .connected
         if passenger != self.music.isPassenger { self.music.setPassenger(passenger) }
         if mode == .hosting { self.publish() }
-      }.store(in: &subscriptions)
-      link.$peers.receive(on: RunLoop.main).sink { [weak self] peers in
-        if peers.contains(where: { !$0.approved }) { self?.showing = true }
       }.store(in: &subscriptions)
       music.objectWillChange.merge(with: music.player.objectWillChange)
         .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
         .sink { [weak self] _ in self?.publish() }.store(in: &subscriptions)
+    }
+    func receiveInvitation(_ text: String) {
+      link.join(text: text, name: passengerName)
+      showing = true
     }
     func send(_ songs: [Song], action: PassengerSelection.Action) {
       link.submit(
@@ -111,15 +112,10 @@
           else { return "FAIL host listen" }
           guest.connect(
             invitation: invitation, endpoint: .hostPort(host: .ipv4(.loopback), port: port))
-          guard await wait({ !link.peers.isEmpty }), let peer = link.peers.first else {
+          guard await wait({ !link.peers.isEmpty }) else {
             return "FAIL join"
           }
-          guest.submit(action: .playNow, tracks: tracks)
-          guard music.queue.count == count, music.current?.id == current else {
-            return "FAIL approval gate"
-          }
-          link.approve(peer.id)
-          guard await wait({ guest.canSend }) else { return "FAIL approval" }
+          guard await wait({ guest.canSend }) else { return "FAIL automatic connection" }
           guest.submit(action: .enqueue, tracks: tracks)
           guard await wait({ guest.receipt?.success == true }), music.queue.count == count + 2,
             music.current?.id == current
@@ -154,10 +150,9 @@
           else { return "FAIL remote listen" }
           link.connect(
             invitation: invitation, endpoint: .hostPort(host: .ipv4(.loopback), port: port))
-          guard await wait({ !remoteHost.peers.isEmpty }), let peer = remoteHost.peers.first else {
+          guard await wait({ !remoteHost.peers.isEmpty }) else {
             return "FAIL remote join"
           }
-          remoteHost.approve(peer.id)
           guard await wait({ link.canSend && music.isPassenger }) else {
             return "FAIL passenger mode"
           }
@@ -175,7 +170,7 @@
             music.queueRows.map(\.id) == occurrences, !music.player.wantsPlayback
           else { return "FAIL passenger play routing" }
           return
-            "PASS TLS approval, atomic queue, play now, idempotency, passenger routing, local silence"
+            "PASS TLS automatic join, atomic queue, play now, idempotency, passenger routing, local silence"
         } catch { return "FAIL fixture " + error.localizedDescription }
       }
     #endif

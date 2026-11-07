@@ -131,8 +131,7 @@ struct RootView: View {
       .onOpenURL { url in
         #if os(iOS)
           if (try? PassengerInvitation(text: url.absoluteString)) != nil {
-            AppleAppSession.shared.passengers.incomingInvitation = url.absoluteString
-            AppleAppSession.shared.passengers.showing = true
+            AppleAppSession.shared.passengers.receiveInvitation(url.absoluteString)
             return
           }
         #endif

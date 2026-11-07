@@ -5,6 +5,44 @@ import XCTest
 
 /// Real TLS sockets on loopback. Physical peer-to-peer Wi-Fi/CarPlay remain a separate device check.
 final class PassengerTransportTests: XCTestCase {
+  @MainActor func testRepeatedQRKeepsExistingConnectionAndDoesNotJoinOwnSession() async throws {
+    let host = PassengerLink()
+    let guest = PassengerLink()
+    defer {
+      host.stop()
+      guest.stop()
+    }
+    try await connect(host, guest)
+    let ready = await eventually { guest.canSend }
+    XCTAssertTrue(ready)
+    let qr = try XCTUnwrap(host.invitation).text
+    let connection = guest.connectionID
+    guest.join(text: qr, name: "Guest")
+    host.join(text: qr, name: "Driver")
+    XCTAssertEqual(guest.connectionID, connection)
+    XCTAssertTrue(guest.canSend)
+    XCTAssertEqual(host.mode, .hosting)
+    XCTAssertEqual(host.peers.count, 1)
+  }
+
+  @MainActor func testMalformedQRDoesNotReplaceAnAuthenticatedConnection() async throws {
+    let host = PassengerLink()
+    let guest = PassengerLink()
+    defer {
+      host.stop()
+      guest.stop()
+    }
+    try await connect(host, guest)
+    let ready = await eventually { guest.canSend }
+    XCTAssertTrue(ready)
+    let invitation = guest.invitation
+    guest.join(text: "notenarrate://passenger/invalid#BAD", name: "Guest")
+    XCTAssertTrue(guest.canSend)
+    XCTAssertEqual(guest.invitation, invitation)
+    XCTAssertEqual(host.peers.count, 1)
+    XCTAssertTrue(host.peers[0].approved)
+  }
+
   @MainActor func testCarPlayStartsSessionFromColdLaunchAndAfterExplicitClose() async throws {
     let host = PassengerLink()
     defer { host.stop() }
@@ -40,7 +78,6 @@ final class PassengerTransportTests: XCTestCase {
     try await connect(remote, driver)
     let joined = await eventually { !remote.peers.isEmpty }
     XCTAssertTrue(joined)
-    remote.approve(try XCTUnwrap(remote.peers.first?.id))
     let approved = await eventually { driver.canSend }
     XCTAssertTrue(approved)
     let remoteInvitation = try XCTUnwrap(remote.invitation)
@@ -63,7 +100,6 @@ final class PassengerTransportTests: XCTestCase {
     try await connect(host, guest)
     let joined = await eventually { host.peers.count == 1 }
     XCTAssertTrue(joined)
-    host.approve(try XCTUnwrap(host.peers.first?.id))
     let connected = await eventually { guest.canSend }
     XCTAssertTrue(connected)
     let invite = try XCTUnwrap(host.invitation)
@@ -82,8 +118,6 @@ final class PassengerTransportTests: XCTestCase {
       endpoint: .hostPort(host: .ipv4(.loopback), port: try XCTUnwrap(host.listeningPort)))
     let rejoined = await eventually { host.peers.count == 1 }
     XCTAssertTrue(rejoined)
-    XCTAssertFalse(guest.canSend)
-    host.approve(try XCTUnwrap(host.peers.first?.id))
     let reapproved = await eventually { guest.canSend }
     XCTAssertTrue(reapproved)
   }
@@ -103,7 +137,6 @@ final class PassengerTransportTests: XCTestCase {
       guest.join(text: qr, name: "Passeggero")
       let joined = await eventually({ host.peers.count == 1 }, timeout: 20)
       XCTAssertTrue(joined, guest.error ?? "Bonjour discovery failed")
-      host.approve(try XCTUnwrap(host.peers.first?.id))
       let connected = await eventually { guest.canSend }
       XCTAssertTrue(connected)
       host.remove(try XCTUnwrap(host.peers.first?.id))
@@ -133,7 +166,6 @@ final class PassengerTransportTests: XCTestCase {
     XCTAssertTrue(
       found, "QR must identify the same TLS session even after Bonjour renames its advertisement")
     if found {
-      host.approve(try XCTUnwrap(host.peers.first?.id))
       let connected = await eventually { guest.canSend }
       XCTAssertTrue(connected)
     }
@@ -174,7 +206,7 @@ final class PassengerTransportTests: XCTestCase {
       : invitation
     guest.connect(invitation: invite, endpoint: .hostPort(host: .ipv4(.loopback), port: port))
   }
-  @MainActor func testTLSRequiresApprovalThenReceiptsQueueAndHostState() async throws {
+  @MainActor func testTLSAutomaticallyConnectsThenReceiptsQueueAndHostState() async throws {
     let host = PassengerLink()
     let guest = PassengerLink()
     defer {
@@ -186,13 +218,11 @@ final class PassengerTransportTests: XCTestCase {
       received.append(request)
       return .init(requestID: request.id, success: true, message: "Aggiunto")
     }
+    guest.submit(action: .playNow, tracks: [.init(id: "abcdefghijk", title: "T", artist: "A")])
+    XCTAssertTrue(received.isEmpty)
     try await connect(host, guest)
     let discovered = await eventually { host.peers.count == 1 }
     XCTAssertTrue(discovered)
-    XCTAssertFalse(guest.canSend)
-    guest.submit(action: .playNow, tracks: [.init(id: "abcdefghijk", title: "T", artist: "A")])
-    XCTAssertTrue(received.isEmpty)
-    host.approve(try XCTUnwrap(host.peers.first?.id))
     let approved = await eventually { guest.canSend }
     XCTAssertTrue(approved, guest.error ?? "Not approved")
     guest.submit(action: .enqueue, tracks: [.init(id: "abcdefghijk", title: "T", artist: "A")])
@@ -236,8 +266,6 @@ final class PassengerTransportTests: XCTestCase {
     try await connect(host, guest)
     let joined = await eventually { !host.peers.isEmpty }
     XCTAssertTrue(joined)
-    let hostPeer = try XCTUnwrap(host.peers.first?.id)
-    host.approve(hostPeer)
     let approved = await eventually { guest.canSend }
     XCTAssertTrue(approved)
     // Obtain the single guest connection ID through the host-independent connection accessor.
@@ -268,7 +296,6 @@ final class PassengerTransportTests: XCTestCase {
     try await connect(host, guest)
     let joined = await eventually { !host.peers.isEmpty }
     XCTAssertTrue(joined)
-    host.approve(try XCTUnwrap(host.peers.first?.id))
     let approved = await eventually { guest.canSend }
     XCTAssertTrue(approved)
     let old = host.invitation

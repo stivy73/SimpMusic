@@ -6,29 +6,12 @@ import SwiftUI
   struct PassengerScreen: View {
     @ObservedObject private var bridge = AppleAppSession.shared.passengers!
     @ObservedObject private var link = AppleAppSession.shared.passengers.link
-    @State private var name = "Passeggero"
+    private var name: String { bridge.passengerName }
     @State private var code = ""
     @State private var scanning = false
     @State private var ending = false
-    @State private var switching = false
     var body: some View {
       Form {
-        if let text = bridge.incomingInvitation,
-          let invitation = try? PassengerInvitation(text: text)
-        {
-          Section("Invito ricevuto") {
-            Text("Auto · " + String(invitation.sessionID.uuidString.prefix(6)))
-            nameField
-            Button("Collegati alla sessione invitata") {
-              if link.mode == .idle || link.mode == .browsing {
-                acceptInvitation()
-              } else {
-                switching = true
-              }
-            }
-            Button("Ignora invito", role: .cancel) { bridge.incomingInvitation = nil }
-          }
-        }
         Section {
           Label(
             link.status, systemImage: link.mode == .hosting ? "car.fill" : "person.2.fill"
@@ -92,19 +75,9 @@ import SwiftUI
             }
             ForEach(link.peers) { peer in
               VStack(alignment: .leading, spacing: 10) {
-                Label(
-                  peer.name, systemImage: peer.approved ? "checkmark.shield" : "person.badge.plus")
-                if peer.approved {
-                  Button("Scollega", role: .destructive) { link.remove(peer.id) }
-                } else {
-                  Text("Può aggiungere brani e avviare subito una nuova selezione nell’auto.").font(
-                    .caption)
-                  HStack {
-                    Button("Consenti") { link.approve(peer.id) }.buttonStyle(.borderedProminent)
-                      .accessibilityIdentifier("passenger-approve")
-                    Button("Rifiuta", role: .destructive) { link.remove(peer.id) }
-                  }
-                }
+                Label(peer.name, systemImage: "person.crop.circle.badge.checkmark")
+                Text("Collegato · può scegliere la musica dell’auto").font(.caption)
+                Button("Scollega", role: .destructive) { link.remove(peer.id) }
               }.padding(.vertical, 6)
             }
           }
@@ -115,7 +88,7 @@ import SwiftUI
             TextField("Codice della sessione", text: $code).verbatimTextInput()
               .accessibilityIdentifier("passenger-code-input")
             Text(
-              "Con il QR l’app prova Wi-Fi e Bluetooth. Attiva Bluetooth e autorizza NoteNarrate su entrambi gli iPhone. La ricerca per numero richiede una rete locale raggiungibile; con CarPlay wireless usa Scansiona QR."
+              "Con il QR l’app prova Wi-Fi e Bluetooth. Attiva Bluetooth e consenti il permesso Bluetooth di iOS su entrambi gli iPhone. La ricerca per numero richiede una rete locale raggiungibile; con CarPlay wireless usa Scansiona QR."
             )
             .font(.caption).foregroundStyle(.secondary)
             if code.hasPrefix("notenarrate:") {
@@ -132,7 +105,7 @@ import SwiftUI
               }
             }
           }
-        case .connecting, .awaitingApproval:
+        case .connecting, .joining:
           Section { ProgressView(link.status) }
         case .connected:
           Section("Nell’auto") {
@@ -181,7 +154,7 @@ import SwiftUI
         }
         Section {
           Text(
-            "Apri e autorizza la sessione da fermo. Tieni entrambe le app aperte durante l’abbinamento. L’invito QR protegge il collegamento anche via Bluetooth; la musica resta sul principale. Se iOS sospende l’app, riapri NoteNarrate e riconnettiti."
+            "Scansiona il QR da fermo: con un invito valido il collegamento è automatico. Tieni entrambe le app aperte durante l’abbinamento. L’invito QR protegge il collegamento anche via Bluetooth; la musica resta sul principale. Se iOS sospende l’app, riapri NoteNarrate e riconnettiti."
           )
           .font(.footnote).foregroundStyle(.secondary)
         }
@@ -193,12 +166,6 @@ import SwiftUI
             link.stop()
             code = ""
           }
-        }
-        .confirmationDialog(
-          "Chiudere la sessione attuale e collegarsi a quella invitata?", isPresented: $switching,
-          titleVisibility: .visible
-        ) {
-          Button("Cambia sessione", role: .destructive) { acceptInvitation() }
         }
         .sheet(isPresented: $scanning) {
           NavigationStack {
@@ -214,14 +181,9 @@ import SwiftUI
           }
         }
     }
-    private func acceptInvitation() {
-      guard let text = bridge.incomingInvitation else { return }
-      bridge.incomingInvitation = nil
-      link.join(text: text, name: name)
-    }
     private var nameField: some View {
-      TextField("Il tuo nome", text: $name).textContentType(.nickname)
-        .onChange(of: name) { _, value in name = String(value.prefix(40)) }
+      TextField("Il tuo nome", text: $bridge.passengerName).textContentType(.nickname)
+        .onChange(of: name) { _, value in bridge.passengerName = String(value.prefix(40)) }
     }
     private var scanButton: some View {
       Button("Scansiona QR", systemImage: "qrcode.viewfinder") { scanning = true }

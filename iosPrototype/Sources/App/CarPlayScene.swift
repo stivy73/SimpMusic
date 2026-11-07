@@ -912,24 +912,18 @@
     private func passengerRow(_ peer: PassengerLink.Peer) -> CPListItem {
       let row = CPListItem(
         text: peer.name,
-        detailText: peer.approved
-          ? "Autorizzato · tocca per scollegare" : "Richiede accesso alla musica dell’auto")
+        detailText: "Collegato · tocca per scollegare")
       row.handler = { [weak self] _, done in
         done()
         guard let self, let controller = self.controller, controller.presentedTemplate == nil else {
           return
         }
         let action = CPAlertAction(
-          title: peer.approved ? "Scollega" : "Consenti",
-          style: peer.approved ? .destructive : .default
+          title: "Scollega", style: .destructive
         ) { [weak self] _ in
           self?.controller?.dismissTemplate(animated: true) { [weak self] success, _ in
             guard let self, success else { return }
-            if peer.approved {
-              self.app.passengers.link.remove(peer.id)
-            } else {
-              self.app.passengers.link.approve(peer.id)
-            }
+            self.app.passengers.link.remove(peer.id)
           }
         }
         let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
@@ -938,9 +932,7 @@
         controller.presentTemplate(
           CPAlertTemplate(
             titleVariants: [
-              peer.approved
-                ? "Scollegare \(peer.name)?"
-                : "\(peer.name) potrà aggiungere musica e cambiare il brano. Consentire?"
+              "Scollegare \(peer.name)?"
             ], actions: [action, cancel]), animated: true, completion: nil)
       }
       return row
@@ -999,7 +991,7 @@
       }
       let hint = CPListItem(
         text: "Sul telefono del passeggero",
-        detailText: "Sessione in auto → Scansiona QR. Conferma qui la richiesta di accesso.")
+        detailText: "Sessione in auto → Scansiona QR. Il collegamento è automatico.")
       hint.isEnabled = false
       items.append(hint)
       passengersTemplate.updateSections([CPListSection(items: items)])
@@ -1080,9 +1072,8 @@
       var radioRows = [automatic]
       do {
         let link = app.passengers.link
-        let pending = link.peers.filter { !$0.approved }.count
         let detail = link.mode == .hosting
-          ? (pending > 0 ? "\(pending) in attesa di autorizzazione" : link.status)
+          ? link.status
           : "Apri la sessione nell’auto"
         let shared = CPListItem(text: "Passeggeri", detailText: detail,
           image: UIImage(systemName: "person.2.fill"))

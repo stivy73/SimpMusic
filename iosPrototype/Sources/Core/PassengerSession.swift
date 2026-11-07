@@ -62,7 +62,7 @@ public enum PassengerError: Error, LocalizedError {
     case .malformed: "Richiesta non valida. Aggiorna NoteNarrate su entrambi i telefoni."
     case .disconnected:
       "Collegamento interrotto. Riapri la sessione sul telefono principale e riconnettiti."
-    case .notApproved: "Attendi l’autorizzazione sul telefono principale."
+    case .notApproved: "Invito non valido per questa sessione. Scansiona il QR attuale."
     case .busy: "Attendi la conferma della richiesta precedente."
     case .expired: "Richiesta scaduta: ripeti la selezione."
     case .tooManyTracks:
