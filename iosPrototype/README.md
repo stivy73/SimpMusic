@@ -1,12 +1,16 @@
 # NoteNarrate iOS
 
-Beta corrente **0.16.6 (59)**, **VALID / IN_BETA_TESTING**, assegnata a
-**Team interno** (Tommaso incluso) e **Stivy73**. Dopo scansione e autenticazione
-del QR, il principale collega automaticamente il passeggero: rimossi
-Consenti/Rifiuta su iPhone e CarPlay. Collegamento diretto anche dai link della
-fotocamera di sistema; Scollega e chiusura sessione restano disponibili.
-[Consegna e verifiche](RELEASE-0.16.6-59.md). 32 test superati; collegamento
-senza conferma nel veicolo reale da collaudare dopo l’aggiornamento del principale.
+Beta corrente **0.16.7 (60)**, **VALID / IN_BETA_TESTING**, assegnata a
+**Team interno** (Tommaso incluso) e **Stivy73**. Corretto il parsing delle
+intestazioni playlist Mi piace e delle pagine a due colonne. Il caricamento
+condiviso della raccolta sopravvive alla chiusura della schermata; gli errori
+mostrano la causa originale o il nome della struttura non supportata.
+[Consegna e verifiche](RELEASE-0.16.7-60.md). 62 test superati;
+sincronizzazione sullo specifico account dell’utente ancora da collaudare.
+
+Beta precedente **0.16.6 (59)**: collegamento automatico del passeggero dopo
+scansione e autenticazione del QR, senza Consenti/Rifiuta su iPhone e CarPlay.
+[Consegna e verifiche](RELEASE-0.16.6-59.md).
 
 Beta precedente **0.16.5 (58)**: avvio della sessione al collegamento CarPlay
 e voce Passeggeri sempre presente nella Coda.
