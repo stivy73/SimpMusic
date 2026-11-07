@@ -5,6 +5,54 @@ import XCTest
 
 /// Real TLS sockets on loopback. Physical peer-to-peer Wi-Fi/CarPlay remain a separate device check.
 final class PassengerTransportTests: XCTestCase {
+  @MainActor func testCarPlayStartsSessionFromColdLaunchAndAfterExplicitClose() async throws {
+    let host = PassengerLink()
+    defer { host.stop() }
+    host.activateForCarPlay()
+    let firstReady = await eventually { host.listeningPort != nil }
+    XCTAssertTrue(firstReady)
+    let first = try XCTUnwrap(host.invitation)
+    host.activateForCarPlay()
+    let resumed = await eventually { host.listeningPort != nil }
+    XCTAssertTrue(resumed)
+    XCTAssertEqual(host.invitation, first)
+    host.stop()
+    host.activateForCarPlay()
+    let reopened = await eventually { host.listeningPort != nil }
+    XCTAssertTrue(reopened)
+    XCTAssertNotEqual(host.invitation, first)
+    let restarted = PassengerLink()
+    defer { restarted.stop() }
+    restarted.activateForCarPlay()
+    let restartedReady = await eventually { restarted.listeningPort != nil }
+    XCTAssertTrue(restartedReady)
+    XCTAssertEqual(restarted.mode, .hosting)
+    XCTAssertNotEqual(restarted.invitation, host.invitation)
+  }
+
+  @MainActor func testCarPlayPromotesPassengerToPrincipalAndClosesRemoteConnection() async throws {
+    let remote = PassengerLink()
+    let driver = PassengerLink()
+    defer {
+      remote.stop()
+      driver.stop()
+    }
+    try await connect(remote, driver)
+    let joined = await eventually { !remote.peers.isEmpty }
+    XCTAssertTrue(joined)
+    remote.approve(try XCTUnwrap(remote.peers.first?.id))
+    let approved = await eventually { driver.canSend }
+    XCTAssertTrue(approved)
+    let remoteInvitation = try XCTUnwrap(remote.invitation)
+    driver.activateForCarPlay()
+    let ready = await eventually { driver.listeningPort != nil && remote.peers.isEmpty }
+    XCTAssertTrue(ready)
+    XCTAssertEqual(driver.mode, .hosting)
+    XCTAssertNotEqual(driver.invitation, remoteInvitation)
+    XCTAssertFalse(driver.canSend)
+    XCTAssertTrue(driver.peers.isEmpty)
+  }
+
   @MainActor func testListenerRecoveryKeepsQRAndReconnectsWithoutRestartingSession() async throws {
     let host = PassengerLink()
     let guest = PassengerLink()
@@ -19,7 +67,7 @@ final class PassengerTransportTests: XCTestCase {
     let connected = await eventually { guest.canSend }
     XCTAssertTrue(connected)
     let invite = try XCTUnwrap(host.invitation)
-    host.resumeHosting(force: true)
+    host.activateForCarPlay()
     let listening = await eventually { host.listeningPort != nil }
     XCTAssertTrue(listening)
     XCTAssertEqual(host.invitation, invite)

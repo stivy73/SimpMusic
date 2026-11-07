@@ -121,6 +121,17 @@ public final class PassengerLink: ObservableObject {
     startHeartbeat()
   }
 
+  /// Reuse a live session or create one when CarPlay connects after an app/phone restart.
+  public func activateForCarPlay() {
+    if mode == .hosting, invitation != nil {
+      resumeHosting(force: true)
+      record("CarPlay: sessione esistente ripresa")
+    } else {
+      startHosting()
+      record("CarPlay: sessione avviata automaticamente")
+    }
+  }
+
   /// Re-advertise the same invitation after a foreground/CarPlay network transition.
   /// Established connections and the deduplication ledger stay intact.
   public func resumeHosting(force: Bool = false) {

@@ -173,7 +173,7 @@ final class PassengerBluetoothTests: XCTestCase {
       host.approve(try XCTUnwrap(host.peers.first?.id))
       let approved = await eventually { guest.canSend }
       XCTAssertTrue(approved)
-      host.resumeHosting(force: true)
+      host.activateForCarPlay()
       XCTAssertTrue(guest.canSend, "Wi-Fi listener restart must not cancel Bluetooth")
       host.publish(.init(title: "Current", playing: true, queueCount: 50))
       XCTAssertEqual(guest.playback.queueCount, 50)

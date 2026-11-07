@@ -137,7 +137,7 @@
       // Use the same native mini-player/shared template setup as Vocalia.
       // CarPlay owns artwork taps and transport controls; do not opt out of it.
       let nowPlaying = CPNowPlayingTemplate.shared
-      app.passengers.link.resumeHosting(force: true)
+      app.passengers.link.activateForCarPlay()
       if #available(iOS 27.0, *) {
         nowPlaying.allowsMiniPlayer = true
       }
@@ -854,7 +854,15 @@
       guard link.mode == .hosting else {
         let row = CPListItem(text: "Sessione terminata", detailText: nil)
         row.isEnabled = false
-        passengersTemplate.updateSections([CPListSection(items: [row])])
+        let reopen = CPListItem(text: "Apri una nuova sessione", detailText: "Invita un passeggero con il QR", image: UIImage(systemName: "qrcode"))
+        reopen.handler = { [weak self] _, done in
+          done()
+          guard let self else { return }
+          self.app.passengers.link.activateForCarPlay()
+          self.passengerQRVisible = true
+          self.renderPassengers()
+        }
+        passengersTemplate.updateSections([CPListSection(items: [row, reopen])])
         return
       }
       var rows = link.peers.map { passengerRow($0) }
@@ -945,10 +953,7 @@
         passengerQRInvitation = nil
         passengerQRImage = nil
         if #available(iOS 26.4, *) { passengersTemplate.listHeader = nil }
-        let ended = CPListItem(
-          text: "Sessione terminata", detailText: "Il precedente QR non è più valido")
-        ended.isEnabled = false
-        passengersTemplate.updateSections([CPListSection(items: [ended])])
+        renderPassengers()
         return
       }
       if passengerQRInvitation != invitation {
@@ -1073,15 +1078,21 @@
         self?.app.music.autoplayEnabled.toggle()
       }
       var radioRows = [automatic]
-      if app.passengers.link.mode == .hosting {
+      do {
         let link = app.passengers.link
         let pending = link.peers.filter { !$0.approved }.count
-        let shared = CPListItem(text: "Passeggeri", detailText: pending > 0 ? "\(pending) in attesa di autorizzazione" : link.status,
+        let detail = link.mode == .hosting
+          ? (pending > 0 ? "\(pending) in attesa di autorizzazione" : link.status)
+          : "Apri la sessione nell’auto"
+        let shared = CPListItem(text: "Passeggeri", detailText: detail,
           image: UIImage(systemName: "person.2.fill"))
         shared.accessoryType = .disclosureIndicator
         shared.handler = { [weak self] _, done in
           done()
           guard let self else { return }
+          if self.app.passengers.link.mode != .hosting {
+            self.app.passengers.link.activateForCarPlay()
+          }
           self.renderPassengers()
           self.controller?.pushTemplate(self.passengersTemplate, animated: true, completion: nil)
         }

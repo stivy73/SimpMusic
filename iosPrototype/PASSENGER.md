@@ -1,3 +1,15 @@
+# Avvio automatico CarPlay — candidata 58
+
+Ogni collegamento CarPlay attiva il telefono principale: apre una sessione se
+necessario oppure riprende quella già aperta mantenendo QR e passeggeri.
+Dopo un riavvio viene creato un nuovo invito, disponibile direttamente su CarPlay.
+L’invito non viene salvato su disco. L’accesso del passeggero richiede conferma.
+
+**Coda → Passeggeri** è sempre presente. Se la sessione era stata terminata,
+toccare la voce la riapre. La chiusura esplicita viene rispettata fino a una
+nuova apertura dal menu o al successivo collegamento CarPlay. La vista QR si
+aggiorna al nuovo invito, evitando di mostrare un codice scaduto.
+
 # Invito QR su CarPlay — 0.16.4 (57)
 
 Da **player CarPlay → Coda → Passeggeri → Mostra QR**, il principale mostra
