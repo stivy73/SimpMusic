@@ -1,4 +1,4 @@
-# Avvio automatico CarPlay — candidata 58
+# Avvio automatico CarPlay — 0.16.5 (58)
 
 Ogni collegamento CarPlay attiva il telefono principale: apre una sessione se
 necessario oppure riprende quella già aperta mantenendo QR e passeggeri.

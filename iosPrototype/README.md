@@ -1,11 +1,14 @@
 # NoteNarrate iOS
 
-Beta corrente **0.16.4 (57)**, **VALID / IN_BETA_TESTING**, assegnata a
-**Team interno** (Tommaso incluso) e **Stivy73**. QR della sessione nel pannello
-Passeggeri di CarPlay: **player → Coda → Passeggeri → Mostra QR**. Nascondi QR
-ripristina l’elenco; richieste e autorizzazioni disponibili anche nella vista QR.
-[Consegna e verifiche](RELEASE-0.16.4-57.md). 28 test superati, incluso il riconoscimento
-Vision del QR ridotto; scansione del display fisico ancora da verificare.
+Beta corrente **0.16.5 (58)**, **VALID / IN_BETA_TESTING**, assegnata a
+**Team interno** (Tommaso incluso) e **Stivy73**. Il collegamento CarPlay avvia
+la sessione Passeggero oppure conserva quella già attiva. **Passeggeri** è sempre
+presente nella Coda e permette di riaprire una sessione chiusa dal display.
+[Consegna e verifiche](RELEASE-0.16.5-58.md). 30 test superati; evento di avvio
+sul veicolo reale da confermare al prossimo collegamento.
+
+Beta precedente **0.16.4 (57)**: QR nel pannello Passeggeri di CarPlay.
+[Consegna e verifiche](RELEASE-0.16.4-57.md).
 
 Beta precedente **0.16.3 (56)**: collegamento Bluetooth per la sessione Passeggero
 con CarPlay wireless, confermato funzionante dall’utente.
