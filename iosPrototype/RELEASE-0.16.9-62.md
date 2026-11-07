@@ -25,5 +25,16 @@ preparazione in corso e pausa silenziosa. Compilazioni Debug/simulatore e
 Release/iPhone riuscite con Xcode 27.2 RC (27B48), SDK 27.2.
 [Misure, limiti e log](AUDIO_STARTUP.md).
 
-Archivio firmato, IPA, caricamento e gruppi TestFlight da verificare.
+Archivio firmato ed esportazione riusciti. Verifiche IPA CarPlay/Siri/widget/share
+e firma Watch superate; minimi iOS 17 e watchOS 10 invariati.
+Sorgenti: `26569af358fe10e4282c83943d729dd4c54aafc3`, branch
+`feature/youtube-library-albums` su `stivy73/SimpMusic`.
+IPA esportata: `deliveries/NoteNarrate-iOS-0.16.9-build62.ipa`.
+SHA-256: `1f21a533b7eb45f5b68c12d10cea38c2fddb2046bb065708eb9efa5412c612ae`.
+
+Upload Apple riuscito, elaborazione **VALID**, stato **IN_BETA_TESTING**.
+Associazioni a **Team interno** e **Stivy73** rilette via API. Appartenenza di
+**Tommaso** e **Girbreda** al Team interno verificata per questa consegna.
+Nessuna modifica di utenti/ruoli o pubblicazione App Store.
+Ricevuta: `deliveries/NoteNarrate-iOS-0.16.9-build62-AppStore-status.json`.
 Collaudo fisico sul Duo e in CarPlay ancora necessario.

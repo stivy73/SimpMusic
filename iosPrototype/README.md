@@ -1,13 +1,18 @@
 # NoteNarrate iOS
 
-Beta corrente **0.16.8 (61)**, **VALID / IN_BETA_TESTING**, assegnata a
+Beta corrente **0.16.9 (62)**, **VALID / IN_BETA_TESTING**, assegnata a
 **Team interno** e **Stivy73**, con accesso verificato per **Tommaso** e **Girbreda**.
-Il cuore album salva anche l’album nella raccolta YouTube Music, oltre ai Mi piace
-alle tracce; diventa pieno e rosso dopo il salvataggio confermato. Errori sulle
-tracce non cancellano l’album già salvato. Anche il cuore dei brani usa il rosso.
-[Consegna e verifiche](RELEASE-0.16.8-61.md). 86 test superati e metadati pubblici
-di Max Forever Vol. 2 verificati; salvataggio autenticato e aspetto sul dispositivo
-ancora da collaudare dopo l’aggiornamento.
+Il brano successivo viene preparato durante l’ascolto anche senza crossfade;
+Avanti e fine brano riusano player e buffer pronti. A player fermo l’album anticipa
+la prima traccia. Il riuso è limitato allo stesso account, rete e qualità con
+scadenza breve; i controlli CDN restano invariati. Primo brano non anticipato
+ancora dipendente dalla rete. [Consegna](RELEASE-0.16.9-62.md),
+[misure e limiti](AUDIO_STARTUP.md). 72 test core e 3 UI superati;
+collaudo fisico sul Duo e in CarPlay ancora necessario.
+
+Beta precedente **0.16.8 (61)**: il cuore salva anche l’album nella raccolta
+YouTube Music e riflette il salvataggio confermato, oltre ai Mi piace alle tracce.
+[Consegna e verifiche](RELEASE-0.16.8-61.md).
 
 Beta precedente **0.16.7 (60)**: parsing della raccolta Mi piace e caricamento
 condiviso che sopravvive alla chiusura della schermata.

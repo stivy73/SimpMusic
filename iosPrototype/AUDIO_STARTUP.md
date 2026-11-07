@@ -1,4 +1,4 @@
-# Preparazione anticipata — candidata successiva alla build 61
+# Preparazione anticipata — 0.16.9 (62)
 
 La preparazione viene spostata prima della selezione, invece di nascondere lo
 stato di caricamento. Mentre il brano corrente suona viene preparato il successivo
@@ -38,14 +38,15 @@ Riproduzione della prova:
 `swift run --package-path iosPrototype NetworkProbe --audio-startup-warm 'Ma perché 114 BPM Mix 883'`.
 Log finale: `/tmp/nn-warm-live-final.log`.
 
-Verifiche candidate: 72 test core superati, compilazioni Debug/simulatore e
+Verifiche della build 62: 72 test core superati, compilazioni Debug/simulatore e
 Release/iPhone riuscite con Xcode 27.2 RC / SDK 27.2. Tre nuove regressioni UI
 superate: Avanti a player pronto con crossfade disattivato, Avanti durante la
 preparazione condivisa, pausa che conserva il successore silenzioso fino al
 comando esplicito. Il conteggio delle attese condivise distingue il riuso da un
 nuovo caricamento. Log `/tmp/nn-warm-ui4.log`, risultato
 `/tmp/NoteNarrate-Warm-UI4.xcresult`; core `/tmp/nn-warm-core.log`, Release
-`/tmp/nn-warm-release.log`. Candidata non ancora distribuita su TestFlight;
+`/tmp/nn-warm-release.log`. Build 62 disponibile su TestFlight (VALID / IN_BETA_TESTING), assegnata a
+Team interno e Stivy73, Tommaso e Girbreda verificati;
 comportamento fisico sul Duo e in CarPlay ancora da collaudare.
 
 ---
