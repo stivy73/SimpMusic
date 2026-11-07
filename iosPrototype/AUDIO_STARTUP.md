@@ -1,3 +1,55 @@
+# Preparazione anticipata — candidata successiva alla build 61
+
+La preparazione viene spostata prima della selezione, invece di nascondere lo
+stato di caricamento. Mentre il brano corrente suona viene preparato il successivo
+nella coda effettiva, anche con crossfade disattivato. Aprendo un album a player
+fermo viene preparata la prima traccia; un ascolto già attivo mantiene priorità
+sul successore della coda. È conservato un solo player anticipato, silenzioso.
+
+Il player anticipato conserva la sorgente già verificata, lo stesso range loader,
+il buffer e l’AVPlayerItem. Il preroll AVFoundation prepara i primi campioni senza
+avviare l’audio. Avanti e fine brano promuovono quel player, senza una seconda
+risoluzione o ricostruzione. Una preparazione ancora in corso viene condivisa.
+Pausa e narrazione mantengono il successore silenzioso; modifica della coda,
+recupero o cambio del contesto lo invalidano.
+
+Il riuso richiede sessione completa, revisione account, qualità e revisione di
+rete identiche. Scadenza massima 120 secondi, con almeno 30 secondi residui per
+un indirizzo firmato. Account, cookie, indirizzi e audio anticipato restano solo
+in memoria. Non si anticipa l’intero catalogo. Il loader conserva al massimo
+32 blocchi da 128 KiB; AVFoundation decide quali intervalli leggere per l’indice
+e il preroll. Nessun limite sul traffico è dedotto dal solo limite di memoria.
+I controlli iniziale/oltre 1 MiB/finale o HLS restano invariati; anche un player
+promosso mantiene diagnostica e recupero 403, isolati con un token per loader.
+
+Un brano mai preparato richiede comunque la rete: questa modifica non garantisce
+un avvio istantaneo per una selezione arbitraria a freddo o con rete assente.
+
+Misura pubblica, una singola osservazione sul Mac con uscita muta, usando
+**Ma perché (114 BPM Mix) / 883**, durata 252 secondi. Stessa soglia di avanzamento
+(0,02 s) e osservazione ogni 10 ms: **1,92 s a freddo**, includendo risoluzione e
+controlli, contro **0,110 s dal comando di avvio a player già preparato**. Il lavoro
+precedente all’avvio caldo è escluso e resta necessario: non è una riduzione a
+zero del tempo di rete. Avanzamento di 101,28 s durante un’attesa di almeno 95 s,
+senza blocchi oltre il primo minuto. Sono misure AVFoundation, non latenza acustica
+sul Duo o nell’auto, e non medie né tempi garantiti su rete cellulare.
+
+Riproduzione della prova:
+`swift run --package-path iosPrototype NetworkProbe --audio-startup-warm 'Ma perché 114 BPM Mix 883'`.
+Log finale: `/tmp/nn-warm-live-final.log`.
+
+Verifiche candidate: 72 test core superati, compilazioni Debug/simulatore e
+Release/iPhone riuscite con Xcode 27.2 RC / SDK 27.2. Tre nuove regressioni UI
+superate: Avanti a player pronto con crossfade disattivato, Avanti durante la
+preparazione condivisa, pausa che conserva il successore silenzioso fino al
+comando esplicito. Il conteggio delle attese condivise distingue il riuso da un
+nuovo caricamento. Log `/tmp/nn-warm-ui4.log`, risultato
+`/tmp/NoteNarrate-Warm-UI4.xcresult`; core `/tmp/nn-warm-core.log`, Release
+`/tmp/nn-warm-release.log`. Candidata non ancora distribuita su TestFlight;
+comportamento fisico sul Duo e in CarPlay ancora da collaudare.
+
+---
+
 # Avvio audio e ripresa dei brani lunghi — 4 novembre 2026
 
 Ottimizzazione distribuita nella beta interna **0.15.2 (52)**, il 4 novembre 2026,

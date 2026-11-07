@@ -20,6 +20,7 @@
     private var favoritesMigration: Task<Void, Never>?
     private init() {
       music.player.accountProvider = { [weak library] in library?.session }
+      music.player.accountRevisionProvider = { [weak library] in library?.accountRevision }
       media = AppleMediaSession(model: music)
       widgets = WidgetBridge(music: music, library: library)
       releaseNotifications = ReleaseNotifications(music: music, library: library)

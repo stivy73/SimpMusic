@@ -56,6 +56,11 @@
       @Published var diagnostic = "idle"
     #endif
     @Published private(set) var crossfadeStarts = 0
+    @Published private(set) var warmStarts = 0
+    @Published private(set) var warmWaits = 0
+    @Published private(set) var warmReadyID = ""
+    @Published private(set) var warmStatus = "idle"
+    private var activeRangeToken: UUID?
     private(set) var nativePlayer = AVPlayer()
     private let effectsTap = AudioEffectsTap()
     private var effectsSubscription: AnyCancellable?
@@ -67,21 +72,34 @@
       let duration: Double
       let timingDiagnostic: String
       let sourceURL: URL?
+      let source: YouTubeAudio.Source?
+      let rangeToken: UUID?
+      let context: AudioWarmupContext
+      let preparedAt: Date
     }
     private var prepared: PreparedDeck?
     private var preparingID: String?
+    private var preparingContext: AudioWarmupContext?
+    private var preparationRevision = UUID()
+    private var changingDeck = false
     private var transitionRequest: Task<Void, Never>?
     private var fadeTask: Task<Void, Never>?
     private var outgoing: AVPlayer?
     private var outgoingLoader: AudioRangeLoader?
     private var outgoingTap: AudioEffectsTap?
     private var currentTap: AudioEffectsTap?
-    func cancelTransition() {
-      transitionRequest?.cancel()
-      transitionRequest = nil
-      preparingID = nil
-      prepared?.player.pause()
-      prepared = nil
+    func cancelTransition(discardPrepared: Bool = true) {
+      if discardPrepared {
+        preparationRevision = UUID()
+        transitionRequest?.cancel()
+        transitionRequest = nil
+        preparingID = nil
+        preparingContext = nil
+        prepared?.player.cancelPendingPrerolls()
+        prepared?.player.pause()
+        prepared = nil
+        warmReadyID = ""
+      }
       fadeTask?.cancel()
       fadeTask = nil
       outgoing?.pause()
@@ -93,24 +111,42 @@
       nativePlayer.volume = Float(volume / 100)
     }
     func prepareTransition(videoID: String) {
-      guard videoID != preparingID, videoID != prepared?.id else { return }
-      transitionRequest?.cancel()
-      prepared = nil
+      guard !changingDeck, fadeTask == nil else { return }
+      let context = warmupContext()
+      if let prepared, prepared.id == videoID,
+        AudioWarmupValidity.usable(preparedAt: prepared.preparedAt, sourceURL: prepared.sourceURL,
+          context: prepared.context, current: context) { return }
+      if preparingID == videoID, preparingContext == context, transitionRequest != nil { return }
+      cancelTransition()
+      let revision = UUID()
+      preparationRevision = revision
       preparingID = videoID
+      preparingContext = context
+      warmStatus = "preparing " + videoID
       transitionRequest = Task {
         do {
+          #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--test-warm-delay") {
+              try await Task.sleep(for: .seconds(8))
+            }
+          #endif
           let asset: AVURLAsset
           var loader: AudioRangeLoader?
           var duration = 0.0
           var sourceURL: URL?
+          var resolvedSource: YouTubeAudio.Source?
+          var rangeToken: UUID?
           if let url = localFileProvider(videoID) {
             asset = AVURLAsset(url: url)
           } else {
             let source = try await YouTubeAudio().resolve(
-              videoID: videoID, session: accountProvider(),
-              quality: AudioPreferences.shared.currentQuality, preferHLSForLongTracks: true)
+              videoID: videoID, session: context.session,
+              quality: context.quality, preferHLSForLongTracks: true)
+            resolvedSource = source
             sourceURL = source.url
-            let nextLoader = AudioRangeLoader(source: source)
+            let token = UUID()
+            rangeToken = token
+            let nextLoader = AudioRangeLoader(source: source, diagnostic: rangeDiagnostic(token: token))
             try await nextLoader.prepare()
             loader = nextLoader
             asset = nextLoader.asset()
@@ -123,24 +159,69 @@
           if duration > 0 {
             item.forwardPlaybackEndTime = CMTime(seconds: duration, preferredTimescale: 600)
           }
-          item.preferredForwardBufferDuration = 15
+          item.preferredForwardBufferDuration = 5
           let tap = AudioEffectsTap()
           tap.configure(AudioPreferences.shared.effects)
           try Task.checkCancellation()
-          guard preparingID == videoID else { return }
+          guard preparationRevision == revision, warmupContext() == context else { return }
           let deck = AVPlayer(playerItem: item)
           deck.volume = 0
           prepared = PreparedDeck(
             id: videoID, player: deck, loader: loader, tap: tap, duration: duration,
-            timingDiagnostic: timing.diagnostic, sourceURL: sourceURL)
-        } catch { if preparingID == videoID { preparingID = nil } }
+            timingDiagnostic: timing.diagnostic, sourceURL: sourceURL, source: resolvedSource, rangeToken: rangeToken,
+            context: context, preparedAt: Date())
+          warmStatus = "item " + videoID
+          let deadline = Date().addingTimeInterval(8)
+          while (item.status == .unknown || deck.status == .unknown) && Date() < deadline {
+            if item.status == .failed || deck.status == .failed { break }
+            try await Task.sleep(for: .milliseconds(40))
+          }
+          guard item.status == .readyToPlay, deck.status == .readyToPlay else {
+            throw AudioPlaybackError.unavailable
+          }
+          // Preroll fills/decodes the first samples without starting playback or
+          // taking the audio route. The selected deck is promoted, never rebuilt.
+          warmStatus = "preroll " + videoID
+          let timeout = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, preparationRevision == revision else { return }
+            deck.cancelPendingPrerolls()
+          }
+          let ready = await withCheckedContinuation { continuation in
+            deck.preroll(atRate: 1) { continuation.resume(returning: $0) }
+          }
+          timeout.cancel()
+          try Task.checkCancellation()
+          guard ready, preparationRevision == revision, warmupContext() == context else {
+            throw AudioPlaybackError.unavailable
+          }
+          preparingID = nil
+          preparingContext = nil
+          transitionRequest = nil
+          warmReadyID = videoID
+          warmStatus = "ready " + videoID
+        } catch {
+          warmStatus = "failed " + videoID + " code " + String((error as NSError).code)
+          if preparationRevision == revision { cancelTransition() }
+        }
       }
     }
-    @discardableResult func transition(to videoID: String, seconds: Double, dj: Bool) -> Bool {
-      guard playing, let deck = prepared, deck.id == videoID,
-        deck.player.currentItem?.status == .readyToPlay, seconds > 0
+    @discardableResult func transition(
+      to videoID: String, seconds: Double, dj: Bool, preserveIntent: Bool = false
+    ) -> Bool {
+      guard (seconds == 0 || playing), let deck = prepared, deck.id == videoID,
+        warmReadyID == videoID, deck.player.currentItem?.status == .readyToPlay,
+        AudioWarmupValidity.usable(preparedAt: deck.preparedAt, sourceURL: deck.sourceURL,
+          context: deck.context, current: warmupContext())
       else { return false }
-      crossfadeStarts += 1
+      let wasChangingDeck = changingDeck
+      changingDeck = true
+      defer { changingDeck = wasChangingDeck }
+      if seconds > 0 { crossfadeStarts += 1 } else { warmStarts += 1 }
+      if !preserveIntent { request?.cancel() }
+      finishLoadingTask()
+      restoredPosition = nil
+      initialSeek = nil
       let old = nativePlayer
       if let progress { old.removeTimeObserver(progress) }
       progress = nil
@@ -154,6 +235,7 @@
       nativePlayer = deck.player
       rangeLoader = deck.loader
       activeSourceURL = deck.sourceURL
+      activeRangeToken = deck.rangeToken
       assetRevision = UUID()
       recovery = AudioRecovery()
       rejectedSources.removeAll()
@@ -163,15 +245,22 @@
       deck.tap.attach(to: deck.player.currentItem)
       prepared = nil
       preparingID = nil
+      preparingContext = nil
       transitionRequest = nil
+      warmReadyID = ""
       self.videoId = videoID
-      let expected = intent.load()
+      let expected = preserveIntent ? intent.revision : intent.load()
       loadID = expected
       elapsed = 0
       durationSeconds = deck.duration
       timingDiagnostic = deck.timingDiagnostic
       isLoading = false
       playbackError = nil
+      sourceDiagnostic = deck.source?.accountDiagnostic ?? "File locale verificato"
+      networkDiagnostic = "Audio preparato in anticipo; controlli della sorgente mantenuti"
+      audioResolutionReport = (deck.source?.resolutionReport ?? "File locale")
+        + "\nPreparazione: riuso del player e del buffer già pronti"
+      audioReportFinalized = true
       bindPlayer()
       let generation = assetRevision
       statusObservation = deck.player.currentItem?.observe(\.status, options: [.new]) {
@@ -196,7 +285,16 @@
           self.onEnded?()
         }
       }
-      nativePlayer.playImmediately(atRate: 1)
+      if seconds == 0 {
+        old.pause()
+        outgoing = nil
+        outgoingLoader = nil
+        outgoingTap = nil
+        nativePlayer.volume = Float(volume / 100)
+        startPreparedPlayback()
+        return true
+      }
+      startPreparedPlayback()
       fadeTask = Task { [weak self] in
         let start = Date()
         while !Task.isCancelled {
@@ -226,6 +324,13 @@
     var onEnded: (() -> Void)?
     var localFileProvider: @MainActor (String) -> URL? = { _ in nil }
     var accountProvider: @MainActor () -> YouTubeSession? = { nil }
+    var accountRevisionProvider: @MainActor () -> UUID? = { nil }
+    private let defaultAccountRevision = UUID()
+    private func warmupContext() -> AudioWarmupContext {
+      AudioWarmupContext(session: accountProvider(), quality: AudioPreferences.shared.currentQuality,
+        networkRevision: AudioPreferences.shared.networkRevision,
+        accountRevision: accountRevisionProvider() ?? defaultAccountRevision)
+    }
     var beforePlay: (() -> Bool)?
     private var restoredPosition: Double?
     private var initialSeek: Double?
@@ -311,22 +416,31 @@
       rejectedSources.removeAll()
       deferredRecovery = false
       activeSourceURL = nil
+      activeRangeToken = nil
       startLoad(videoId: videoId, startAt: startAt, recovering: false)
     }
 
     /// A repaired source is still the same queue occurrence. Keep loadID and the
     /// user's intent so narration, pause, seeks and track changes remain authoritative.
     private func startLoad(videoId: String, startAt: Double?, recovering: Bool) {
+      let wasChangingDeck = changingDeck
+      changingDeck = true
+      defer { changingDeck = wasChangingDeck }
+      if !recovering, startAt == nil, transition(to: videoId, seconds: 0, dj: false) { return }
+      // Share a matching in-flight preparation instead of restarting its requests.
+      let pendingWarmup = !recovering && startAt == nil && preparingID == videoId
+        && preparingContext == warmupContext() ? transitionRequest : nil
       preparationBegan = ProcessInfo.processInfo.systemUptime
       restoredPosition = nil
       initialSeek = startAt
-      cancelTransition()
+      cancelTransition(discardPrepared: pendingWarmup == nil)
       currentTap = nil
       request?.cancel()
       finishLoadingTask()
       nativePlayer.pause()
       nativePlayer.replaceCurrentItem(with: nil)
       rangeLoader = nil
+      activeRangeToken = nil
       statusObservation = nil
       if let ended { NotificationCenter.default.removeObserver(ended) }
       ended = nil
@@ -335,6 +449,8 @@
       let generation = assetRevision
       self.videoId = videoId
       loadID = expected
+      playing = false
+      isLoading = true
       elapsed = startAt ?? 0
       if !recovering { durationSeconds = 0 }
       timingDiagnostic = "Durata in verifica"
@@ -343,9 +459,7 @@
       let networkContext = previousReport + "Rete all'avvio: " + AudioPreferences.shared.networkDiagnostic + "\n"
       audioResolutionReport = networkContext + "Risoluzione audio in corso"
       audioReportFinalized = false
-      playing = false
       playbackError = nil
-      isLoading = true
       recovery.resetStall()
       startRecoveryWatch()
       #if DEBUG
@@ -372,6 +486,14 @@
       }
       request = Task {
         do {
+          if let pendingWarmup {
+            warmWaits += 1
+            await pendingWarmup.value
+            try Task.checkCancellation()
+            guard intent.revision == expected, assetRevision == generation else { return }
+            if transition(to: videoId, seconds: 0, dj: false, preserveIntent: true) { return }
+            cancelTransition()
+          }
           let asset: AVURLAsset
           var sourceDuration = 0.0
           if let local = localFileProvider(videoId) {
@@ -422,27 +544,9 @@
             }
             durationSeconds = source.duration
             sourceDuration = source.duration
-            let loader = AudioRangeLoader(source: source) { [weak self] message in
-              guard
-                message.contains("HTTP ") && !message.contains("HTTP 206")
-                  || message.contains("network error")
-              else { return }
-              Task { @MainActor [weak self] in
-                guard let self, self.intent.revision == expected, self.assetRevision == generation
-                else { return }
-                self.networkDiagnostic = String(message.prefix(300))
-                let lines = (self.audioResolutionReport + "\nPlayback: " + message)
-                  .components(separatedBy: .newlines)
-                self.audioResolutionReport = lines.suffix(96).joined(separator: "\n")
-                if message.contains("HTTP 403"), !self.isLoading {
-                  if !self.recoverAudio(reason: "Il server ha rifiutato il flusso") {
-                    self.pause()
-                    self.playbackError =
-                      "Il server non consente di proseguire questo brano. Riprova."
-                  }
-                }
-              }
-            }
+            let token = UUID()
+            activeRangeToken = token
+            let loader = AudioRangeLoader(source: source, diagnostic: rangeDiagnostic(token: token))
             rangeLoader = loader
             try await loader.prepare()
             try Task.checkCancellation()
@@ -586,6 +690,27 @@
       }
     }
 
+    private func rangeDiagnostic(token: UUID) -> @Sendable (String) -> Void {
+      { [weak self] message in
+        guard message.contains("HTTP ") && !message.contains("HTTP 206")
+          || message.contains("network error") else { return }
+        Task { @MainActor [weak self] in
+          // Warm readers are silent until promoted. Ignore late callbacks from
+          // any loader that is no longer the active validated source.
+          guard let self, self.activeRangeToken == token else { return }
+          self.networkDiagnostic = String(message.prefix(300))
+          self.audioResolutionReport = (self.audioResolutionReport + "\nPlayback: " + message)
+            .components(separatedBy: .newlines).suffix(96).joined(separator: "\n")
+          if message.contains("HTTP 403"), !self.isLoading {
+            if !self.recoverAudio(reason: "Il server ha rifiutato il flusso") {
+              self.pause()
+              self.playbackError = "Il server non consente di proseguire questo brano. Riprova."
+            }
+          }
+        }
+      }
+    }
+
     private func startRecoveryWatch() {
       recoveryWatch?.cancel()
       recoveryWatch = Task { [weak self] in
@@ -670,6 +795,7 @@
       nativePlayer.pause()
       nativePlayer.replaceCurrentItem(with: nil)
       rangeLoader = nil
+      activeRangeToken = nil
       statusObservation = nil
       if let ended { NotificationCenter.default.removeObserver(ended) }
       ended = nil
@@ -717,7 +843,9 @@
       }
     }
     func pause() {
-      cancelTransition()
+      // Pause/track-end/narration silence both audible decks, retaining only the
+      // muted successor. Otherwise normal auto-advance would discard its warmup.
+      cancelTransition(discardPrepared: false)
       controlRevision = UUID()
       intent.pause()
       recovery.resetStall()

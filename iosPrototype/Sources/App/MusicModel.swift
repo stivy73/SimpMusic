@@ -168,21 +168,27 @@ final class MusicModel: NSObject, ObservableObject {
   }
   private func updateCrossfade() {
     let seconds = AudioPreferences.shared.crossfade
-    guard seconds > 0, player.playing, !reading, !busyMeaning, sleepTimer != .endOfTrack,
-      player.durationSeconds > seconds * 2,
+    guard !isPassenger, player.playing, !player.isLoading, !reading, !busyMeaning, sleepTimer != .endOfTrack,
       let index = sequence.next(repeatMode: repeatMode, automatic: true), index != sequence.current,
       queue.indices.contains(index)
     else { return }
+    // The normal Next/end path needs the same source, buffer and player as a
+    // crossfade. Prepare as soon as current playback is running, even with fade=0.
+    player.prepareTransition(videoID: queue[index].id)
+    guard seconds > 0, player.durationSeconds > seconds * 2 else { return }
     let remaining = player.durationSeconds - player.elapsed
-    if remaining > 0 && remaining <= seconds + 15 {
-      player.prepareTransition(videoID: queue[index].id)
-    }
     if remaining > 0 && remaining <= seconds,
       player.transition(to: queue[index].id, seconds: remaining, dj: AudioPreferences.shared.djMode)
     {
       sequence.select(index)
       play(queue[index], reusePlayback: true)
     }
+  }
+
+  func prepareAlbumAudio(_ songs: [Song]) {
+    // One speculative deck only. Active listening prioritizes the queue successor.
+    guard !isPassenger, !player.playing, !player.isLoading, let first = songs.first else { return }
+    player.prepareTransition(videoID: first.id)
   }
 
   func setSleepTimer(_ timer: SleepTimer?) {

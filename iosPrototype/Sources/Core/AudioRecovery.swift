@@ -123,3 +123,45 @@ public struct AudioRecovery: Sendable {
     return now - progressAt >= 8
   }
 }
+
+/// Prepared media belongs to the exact account, quality and network that resolved it.
+/// Keep this context in memory only; it contains the authenticated session.
+public struct AudioWarmupContext: Equatable, Sendable {
+  public let session: YouTubeSession?
+  public let quality: AudioQuality
+  public let networkRevision: UUID
+  public let accountRevision: UUID
+
+  public init(
+    session: YouTubeSession?, quality: AudioQuality, networkRevision: UUID,
+    accountRevision: UUID
+  ) {
+    self.session = session
+    self.quality = quality
+    self.networkRevision = networkRevision
+    self.accountRevision = accountRevision
+  }
+}
+
+/// A short-lived preparation must not reuse expired or IP/account-bound media
+/// after its context changes. Unknown expiry is bounded by the same short TTL.
+public enum AudioWarmupValidity {
+  public static func usable(
+    preparedAt: Date, now: Date = Date(), sourceURL: URL?,
+    context: AudioWarmupContext, current: AudioWarmupContext
+  ) -> Bool {
+    let age = now.timeIntervalSince(preparedAt)
+    guard context == current, age.isFinite, age >= 0, age <= 120 else { return false }
+    guard let sourceURL else { return true }
+    guard let components = URLComponents(url: sourceURL, resolvingAgainstBaseURL: false) else {
+      return false
+    }
+    let expirations = (components.queryItems ?? []).filter { $0.name == "expire" }
+    guard !expirations.isEmpty else { return true }
+    guard expirations.count == 1, let value = expirations[0].value,
+      let expiry = Double(value), expiry.isFinite,
+      expiry - now.timeIntervalSince1970 >= 30
+    else { return false }
+    return true
+  }
+}

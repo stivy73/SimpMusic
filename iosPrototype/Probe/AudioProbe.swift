@@ -186,7 +186,8 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
     return true
   }
   if args.first == "--audio-timing" || args.first == "--audio-startup"
-    || args.first == "--audio-startup-id" || args.first == "--audio-startup-resume" {
+    || args.first == "--audio-startup-id" || args.first == "--audio-startup-resume"
+    || args.first == "--audio-startup-warm" {
     let resuming = args.first == "--audio-startup-resume"
     let resumeAt = resuming ? (args.dropFirst().first.flatMap(Double.init) ?? -1) : 0
     guard resumeAt.isFinite, resumeAt >= 0 else { throw AudioPlaybackError.unavailable }
@@ -251,10 +252,11 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
         await MainActor.run { player.playImmediately(atRate: 1) }
       }
       var started = false
-      for _ in 0..<60 {
-        try await Task.sleep(for: .milliseconds(500))
+      let comparingWarm = args.first == "--audio-startup-warm"
+      for _ in 0..<(comparingWarm ? 3000 : 60) {
+        try await Task.sleep(for: .milliseconds(comparingWarm ? 10 : 500))
         let position = await MainActor.run { player.currentTime().seconds }
-        if position > resumeAt + 0.2 {
+        if position > resumeAt + (comparingWarm ? 0.02 : 0.2) {
           print("Playback started after \(String(format: "%.2f", Date().timeIntervalSince(began)))s; position \(String(format: "%.2f", position))s")
           fflush(nil)
           started = true
@@ -262,6 +264,35 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
         }
       }
       guard started else { throw AudioPlaybackError.unavailable }
+      if args.first == "--audio-startup-warm" {
+        await MainActor.run { player.pause() }
+        let reset = await withCheckedContinuation { continuation in
+          Task { @MainActor in
+            player.seek(to: .zero) { continuation.resume(returning: $0) }
+          }
+        }
+        guard reset else { throw AudioPlaybackError.unavailable }
+        let prerolled = await withCheckedContinuation { continuation in
+          Task { @MainActor in
+            player.preroll(atRate: 1) { continuation.resume(returning: $0) }
+          }
+        }
+        guard prerolled else { throw AudioPlaybackError.unavailable }
+        let tap = Date()
+        await MainActor.run { player.playImmediately(atRate: 1) }
+        var warmStarted = false
+        for _ in 0..<500 {
+          try await Task.sleep(for: .milliseconds(10))
+          let position = await MainActor.run { player.currentTime().seconds }
+          if position >= 0.02 {
+            print("Warm selection to advancing audio: \(String(format: "%.3f", Date().timeIntervalSince(tap)))s; no new source/range validation; retained player and buffer")
+            fflush(nil)
+            warmStarted = true
+            break
+          }
+        }
+        guard warmStarted else { throw AudioPlaybackError.unavailable }
+      }
       await MainActor.run { player.currentItem?.preferredForwardBufferDuration = 30 }
       let initial = await MainActor.run { player.currentTime().seconds }
       try await Task.sleep(for: .seconds(95))

@@ -581,6 +581,107 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
+  func testNormalNextReusesPreparedAudioWithoutCrossfade() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15), app.debugDescription)
+    waitForPlayback(toggle)
+    let ready = app.staticTexts["test-warm-ready"]
+    let prepared = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "local-2-30"), object: ready)
+    XCTAssertEqual(XCTWaiter.wait(for: [prepared], timeout: 15), .completed, app.debugDescription)
+    XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-1-30")
+    XCTAssertEqual(app.staticTexts["test-warm-starts"].label, "0")
+    XCTAssertEqual(app.staticTexts["test-crossfade-starts"].label, "0")
+
+    app.buttons["next-song"].tap()
+    let promoted = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "1"),
+      object: app.staticTexts["test-warm-starts"])
+    XCTAssertEqual(XCTWaiter.wait(for: [promoted], timeout: 5), .completed)
+    XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-2-30")
+    XCTAssertEqual(app.staticTexts["test-crossfade-starts"].label, "0")
+    XCTAssertFalse(app.staticTexts["playback-error"].exists)
+    waitForPlayback(toggle)
+
+    toggle.tap()
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+    let elapsed = app.staticTexts["playback-elapsed"]
+    let stoppedAt = Int(elapsed.value as? String ?? "0") ?? 0
+    let advances = XCTNSPredicateExpectation(
+      predicate: NSPredicate { _, _ in
+        (Int(elapsed.value as? String ?? "0") ?? 0) > stoppedAt + 1
+      }, object: elapsed)
+    advances.isInverted = true
+    XCTAssertEqual(XCTWaiter.wait(for: [advances], timeout: 3), .completed)
+    XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-2-30")
+  }
+
+  @MainActor
+  func testPauseRetainsSilentPreparedSuccessorUntilExplicitNext() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15), app.debugDescription)
+    waitForPlayback(toggle)
+    let ready = app.staticTexts["test-warm-ready"]
+    let prepared = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "local-2-30"), object: ready)
+    XCTAssertEqual(XCTWaiter.wait(for: [prepared], timeout: 15), .completed, app.debugDescription)
+    toggle.tap()
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+    XCTAssertEqual(ready.label, "local-2-30")
+    let resumes = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "value == %@", "Riproduzione attiva"), object: toggle)
+    resumes.isInverted = true
+    XCTAssertEqual(XCTWaiter.wait(for: [resumes], timeout: 3), .completed)
+    XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-1-30")
+    XCTAssertEqual(app.staticTexts["test-warm-starts"].label, "0")
+
+    app.buttons["next-song"].tap()
+    let promoted = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "1"),
+      object: app.staticTexts["test-warm-starts"])
+    XCTAssertEqual(XCTWaiter.wait(for: [promoted], timeout: 5), .completed)
+    XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-2-30")
+    XCTAssertEqual(app.staticTexts["test-crossfade-starts"].label, "0")
+    XCTAssertFalse(app.staticTexts["playback-error"].exists)
+    waitForPlayback(toggle)
+    toggle.tap()
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+  }
+
+  @MainActor
+  func testNextSharesAudioPreparationAlreadyInFlight() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-warm-delay"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15), app.debugDescription)
+    waitForPlayback(toggle)
+    let status = app.staticTexts["test-warm-status"]
+    let preparing = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "preparing local-2-30"), object: status)
+    XCTAssertEqual(XCTWaiter.wait(for: [preparing], timeout: 10), .completed, app.debugDescription)
+    app.buttons["next-song"].tap()
+
+    let promoted = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "1"),
+      object: app.staticTexts["test-warm-starts"])
+    XCTAssertEqual(XCTWaiter.wait(for: [promoted], timeout: 20), .completed, app.debugDescription)
+    XCTAssertEqual(app.staticTexts["test-warm-waits"].label, "1")
+    XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-2-30")
+    XCTAssertEqual(app.staticTexts["test-crossfade-starts"].label, "0")
+    XCTAssertFalse(app.staticTexts["playback-error"].exists)
+    waitForPlayback(toggle)
+    toggle.tap()
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+  }
+
+  @MainActor
   func testCrossfadePromotesPreparedTrackAndManualPauseStopsBothDecks() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-local-playback", "--test-crossfade"]

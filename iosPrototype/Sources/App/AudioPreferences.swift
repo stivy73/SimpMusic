@@ -46,6 +46,7 @@ import Network
     didSet { UserDefaults.standard.set(djMode, forKey: "djMode") }
   }
   @Published private(set) var expensive = true
+  @Published private(set) var networkRevision = UUID()
   private let monitor = NWPathMonitor()
   var currentQuality: AudioQuality { expensive ? cellularQuality : wifiQuality }
   var networkDiagnostic: String {
@@ -58,7 +59,10 @@ import Network
   init() {
     monitor.pathUpdateHandler = { [weak self] path in
       let value = path.isExpensive || path.isConstrained || path.usesInterfaceType(.cellular)
-      Task { @MainActor [weak self] in self?.expensive = value }
+      Task { @MainActor [weak self] in
+        self?.expensive = value
+        self?.networkRevision = UUID()
+      }
     }
     monitor.start(queue: DispatchQueue(label: "NoteNarrate.network-preferences"))
   }

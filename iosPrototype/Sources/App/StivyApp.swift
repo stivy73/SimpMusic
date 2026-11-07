@@ -183,6 +183,9 @@ struct RootView: View {
               Text(model.current?.id ?? "preparing").accessibilityIdentifier("test-current-id")
               Text(String(model.player.crossfadeStarts)).accessibilityIdentifier(
                 "test-crossfade-starts")
+              #if os(iOS)
+                AudioWarmupQA(player: model.player)
+              #endif
               Text(model.settingsError ?? "fixture ready").accessibilityIdentifier(
                 "test-fixture-state")
             }.font(.caption2).allowsHitTesting(false)
@@ -1478,5 +1481,19 @@ extension View {
       return controller
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+  }
+#endif
+
+#if DEBUG && os(iOS)
+  private struct AudioWarmupQA: View {
+    @ObservedObject var player: PlaybackPlayer
+    var body: some View {
+      VStack {
+        Text(String(player.warmStarts)).accessibilityIdentifier("test-warm-starts")
+        Text(String(player.warmWaits)).accessibilityIdentifier("test-warm-waits")
+        Text(player.warmReadyID).accessibilityIdentifier("test-warm-ready")
+        Text(player.warmStatus).accessibilityIdentifier("test-warm-status")
+      }
+    }
   }
 #endif
