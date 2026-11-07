@@ -1,11 +1,16 @@
 # NoteNarrate iOS
 
-Beta corrente **0.16.5 (58)**, **VALID / IN_BETA_TESTING**, assegnata a
-**Team interno** (Tommaso incluso) e **Stivy73**. Il collegamento CarPlay avvia
-la sessione Passeggero oppure conserva quella già attiva. **Passeggeri** è sempre
-presente nella Coda e permette di riaprire una sessione chiusa dal display.
-[Consegna e verifiche](RELEASE-0.16.5-58.md). 30 test superati; evento di avvio
-sul veicolo reale da confermare al prossimo collegamento.
+Beta corrente **0.16.6 (59)**, **VALID / IN_BETA_TESTING**, assegnata a
+**Team interno** (Tommaso incluso) e **Stivy73**. Dopo scansione e autenticazione
+del QR, il principale collega automaticamente il passeggero: rimossi
+Consenti/Rifiuta su iPhone e CarPlay. Collegamento diretto anche dai link della
+fotocamera di sistema; Scollega e chiusura sessione restano disponibili.
+[Consegna e verifiche](RELEASE-0.16.6-59.md). 32 test superati; collegamento
+senza conferma nel veicolo reale da collaudare dopo l’aggiornamento del principale.
+
+Beta precedente **0.16.5 (58)**: avvio della sessione al collegamento CarPlay
+e voce Passeggeri sempre presente nella Coda.
+[Consegna e verifiche](RELEASE-0.16.5-58.md).
 
 Beta precedente **0.16.4 (57)**: QR nel pannello Passeggeri di CarPlay.
 [Consegna e verifiche](RELEASE-0.16.4-57.md).

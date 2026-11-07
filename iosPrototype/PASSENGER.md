@@ -1,4 +1,4 @@
-# Collegamento automatico con QR — candidata 59
+# Collegamento automatico con QR — 0.16.6 (59)
 
 Un invito valido è sufficiente per collegarsi: dopo scansione e autenticazione
 crittografica il principale accetta il passeggero automaticamente, sia su TLS/Wi-Fi
@@ -11,6 +11,10 @@ Il token di protocollo `approved` resta come acknowledgement per i client preced
 non rappresenta più un’approvazione manuale. Il principale può scollegare il singolo
 passeggero o chiudere la sessione, invalidando l’invito. La cifratura e la verifica
 del codice restano necessarie prima di accettare il messaggio iniziale.
+
+Build 59 disponibile su TestFlight: VALID / IN_BETA_TESTING, Team interno
+(Tommaso incluso) e Stivy73 verificati. 32 test passati; connessione automatica
+nel veicolo reale da collaudare dopo l’aggiornamento del telefono principale.
 
 I permessi Bluetooth/fotocamera/rete locale di iOS restano gestiti dal sistema.
 Le note storiche sotto descrivono il comportamento delle build precedenti.
