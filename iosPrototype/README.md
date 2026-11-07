@@ -1,7 +1,7 @@
 # NoteNarrate iOS
 
 Beta corrente **0.16.7 (60)**, **VALID / IN_BETA_TESTING**, assegnata a
-**Team interno** (Tommaso incluso) e **Stivy73**. Corretto il parsing delle
+**Team interno** (Tommaso e Girbreda inclusi) e **Stivy73**. Corretto il parsing delle
 intestazioni playlist Mi piace e delle pagine a due colonne. Il caricamento
 condiviso della raccolta sopravvive alla chiusura della schermata; gli errori
 mostrano la causa originale o il nome della struttura non supportata.

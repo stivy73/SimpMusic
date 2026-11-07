@@ -27,6 +27,6 @@ IPA esportata: `deliveries/NoteNarrate-iOS-0.16.7-build60.ipa`.
 SHA-256: `db246095968186fa94dd43092e461cddc7ad344dfe24c4854cc9e1ef4e554741`.
 
 Upload Apple riuscito, elaborazione **VALID**, stato **IN_BETA_TESTING**.
-Associazioni a **Team interno** e **Stivy73** rilette via API; Tommaso verificato
+Associazioni a **Team interno** e **Stivy73** rilette via API; Tommaso e Girbreda verificati
 nel Team interno. Nessuna modifica di utenti/ruoli o pubblicazione App Store.
 Ricevuta: `deliveries/NoteNarrate-iOS-0.16.7-build60-AppStore-status.json`.
