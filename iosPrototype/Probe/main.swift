@@ -52,7 +52,7 @@ do {
       "Album: \(detail.album.title); artist: \(detail.album.artist); year: \(detail.year ?? "unavailable")"
     )
     print(
-      "Tracks: \(detail.songs.count); total seconds: \(detail.durationSeconds.map { String(Int($0)) } ?? "unavailable"); cover: \(detail.album.artwork != nil); description: \(!detail.description.isEmpty)"
+      "Tracks: \(detail.songs.count); total seconds: \(detail.durationSeconds.map { String(Int($0)) } ?? "unavailable"); cover: \(detail.album.artwork != nil); description: \(!detail.description.isEmpty); album save target: \(detail.audioPlaylistID != nil)"
     )
     guard !detail.songs.isEmpty,
       detail.songs.allSatisfy({

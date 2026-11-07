@@ -72,6 +72,7 @@ public final class LibraryModel: ObservableObject {
   @Published public private(set) var collections: [RemoteLibraryKind: RemoteLibraryState] = [:]
   @Published public private(set) var pendingLikes = Set<String>()
   @Published public private(set) var pendingFollows = Set<String>()
+  @Published public private(set) var pendingAlbumSaves = Set<String>()
   @Published public var syncError: String?
   private var request: Task<Void, Never>?
   private var revision = UUID()
@@ -82,9 +83,11 @@ public final class LibraryModel: ObservableObject {
     @Sendable (YouTubeSession, RemoteLibraryKind) async throws -> [DiscoveryItem]
   public typealias RateSong = @Sendable (YouTubeSession, String, Bool) async throws -> Void
   public typealias FollowArtist = @Sendable (YouTubeSession, String, Bool) async throws -> Void
+  public typealias SaveAlbum = @Sendable (YouTubeSession, String) async throws -> Void
   private let fetchCollection: FetchCollection
   private let rateSong: RateSong
   private let followArtist: FollowArtist
+  private let saveAlbum: SaveAlbum
 
   private let save: @MainActor (YouTubeSession?) throws -> Void
   private let fetch: @Sendable (YouTubeSession) async throws -> [LibraryAlbum]
@@ -103,6 +106,9 @@ public final class LibraryModel: ObservableObject {
     },
     followArtist: @escaping FollowArtist = { session, id, followed in
       try await YouTubeBrowse(session: session).setFollowed(artistID: id, followed: followed)
+    },
+    saveAlbum: @escaping SaveAlbum = { session, id in
+      try await YouTubeBrowse(session: session).setAlbumSaved(audioPlaylistID: id, saved: true)
     }
   ) {
     self.session = session
@@ -111,6 +117,7 @@ public final class LibraryModel: ObservableObject {
     self.fetchCollection = fetchCollection
     self.rateSong = rateSong
     self.followArtist = followArtist
+    self.saveAlbum = saveAlbum
   }
 
   public func connect(_ value: YouTubeSession) {
@@ -143,6 +150,7 @@ public final class LibraryModel: ObservableObject {
     collections = [:]
     pendingLikes = []
     pendingFollows = []
+    pendingAlbumSaves = []
     syncError = nil
     revision = UUID()
     albums = []
@@ -223,6 +231,46 @@ public final class LibraryModel: ObservableObject {
 
   public func isLiked(_ id: String) -> Bool {
     state(.likes).items.contains { $0.mediaId == id }
+  }
+
+  public func isAlbumSaved(_ id: String) -> Bool { albums.contains { $0.id == id } }
+
+  /// Save the album itself first; confirmed track likes remain a separate operation.
+  public func saveAlbumAndLikeTracks(_ detail: AlbumDetail) async {
+    guard let session else { showLogin = true; return }
+    let expected = accountRevision
+    let id = detail.album.id
+    guard !Task.isCancelled, !pendingAlbumSaves.contains(id) else { return }
+    pendingAlbumSaves.insert(id)
+    syncError = nil
+    defer { if expected == accountRevision { pendingAlbumSaves.remove(id) } }
+    if !isAlbumSaved(id) {
+      guard let playlistID = detail.audioPlaylistID else {
+        syncError = "Impossibile salvare l’album: collegamento YouTube Music non disponibile. Aggiorna l’album e riprova."
+        return
+      }
+      do {
+        try await saveAlbum(session, playlistID)
+        guard expected == accountRevision else { return }
+        // An older album refresh must not replace this newly confirmed server write.
+        request?.cancel()
+        revision = UUID()
+        loading = false
+        error = nil
+        albums.removeAll { $0.id == id }
+        albums.insert(detail.album, at: 0)
+      } catch {
+        guard expected == accountRevision else { return }
+        syncError = "Album non salvato nella libreria YouTube Music. " + error.localizedDescription
+        return
+      }
+    }
+    guard expected == accountRevision, !Task.isCancelled else { return }
+    await importLikes(detail.songs.map(\.discoveryItem)) { _ in }
+    guard expected == accountRevision else { return }
+    if let cause = syncError {
+      syncError = "Album salvato nella libreria. Mi piace alle tracce non completati.\n" + cause
+    }
   }
 
   public func isFollowed(_ id: String) -> Bool {

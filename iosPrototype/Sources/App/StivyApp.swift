@@ -544,7 +544,9 @@ struct YouTubeLikeButton: View {
       } else {
         Label(label, systemImage: library.isLiked(song.id) ? "heart.fill" : "heart")
       }
-    }.disabled(pending || library.state(.likes).loading)
+    }.foregroundStyle(library.isLiked(song.id) ? Color.red : .primary)
+      .tint(library.isLiked(song.id) ? .red : .cyan)
+      .disabled(pending || library.state(.likes).loading)
       .accessibilityLabel(label).accessibilityIdentifier(identifier ?? "youtube-like-" + song.id)
       .accessibilityValue(
         library.state(.likes).loaded

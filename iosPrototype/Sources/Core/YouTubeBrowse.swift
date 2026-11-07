@@ -82,6 +82,17 @@ public final class YouTubeBrowse: Sendable {
     }
   }
 
+  /// Album saving is a playlist-level library action, separate from track likes.
+  public func setAlbumSaved(audioPlaylistID: String, saved: Bool) async throws {
+    guard session != nil else { throw LibraryError.authentication }
+    guard audioPlaylistID.hasPrefix("OLAK5uy_"), audioPlaylistID.count <= 200,
+      audioPlaylistID.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil
+    else { throw LibraryError.malformed }
+    _ = try await confirmedWrite(
+      endpoint: saved ? "like/like" : "like/removelike",
+      fields: ["target": ["playlistId": audioPlaylistID]])
+  }
+
   public func canEditPlaylist(id: String) async throws -> Bool {
     guard session != nil else { throw LibraryError.authentication }
     let data = try await request(browseId: id.hasPrefix("VL") ? id : "VL" + id)

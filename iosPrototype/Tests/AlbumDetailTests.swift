@@ -66,6 +66,36 @@ private enum AlbumFixture {
 }
 
 final class AlbumDetailTests: XCTestCase {
+  func testAlbumPlaylistIDComesFromHeaderPlayControl() async throws {
+    for key in ["watchEndpoint", "watchPlaylistEndpoint"] {
+      var root = try XCTUnwrap(JSONSerialization.jsonObject(with: AlbumFixture.page(["song-a"])) as? [String: Any])
+      var wrapper = root["header"] as! [String: Any]
+      var header = wrapper["musicResponsiveHeaderRenderer"] as! [String: Any]
+      header["buttons"] = [["musicPlayButtonRenderer": ["playNavigationEndpoint": [key: ["playlistId": "OLAK5uy_correct"]]]]]
+      wrapper["musicResponsiveHeaderRenderer"] = header
+      root["header"] = wrapper
+      let data = try JSONSerialization.data(withJSONObject: root)
+      let detail = try await AlbumDetail.completed(album: AlbumFixture.fallback) { _ in data }
+      XCTAssertEqual(detail.audioPlaylistID, "OLAK5uy_correct")
+    }
+  }
+
+  func testOldHeaderPlaylistAndUnrelatedPlaylistIsolation() async throws {
+    var root = try XCTUnwrap(JSONSerialization.jsonObject(with: AlbumFixture.page(["song-a"])) as? [String: Any])
+    root["recommendations"] = ["musicPlayButtonRenderer": ["playNavigationEndpoint": ["watchEndpoint": ["playlistId": "OLAK5uy_wrong"]]]]
+    var data = try JSONSerialization.data(withJSONObject: root)
+    let unrelated = try await AlbumDetail.completed(album: AlbumFixture.fallback) { [data] _ in data }
+    XCTAssertNil(unrelated.audioPlaylistID)
+    var wrapper = root["header"] as! [String: Any]
+    var header = wrapper["musicResponsiveHeaderRenderer"] as! [String: Any]
+    header["menu"] = ["menuRenderer": ["topLevelButtons": [["buttonRenderer": ["navigationEndpoint": ["watchPlaylistEndpoint": ["playlistId": "OLAK5uy_legacy"]]]]]]]
+    wrapper["musicResponsiveHeaderRenderer"] = header
+    root["header"] = wrapper
+    data = try JSONSerialization.data(withJSONObject: root)
+    let legacy = try await AlbumDetail.completed(album: AlbumFixture.fallback) { [data] _ in data }
+    XCTAssertEqual(legacy.audioPlaylistID, "OLAK5uy_legacy")
+  }
+
   func testAlbumCoverIsChosenInsteadOfArtistAvatarInHeader() async throws {
     var root = try XCTUnwrap(
       JSONSerialization.jsonObject(with: AlbumFixture.page(["song-a"])) as? [String: Any])

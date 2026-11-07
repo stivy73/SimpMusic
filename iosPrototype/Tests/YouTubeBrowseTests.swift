@@ -135,6 +135,37 @@ final class YouTubeBrowseTests: XCTestCase {
     }
   }
 
+  func testAlbumLibraryWriteUsesPlaylistTargetAndAccount() async throws {
+    let (transport, id) = transport(body: "{\"status\":\"STATUS_SUCCEEDED\"}")
+    defer { BrowseURLProtocol.store.remove(id) }
+    let account = YouTubeSession(cookies: "SAPISID=test", accountIndex: "2", delegatedID: "brand", identity: "A", clientVersion: "test")
+    let browse = YouTubeBrowse(session: account, transport: transport)
+    try await browse.setAlbumSaved(audioPlaylistID: "OLAK5uy_album", saved: true)
+    let request = try XCTUnwrap(BrowseURLProtocol.store.requests(id).first)
+    XCTAssertEqual(try payload(request)["target"] as? [String: String], ["playlistId": "OLAK5uy_album"])
+    XCTAssertTrue(request.url!.path.hasSuffix("like/like"))
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-AuthUser"), "2")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-PageId"), "brand")
+    XCTAssertNotNil(request.value(forHTTPHeaderField: "Authorization"))
+  }
+
+  func testAlbumWriteRequiresAccountAndActualAlbumPlaylistID() async {
+    let (transport, id) = transport()
+    defer { BrowseURLProtocol.store.remove(id) }
+    do {
+      try await YouTubeBrowse(session: nil, transport: transport).setAlbumSaved(audioPlaylistID: "OLAK5uy_album", saved: true)
+      XCTFail("Anonymous write allowed")
+    } catch {}
+    let account = YouTubeSession(cookies: "SAPISID=test", identity: "A", clientVersion: "test")
+    for invalid in ["MPREalbum", "RDAMVMradio", "OLAK5uy_bad?token=private"] {
+      do {
+        try await YouTubeBrowse(session: account, transport: transport).setAlbumSaved(audioPlaylistID: invalid, saved: true)
+        XCTFail("Invalid playlist write allowed")
+      } catch {}
+    }
+    XCTAssertTrue(BrowseURLProtocol.store.requests(id).isEmpty)
+  }
+
   func testAnonymousLikeNeverReachesNetwork() async {
     let (transport, id) = transport()
     defer { BrowseURLProtocol.store.remove(id) }

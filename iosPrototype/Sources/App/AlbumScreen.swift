@@ -14,8 +14,9 @@ struct AlbumView: View {
   @State private var optionsSong: Song?
   private var shown: LibraryAlbum { detail?.album ?? album }
   private var songs: [Song] { detail?.songs ?? [] }
-  @State private var likingAlbum = false
-  private var liked: Bool { !songs.isEmpty && songs.allSatisfy { library.isLiked($0.id) } }
+  private var liked: Bool { library.isAlbumSaved(album.id) }
+  private var likingAlbum: Bool { library.pendingAlbumSaves.contains(album.id) }
+  private var allTracksLiked: Bool { !songs.isEmpty && songs.allSatisfy { library.isLiked($0.id) } }
   private var playingAlbum: Bool {
     model.current?.albumBrowseID == album.id && model.player.playing
   }
@@ -107,16 +108,21 @@ struct AlbumView: View {
         ToolbarItem(placement: .platformTrailing) {
           Button {
             guard library.session != nil else { library.showLogin = true; return }
-            likingAlbum = true
+            guard let detail else { return }
             Task {
-              await library.importLikes(songs.map(\.discoveryItem)) { _ in }
-              likingAlbum = false
+              await library.saveAlbumAndLikeTracks(detail)
             }
           } label: {
-            Image(systemName: liked ? "heart.fill" : "heart").foregroundStyle(
-              liked ? .red : .primary)
-          }.disabled(likingAlbum || songs.isEmpty || liked)
-            .accessibilityLabel(liked ? "Tutte le tracce hanno Mi piace su YouTube Music" : "Mi piace a tutte le tracce su YouTube Music")
+            if likingAlbum && !liked {
+              ProgressView().accessibilityLabel("Salvataggio album")
+            } else {
+              Image(systemName: liked ? "heart.fill" : "heart")
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(liked ? Color.red : .primary)
+            }
+          }.tint(liked ? .red : .primary)
+            .disabled(likingAlbum || songs.isEmpty || (liked && allTracksLiked))
+            .accessibilityLabel(liked ? "Album salvato nella libreria YouTube Music" : "Salva album nella libreria e metti Mi piace alle tracce")
             .accessibilityIdentifier("album-favorite").accessibilityValue(
               liked ? "Attivo" : "Non attivo")
         }
@@ -216,7 +222,7 @@ struct AlbumView: View {
           }
           detail = AlbumDetail(
             album: album, year: "1988", description: "Storie e viaggi nell’album di prova.",
-            songs: songs)
+            songs: songs, audioPlaylistID: "OLAK5uy_fixture")
           loading = false
           return
         }

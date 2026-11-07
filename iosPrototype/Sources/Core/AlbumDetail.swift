@@ -8,6 +8,7 @@ public struct AlbumDetail: Sendable {
   public let year: String?
   public let description: String
   public let songs: [PlaybackTrack]
+  public let audioPlaylistID: String?
   public var durationSeconds: Double? {
     guard !songs.isEmpty, songs.allSatisfy({ ($0.durationSeconds ?? 0) > 0 }) else { return nil }
     return songs.reduce(0) { $0 + ($1.durationSeconds ?? 0) }
@@ -15,11 +16,12 @@ public struct AlbumDetail: Sendable {
 
   public init(
     album: LibraryAlbum, year: String? = nil, description: String = "", songs: [PlaybackTrack],
-    artists: [TrackArtist] = []
+    artists: [TrackArtist] = [], audioPlaylistID: String? = nil
   ) {
     self.album = album
     self.year = year
     self.description = description
+    self.audioPlaylistID = audioPlaylistID
     self.songs = songs.map { song in
       var track = song.withAlbumArtwork(album.artwork, artist: album.artist, albumID: album.id)
       track.albumTitle = album.title
@@ -60,7 +62,7 @@ public struct AlbumDetail: Sendable {
     try Task.checkCancellation()
     return Self(
       album: metadata.album, year: metadata.year, description: metadata.description, songs: tracks,
-      artists: metadata.artists)
+      artists: metadata.artists, audioPlaylistID: metadata.audioPlaylistID)
   }
 
   private static func trackPage(_ root: [String: Any]) throws -> Data {
@@ -114,6 +116,7 @@ private struct AlbumMetadata {
   var year: String?
   var description = ""
   var artists: [TrackArtist] = []
+  var audioPlaylistID: String?
   init(fallback: LibraryAlbum) { album = fallback }
   init(root: [String: Any], fallback: LibraryAlbum) {
     func find(_ keys: Set<String>, in value: Any) -> [String: Any]? {
@@ -136,6 +139,25 @@ private struct AlbumMetadata {
     }
     let header =
       find(["musicResponsiveHeaderRenderer", "musicDetailHeaderRenderer"], in: root) ?? [:]
+    // Use only the album header's Play control, never related albums or radio menus.
+    func playlistID(_ endpoint: Any?) -> String? {
+      guard let endpoint = endpoint as? [String: Any] else { return nil }
+      for key in ["watchEndpoint", "watchPlaylistEndpoint"] {
+        if let watch = endpoint[key] as? [String: Any], let id = watch["playlistId"] as? String,
+          id.hasPrefix("OLAK5uy_"), id.count <= 200,
+          id.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil { return id }
+      }
+      return nil
+    }
+    if let play = find(["musicPlayButtonRenderer"], in: header["buttons"] ?? []) {
+      audioPlaylistID = playlistID(play["playNavigationEndpoint"])
+    }
+    if audioPlaylistID == nil, let menu = header["menu"] as? [String: Any],
+      let renderer = menu["menuRenderer"] as? [String: Any],
+      let buttons = renderer["topLevelButtons"] as? [[String: Any]],
+      let play = buttons.first?["buttonRenderer"] as? [String: Any] {
+      audioPlaylistID = playlistID(play["navigationEndpoint"])
+    }
     let title = text(header["title"])
     let subtitle = text(header["subtitle"])
     let runs =
