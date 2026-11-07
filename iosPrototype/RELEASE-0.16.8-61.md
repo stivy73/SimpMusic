@@ -17,4 +17,18 @@ Verifica pubblica in sola lettura: Max Forever Vol. 2, Max Pezzali, 2026,
 17 tracce, 4475 secondi; identificativo di salvataggio album presente.
 Salvataggio autenticato e aspetto del cuore sul dispositivo ancora da collaudare.
 
-Test, archivio Release, firma, caricamento e gruppi TestFlight da verificare.
+86 test mirati superati: album, libreria, trasporto autenticato, parser,
+paginazione, errori, tocchi ripetuti e cambi account. Archivio Release con
+Xcode 27.2 RC (27B48), SDK iOS 27.2. Firma, esportazione, verifiche IPA
+CarPlay/Siri/widget/share e firma Watch superate. Minimi iOS 17 e watchOS 10 invariati.
+
+Sorgenti: `441d8956e334452f199c106eb2501bf8a299642f`, branch
+`feature/youtube-library-albums` su `stivy73/SimpMusic`.
+IPA esportata: `deliveries/NoteNarrate-iOS-0.16.8-build61.ipa`.
+SHA-256: `21dba3be87e736573ae402e58280958f21f1f56054d33f7a9b0e1145d0967940`.
+
+Upload Apple riuscito, elaborazione **VALID**, stato **IN_BETA_TESTING**.
+Associazioni a **Team interno** e **Stivy73** rilette via API. Appartenenza di
+**Tommaso** e **Girbreda** al Team interno verificata per questa consegna.
+Nessuna modifica di utenti/ruoli o pubblicazione App Store.
+Ricevuta: `deliveries/NoteNarrate-iOS-0.16.8-build61-AppStore-status.json`.

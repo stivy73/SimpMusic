@@ -1,12 +1,17 @@
 # NoteNarrate iOS
 
-Beta corrente **0.16.7 (60)**, **VALID / IN_BETA_TESTING**, assegnata a
-**Team interno** (Tommaso e Girbreda inclusi) e **Stivy73**. Corretto il parsing delle
-intestazioni playlist Mi piace e delle pagine a due colonne. Il caricamento
-condiviso della raccolta sopravvive alla chiusura della schermata; gli errori
-mostrano la causa originale o il nome della struttura non supportata.
-[Consegna e verifiche](RELEASE-0.16.7-60.md). 62 test superati;
-sincronizzazione sullo specifico account dell’utente ancora da collaudare.
+Beta corrente **0.16.8 (61)**, **VALID / IN_BETA_TESTING**, assegnata a
+**Team interno** e **Stivy73**, con accesso verificato per **Tommaso** e **Girbreda**.
+Il cuore album salva anche l’album nella raccolta YouTube Music, oltre ai Mi piace
+alle tracce; diventa pieno e rosso dopo il salvataggio confermato. Errori sulle
+tracce non cancellano l’album già salvato. Anche il cuore dei brani usa il rosso.
+[Consegna e verifiche](RELEASE-0.16.8-61.md). 86 test superati e metadati pubblici
+di Max Forever Vol. 2 verificati; salvataggio autenticato e aspetto sul dispositivo
+ancora da collaudare dopo l’aggiornamento.
+
+Beta precedente **0.16.7 (60)**: parsing della raccolta Mi piace e caricamento
+condiviso che sopravvive alla chiusura della schermata.
+[Consegna e verifiche](RELEASE-0.16.7-60.md).
 
 Beta precedente **0.16.6 (59)**: collegamento automatico del passeggero dopo
 scansione e autenticazione del QR, senza Consenti/Rifiuta su iPhone e CarPlay.
