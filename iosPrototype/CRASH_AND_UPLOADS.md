@@ -71,4 +71,6 @@ https://github.com/sigma67/ytmusicapi/blob/main/ytmusicapi/parsers/uploads.py
 
 Il test UI usa dati fittizi. Restano da collaudare la raccolta reale del
 proprietario, la riproduzione dei suoi file e l’assenza del crash sul Duo/CarPlay.
-Nessuna nuova build è stata ancora caricata su TestFlight per questa modifica.
+Distribuita su TestFlight come **0.17.0 (63)**: Apple `VALID` /
+`IN_BETA_TESTING`, gruppi Team interno e Stivy73 assegnati; Tommaso e Girbreda
+verificati. [Ricevuta della consegna](RELEASE-0.17.0-63.md).
