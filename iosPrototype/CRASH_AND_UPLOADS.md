@@ -112,6 +112,8 @@ Riferimenti primari:
 completa, controlli di raccolta, paginazione autenticata e diagnostica senza dati
 privati. Compilazione Release iPhone riuscita con Xcode 27.2 RC (27B48), SDK 27.2.
 Log locali: /tmp/nn64-core-tests.log e /tmp/nn64-device-build.log.
-Queste ulteriori correzioni non sono ancora incluse in una nuova build TestFlight.
+Queste ulteriori correzioni sono distribuite su TestFlight come **0.17.1 (64)**:
+Apple `VALID` / `IN_BETA_TESTING`, Team interno e Stivy73 assegnati; accesso
+Tommaso e Girbreda verificato. [Ricevuta della consegna](RELEASE-0.17.1-64.md).
 La verifica opzionale della disponibilità della sessione sul Mac è stata interrotta
 senza risultato; nessuna credenziale è stata mostrata o salvata.

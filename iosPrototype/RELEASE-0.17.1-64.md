@@ -18,5 +18,22 @@ ma non il dominio effettivo: la correzione riproduce un difetto coerente con il
 log, ancora da verificare sul file privato originale. Nessuna nuova prova fisica
 Duo/CarPlay è stata eseguita. [Analisi e verifiche](CRASH_AND_UPLOADS.md).
 
-Consegna TestFlight in preparazione; caricamento, stato e gruppi verranno
-registrati dopo conferma Apple.
+Archivio firmato, esportazione e upload Apple riusciti. L’IPA verificata è stata
+caricata direttamente con il caricatore ufficiale Apple altool.
+Controlli di firma e versione app/estensioni/Watch, CarPlay, Siri, Widget e Share
+superati. Sorgenti: `1f717366d030eac0ccb17897b447fd31d136b914`, branch
+`feature/youtube-library-albums` su `stivy73/SimpMusic`.
+IPA: `deliveries/NoteNarrate-iOS-0.17.1-build64.ipa`.
+SHA-256: `3f469b828b6cbe272396c327e722b715955bbbcc5afbeb48ef9cabb9b79bd14d`.
+Archivio e simboli conservati in
+`deliveries/archives/NoteNarrate-0.17.1-build64.xcarchive`.
+
+Elaborazione Apple **VALID**, stato **IN_BETA_TESTING**. Associazioni a
+**Team interno** e **Stivy73** rilette via API; appartenenza al Team interno e
+accesso alla stessa app di **Tommaso** e **Girbreda** verificati. Note beta
+italiane salvate. Nessuna modifica di utenti, ruoli, distribuzione automatica o
+pubblicazione App Store.
+Ricevuta: `deliveries/NoteNarrate-iOS-0.17.1-build64-AppStore-status.json`.
+Verifiche IPA: `deliveries/NoteNarrate-iOS-0.17.1-build64-validation.json`.
+Disponibilità ai tester verificata tramite API; resta da provare il file privato
+originale sul dispositivo del proprietario.
