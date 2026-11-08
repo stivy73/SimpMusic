@@ -26,9 +26,11 @@ public final class YouTubeBrowse: Sendable {
     -> Data
   {
     var fields: [String: Any] = [:]
+    let personal = browseId.hasPrefix("FEmusic_library_privately_owned_")
     if let token {
       guard !token.isEmpty else { throw LibraryError.malformed }
       fields["continuation"] = token
+      if personal { fields["browseId"] = browseId }
     } else {
       fields["browseId"] = browseId
       if let params { fields["params"] = params }
@@ -39,7 +41,9 @@ public final class YouTubeBrowse: Sendable {
         fields["formData"] = ["selectedValues": [country]]
       }
     }
-    return try await send(endpoint: "browse", fields: fields)
+    return try await send(
+      endpoint: "browse", fields: fields,
+      continuationQuery: personal ? token : nil)
   }
 
   public func search(query: String, filter: MusicSearchFilter, continuation: String? = nil)
@@ -183,8 +187,14 @@ public final class YouTubeBrowse: Sendable {
         "CONTENT_CHECK_REQUIRED", "LIVE_STREAM_OFFLINE"]
       diagnostic?("playability=\(known.contains(status) ? status : "UNKNOWN"), details=\(root["videoDetails"] != nil), streams=\(root["streamingData"] != nil)")
     }
-    return try JSONDecoder().decode(
+    let decoded = try JSONDecoder().decode(
       YouTubeVideo.self, from: Self.addingPlaybackNonce(nonce, to: data))
+    for stream in (decoded.streamingData?.adaptiveFormats ?? []).filter({
+      $0.mimeType.hasPrefix("audio/mp4")
+    }).prefix(8) {
+      diagnostic?("stream " + AudioResolutionTrace.streamShape(stream))
+    }
+    return decoded
   }
 
   private static func addingPlaybackNonce(_ nonce: String, to data: Data) throws -> Data {
@@ -192,10 +202,8 @@ public final class YouTubeBrowse: Sendable {
       var streaming = root["streamingData"] as? [String: Any]
     else { return data }
     func suffix(for address: String) -> String? {
-      guard let url = URLComponents(string: address), url.scheme == "https",
-        let host = url.host, host == "googlevideo.com" || host.hasSuffix(".googlevideo.com"),
-        url.user == nil, url.password == nil, url.port == nil || url.port == 443,
-        url.fragment == nil,
+      guard let url = URLComponents(string: address), let media = url.url,
+        YouTubeMediaURL.allows(media),
         !(url.queryItems ?? []).contains(where: { $0.name == "cpn" })
       else { return nil }
       return (url.percentEncodedQuery == nil ? "?" : "&") + "cpn=" + nonce

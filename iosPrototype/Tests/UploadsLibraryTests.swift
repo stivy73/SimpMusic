@@ -69,6 +69,54 @@ private enum UploadFixture {
 }
 
 final class UploadsLibraryTests: XCTestCase {
+  func testShuffleControlIsNotATrackAndDoesNotDiscardTheFirstUpload() async throws {
+    let control: [String: Any] = [
+      "musicResponsiveListItemRenderer": [
+        "navigationEndpoint": ["watchPlaylistEndpoint": ["playlistId": "MLPTprivate"]],
+        "flexColumns": [
+          ["musicResponsiveListItemFlexColumnRenderer": ["text": HomeFixture.text("Shuffle all")]]
+        ],
+      ]
+    ]
+    for initial in [true, false] {
+      let contents = [control, UploadFixture.row("first"), UploadFixture.row("second")]
+      let shelf: [String: Any] = ["contents": contents]
+      let root: [String: Any] =
+        initial
+        ? ["contents": ["sectionListRenderer": ["contents": [["musicShelfRenderer": shelf]]]]]
+        : ["continuationContents": ["musicShelfContinuation": shelf]]
+      let data = try LibraryBrowseEnvelope.normalize(JSONSerialization.data(withJSONObject: root))
+      let result = try await HomePage(
+        YouTubeMusicClient().decodeDiscoveryPage(
+          from: data, strictItems: true, personalUploads: true))
+      XCTAssertEqual(
+        result.shelves.flatMap(\.items).filter { $0.kind == .song }.map(\.mediaId),
+        ["first", "second"])
+    }
+  }
+
+  func testUnreadableUploadedRowIsAnExplicitSchemaErrorNotAnEmptyCollection() async throws {
+    let privateValue = "DO_NOT_REPORT_THIS_PRIVATE_VALUE"
+    let data = try HomeFixture.data(rows: [
+      [
+        "musicShelfRenderer": [
+          "contents": [
+            ["musicResponsiveListItemRenderer": ["flexColumns": [], "privateToken": privateValue]]
+          ]
+        ]
+      ]
+    ])
+    do {
+      _ = try await YouTubeMusicClient().decodeDiscoveryPage(
+        from: data, strictItems: true, personalUploads: true)
+      XCTFail("Unreadable track accepted")
+    } catch let error as YouTubeMusicDiscoveryFailure {
+      XCTAssertTrue(error.shape.contains("item[0]:musicResponsiveListItemRenderer"))
+      XCTAssertTrue(error.shape.contains("menu=false"))
+      XCTAssertFalse(error.shape.contains(privateValue))
+    }
+  }
+
   func testMenuOnlyIDAndPrivateMetadataAreDecodedWithoutPublicPageTypes() async throws {
     for menuID in [true, false] {
       let data = try HomeFixture.data(rows: [

@@ -70,3 +70,10 @@ restored queues, preparation and downloads retain the account-only requirement;
 private tracks do not fall back to anonymous streams or cross-account passenger
 playback. No upload/delete endpoint, credentials or SDK network logging is added.
 Reference: sigma67/ytmusicapi `mixins/uploads.py` and `parsers/uploads.py`.
+
+Personal uploads compatibility follow-up: strict library decoding accepts the
+known Shuffle/Play-all control only when uploads decoding is explicitly enabled;
+it does not remove a real first song by position. Unknown media still fails
+atomically, with a bounded schema-only error (renderer, position and presence
+flags) that the app can distinguish from transport failures. No provider values,
+account identifiers, response bodies or credentials are added to diagnostics.

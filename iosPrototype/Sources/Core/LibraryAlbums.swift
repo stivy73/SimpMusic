@@ -168,7 +168,9 @@ enum LibraryBrowseEnvelope {
         if let selected { tabs[selected] = try rewrite(tabs[selected], depth: depth + 1) }
         output["tabs"] = tabs
       }
-      for key in ["sectionListRenderer", "sectionListContinuation", "gridRenderer", "gridContinuation",
+      for key in [
+        "sectionListRenderer", "sectionListContinuation", "musicShelfContinuation",
+        "musicPlaylistShelfContinuation", "gridRenderer", "gridContinuation",
         "singleColumnBrowseResultsRenderer", "twoColumnBrowseResultsRenderer", "tabRenderer", "content", "secondaryContents",
         "continuationContents", "appendContinuationItemsAction", "reloadContinuationItemsCommand"] {
         if let child = object[key] as? [String: Any] { output[key] = try rewrite(child, depth: depth + 1) }

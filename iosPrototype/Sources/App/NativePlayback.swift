@@ -85,7 +85,7 @@
     private var requiresAccount = false
     private var unavailableMessage: String {
       requiresAccount
-        ? "Caricamento personale non disponibile. Verifica che l’account YouTube Music selezionato sia quello che possiede il brano, poi riprova."
+        ? "Non riesco a riprodurre questo caricamento personale. Riprova; se persiste, copia la diagnostica audio dalle Impostazioni."
         : AudioPlaybackError.unavailable.localizedDescription
     }
     private var preparationRevision = UUID()

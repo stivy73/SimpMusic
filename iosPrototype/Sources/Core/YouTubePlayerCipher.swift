@@ -242,9 +242,7 @@ struct CipherStreamRequest: Sendable {
         parameter.range(of: #"^[A-Za-z][A-Za-z0-9_]{0,31}$"#, options: .regularExpression) != nil
       else { throw PlayerCipherError.invalidStream }
     }
-    guard let address, let parsed = URL(string: address), parsed.scheme == "https",
-      parsed.user == nil, parsed.password == nil, parsed.port == nil || parsed.port == 443,
-      let host = parsed.host, host == "googlevideo.com" || host.hasSuffix(".googlevideo.com"),
+    guard let address, let parsed = URL(string: address), YouTubeMediaURL.allows(parsed),
       let components = URLComponents(url: parsed, resolvingAgainstBaseURL: false)
     else { throw PlayerCipherError.invalidStream }
     let nItems = (components.queryItems ?? []).filter { $0.name == "n" }

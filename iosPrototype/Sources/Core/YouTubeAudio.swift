@@ -1,6 +1,27 @@
 import Foundation
 import YouTubeSDK
 
+/// Uploaded music can use Google's c.youtube.com media CDN, not just googlevideo.
+/// Keep one policy for deciphering, selection and validation; never admit web pages.
+enum YouTubeMediaURL {
+  static func family(_ url: URL?) -> String {
+    guard let host = url?.host?.lowercased() else { return "none" }
+    if host == "googlevideo.com" || host.hasSuffix(".googlevideo.com") { return "googlevideo" }
+    if host.hasSuffix(".c.youtube.com") { return "youtube-media" }
+    return "other"
+  }
+  static func allows(_ url: URL) -> Bool {
+    guard url.scheme == "https", url.user == nil, url.password == nil,
+      url.port == nil || url.port == 443, url.fragment == nil
+    else { return false }
+    switch family(url) {
+    case "googlevideo": return true
+    case "youtube-media": return url.path == "/videoplayback"
+    default: return false
+    }
+  }
+}
+
 public enum AudioQuality: String, CaseIterable, Codable, Sendable, Identifiable {
   case saver = "Risparmio dati"
   case normal = "Standard"
@@ -99,6 +120,17 @@ final class AudioResolutionTrace: @unchecked Sendable {
     let signed = (value("sparams") ?? "").split(separator: ",")
     return "expiry=\(expiry), n=\(value("n") != nil), signature=\(value("sig") != nil || value("signature") != nil), pot=\(value("pot") != nil), ip_bound=\(value("ip") != nil), range_signed=\(signed.contains("range"))"
   }
+  static func streamShape(_ stream: YouTubeSDK.Stream) -> String {
+    var address = stream.url
+    if address == nil, let cipher = stream.signatureCipher, cipher.count <= 256 * 1024 {
+      address =
+        URLComponents(string: "https://cipher.invalid/?" + cipher)?.queryItems?
+        .first(where: { $0.name == "url" })?.value
+    }
+    let url = address.flatMap(URL.init(string:))
+    return
+      "itag=\(stream.itag), direct=\(stream.url != nil), cipher=\(stream.signatureCipher != nil), cdn=\(YouTubeMediaURL.family(url)), allowed=\(url.map(YouTubeMediaURL.allows) ?? false)"
+  }
 }
 
 /// Uses the SDK player response/parser; signed URLs are never persisted or logged.
@@ -139,9 +171,7 @@ public struct YouTubeAudio: Sendable {
     }.compactMap { $0.url.flatMap(URL.init(string:)) }
     var seen = Set<URL>()
     return (aac + [video.hlsURL].compactMap { $0 }).filter { url in
-      guard url.scheme == "https", let host = url.host,
-        host == "googlevideo.com" || host.hasSuffix(".googlevideo.com")
-      else { return false }
+      guard YouTubeMediaURL.allows(url) else { return false }
       return seen.insert(url).inserted
     }
   }
@@ -192,8 +222,9 @@ public struct YouTubeAudio: Sendable {
     if accountOnly {
       throw AudioResolutionFailure(
         accountDiagnostic: accountDiagnostic,
-        networkDiagnostic:
-          "Caricamento personale: occorre la sessione YouTube Music proprietaria; nessun tentativo pubblico.",
+        networkDiagnostic: account == nil
+          ? "Caricamento personale: accedi all’account YouTube Music proprietario."
+          : "Caricamento personale: nessun flusso riproducibile validato. Consulta il dettaglio risoluzione audio.",
         resolutionReport: trace.report)
     }
     // Some public mobile responses expose only a readable prefix. Bootstrap a
@@ -382,6 +413,7 @@ public struct YouTubeAudio: Sendable {
     }
     try Task.checkCancellation()
     guard let http = response as? HTTPURLResponse, http.statusCode == 206,
+      let final = http.url, YouTubeMediaURL.allows(final),
       let range = http.value(forHTTPHeaderField: "Content-Range"),
       let length = range.split(separator: "/").last.flatMap({ Int64($0) }), length > last,
       expectedLength == nil || expectedLength == length,
@@ -504,8 +536,7 @@ public struct YouTubeAudio: Sendable {
 
   private static func mediaURL(_ value: String, relativeTo base: URL) -> URL? {
     guard let url = URL(string: value, relativeTo: base)?.absoluteURL,
-      url.scheme == "https", let host = url.host,
-      host == "googlevideo.com" || host.hasSuffix(".googlevideo.com")
+      YouTubeMediaURL.allows(url)
     else { return nil }
     return url
   }

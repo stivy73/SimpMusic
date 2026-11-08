@@ -198,8 +198,8 @@ public struct HomeDiscovery: Sendable {
   private let browse: YouTubeBrowse
   private let parser = YouTubeMusicClient()
   private let signedIn: Bool
-  public init(session: YouTubeSession?) {
-    browse = YouTubeBrowse(session: session)
+  public init(session: YouTubeSession?, transport: URLSession? = nil) {
+    browse = YouTubeBrowse(session: session, transport: transport)
     signedIn = session != nil
   }
   public func page(target: BrowseTarget, continuation: String? = nil) async throws -> HomePage {
@@ -215,7 +215,17 @@ public struct HomeDiscovery: Sendable {
     }
     let data = try await browse.request(browseId: kind.browseID, token: continuation)
     let normalized = try LibraryBrowseEnvelope.normalize(data)
-    return try await HomePage(parser.decodeDiscoveryPage(from: normalized, strictItems: true))
+    do {
+      return try await HomePage(
+        parser.decodeDiscoveryPage(
+          from: normalized, strictItems: true,
+          personalUploads: kind == .uploads || kind == .uploadAlbums))
+    } catch let failure as YouTubeMusicDiscoveryFailure {
+      throw LibraryError.unsupported(kind.rawValue + ":" + failure.shape)
+    } catch let error as URLError where error.code == .cannotParseResponse {
+      throw LibraryError.unsupported(
+        kind.rawValue + ":pagina-" + (continuation == nil ? "iniziale" : "successiva"))
+    }
   }
 }
 

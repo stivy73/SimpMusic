@@ -2,6 +2,19 @@
 // Item decoding remains in the existing SDK models; see LOCAL_CHANGES.md.
 import Foundation
 
+/// Only structural metadata, never provider text, account IDs or opaque tokens.
+public struct YouTubeMusicDiscoveryFailure: Error, Sendable {
+  public let shape: String
+  init(item: [String: Any], index: Int) {
+    let names = item.keys.filter {
+      $0.range(of: #"^[A-Za-z]{1,80}Renderer$"#, options: .regularExpression) != nil
+    }.sorted().prefix(4).joined(separator: ",")
+    let row = item["musicResponsiveListItemRenderer"] as? [String: Any] ?? [:]
+    shape =
+      "item[\(index)]:\(names.isEmpty ? "unknown" : names); columns=\((row["flexColumns"] as? [Any])?.count ?? 0), menu=\(row["menu"] != nil)"
+  }
+}
+
 public struct YouTubeMusicBrowseEndpoint: Hashable, Codable, Sendable {
   public let browseId: String
   public let params: String?
@@ -32,7 +45,8 @@ extension YouTubeMusicClient {
   /// Reads only the page's own continuation, never a nested shelf's token.
   /// Preserves section order, account strapline, "More" endpoints and category buttons.
   public func decodeDiscoveryPage(
-    from data: Data, strictItems: Bool = false, searchResults: Bool = false
+    from data: Data, strictItems: Bool = false, searchResults: Bool = false,
+    personalUploads: Bool = false
   ) throws
     -> YouTubeMusicHomePage
   {
@@ -80,7 +94,7 @@ extension YouTubeMusicClient {
     var recognizedContent = false
     func validateItems(_ items: [[String: Any]]) throws {
       guard strictItems else { return }
-      for item in items {
+      for (index, item) in items.enumerated() {
         if item["continuationItemRenderer"] != nil { continue }
         // YouTube inserts a Create playlist tile. It isn't an empty/unknown media item.
         func isCreate(_ value: Any) -> Bool {
@@ -90,10 +104,13 @@ extension YouTubeMusicClient {
           return object.values.contains(where: isCreate)
         }
         if isCreate(item) { continue }
-        guard let section = YouTubeMusicSection(from: ["contents": [item]]), !section.items.isEmpty
-        else {
-          throw URLError(.cannotParseResponse)
+        if let section = YouTubeMusicSection(from: ["contents": [item]]), !section.items.isEmpty {
+          continue
         }
+        // Upload libraries prepend a Shuffle/Play-all row targeting a playlist,
+        // not an individual track. Don't discard the first real song by position.
+        if personalUploads, Self.isUploadsPlaybackControl(item) { continue }
+        throw YouTubeMusicDiscoveryFailure(item: item, index: index)
       }
     }
     for list in containers {
@@ -180,6 +197,18 @@ extension YouTubeMusicClient {
     guard unique.count <= 1 else { throw URLError(.cannotParseResponse) }
     return YouTubeMusicHomePage(
       sections: sections, continuationToken: tokens.first, categories: categories)
+  }
+
+  private static func isUploadsPlaybackControl(_ item: [String: Any]) -> Bool {
+    guard let row = item["musicResponsiveListItemRenderer"] as? [String: Any],
+      let endpoint = row["navigationEndpoint"] as? [String: Any],
+      let watch = (endpoint["watchPlaylistEndpoint"] ?? endpoint["watchEndpoint"])
+        as? [String: Any],
+      let playlistID = watch["playlistId"] as? String, !playlistID.isEmpty,
+      watch["videoId"] == nil, row["videoId"] == nil,
+      (row["playlistItemData"] as? [String: Any])?["videoId"] == nil
+    else { return false }
+    return true
   }
 }
 

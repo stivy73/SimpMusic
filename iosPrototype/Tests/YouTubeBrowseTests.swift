@@ -50,6 +50,66 @@ private final class BrowseURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 final class YouTubeBrowseTests: XCTestCase {
+  func testUploadsContinuationKeepsItsPrivateEndpointAndAccount() async throws {
+    let (transport, id) = transport(body: #"{"responseContext":{"visitorData":"visitor"}}"#)
+    defer { BrowseURLProtocol.store.remove(id) }
+    let account = YouTubeSession(
+      cookies: "SAPISID=fixture", accountIndex: "2",
+      delegatedID: "brand", identity: "test", clientVersion: "test")
+    let browse = YouTubeBrowse(session: account, transport: transport)
+    let endpoint = RemoteLibraryKind.uploads.browseID
+    _ = try await browse.request(browseId: endpoint)
+    _ = try await browse.request(browseId: endpoint, token: "next+token/=")
+    let request = try XCTUnwrap(BrowseURLProtocol.store.requests(id).last)
+    let json = try payload(request)
+    XCTAssertEqual(json["browseId"] as? String, endpoint)
+    XCTAssertEqual(json["continuation"] as? String, "next+token/=")
+    let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+    XCTAssertEqual(query.first { $0.name == "ctoken" }?.value, "next+token/=")
+    XCTAssertEqual(query.first { $0.name == "continuation" }?.value, "next+token/=")
+    XCTAssertTrue(request.url!.absoluteString.contains("next%2Btoken"))
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-AuthUser"), "2")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-PageId"), "brand")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Visitor-Id"), "visitor")
+    XCTAssertNotNil(request.value(forHTTPHeaderField: "Authorization"))
+  }
+
+  func testPersonalLibraryDecodeFailureReportsOnlySchema() async throws {
+    let body =
+      #"{"contents":{"sectionListRenderer":{"contents":[{"musicShelfRenderer":{"contents":[{"musicResponsiveListItemRenderer":{"privateValue":"DO_NOT_REPORT"}}]}}]}}}"#
+    let (transport, id) = transport(body: body)
+    defer { BrowseURLProtocol.store.remove(id) }
+    let session = YouTubeSession(
+      cookies: "SAPISID=fixture", identity: "test", clientVersion: "test")
+    do {
+      _ = try await HomeDiscovery(session: session, transport: transport).libraryPage(
+        kind: .uploads)
+      XCTFail("Unreadable upload was accepted")
+    } catch LibraryError.unsupported(let shape) {
+      XCTAssertTrue(shape.contains("uploads:item[0]:musicResponsiveListItemRenderer"))
+      XCTAssertFalse(shape.contains("DO_NOT_REPORT"))
+    }
+  }
+
+  func testPlayerRetainsPersonalCDNAndReportsItsFamilyWithoutURLOrSignature() async throws {
+    let body =
+      #"{"videoDetails":{"videoId":"fixture","title":"Fixture","viewCount":"1","author":"Artist","channelId":"artist"},"streamingData":{"adaptiveFormats":[{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","bitrate":128000,"url":"https://rr1---sn-test.c.youtube.com/videoplayback?sig=PRIVATE_SIGNATURE&opaque=%2B+%2f"}]}}"#
+    let (transport, id) = transport(body: body)
+    defer { BrowseURLProtocol.store.remove(id) }
+    let trace = AudioResolutionTrace()
+    let account = YouTubeSession(
+      cookies: "SAPISID=fixture", identity: "test", clientVersion: "test")
+    let result = try await YouTubeBrowse(session: account, transport: transport).player(
+      videoID: "fixture",
+      diagnostic: { trace.record($0) })
+    XCTAssertEqual(YouTubeAudio.candidates(result).count, 1)
+    XCTAssertTrue(result.streamingData!.adaptiveFormats[0].url!.contains("opaque=%2B+%2f&cpn="))
+    XCTAssertTrue(trace.report.contains("cdn=youtube-media, allowed=true"))
+    XCTAssertFalse(trace.report.contains("PRIVATE_SIGNATURE"))
+    XCTAssertFalse(trace.report.contains("https://"))
+    XCTAssertFalse(trace.report.contains("rr1---sn"))
+  }
+
   func testPlayerDiagnosticReportsLoginRequirementWithoutPrivateReason() async throws {
     let (transport, id) = transport(body:
       #"{"playabilityStatus":{"status":"LOGIN_REQUIRED","reason":"private account cookie token"}}"#)

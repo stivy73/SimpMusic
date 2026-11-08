@@ -5,6 +5,38 @@ import YouTubeSDK
 @testable import PrototypeCore
 
 final class AudioPlaybackTests: XCTestCase {
+  func testPersonalCDNStillValidatesHeadBeyondOneMiBAndTail() async throws {
+    let address =
+      "https://rr1---sn-test.c.youtube.com/videoplayback?itag=140&sig=private&opaque=%2B+%2f"
+    var video = try validationVideo()
+    for index in video.streamingData!.adaptiveFormats.indices {
+      video.streamingData!.adaptiveFormats[index].url = address
+    }
+    let count: Int64 = 2_097_152
+    let calls = RangeCalls()
+    RangeStub.handler = { request in
+      XCTAssertEqual(request.url?.absoluteString, address)
+      XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
+      XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+      let range = try XCTUnwrap(request.value(forHTTPHeaderField: "Range"))
+      let parts = range.replacingOccurrences(of: "bytes=", with: "").split(separator: "-")
+      let first = Int64(parts[0])!, last = Int64(parts[1])!
+      _ = calls.add(first)
+      return (
+        206, ["Content-Range": "bytes \(first)-\(last)/\(count)"],
+        Data(repeating: 0, count: Int(last - first + 1))
+      )
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let source = try await YouTubeAudio(transport: transport).source(
+      video: video,
+      userAgent: "Test", authenticated: true, quality: .normal)
+    XCTAssertTrue(source.authenticated)
+    XCTAssertEqual(source.byteCount, count)
+    for offset in [Int64(0), 1_048_576, count - 1024] { XCTAssertEqual(calls.count(offset), 1) }
+  }
+
   func testEachRangeLoaderHasAPrivateDistinctAssetIdentity() {
     let source = YouTubeAudio.Source(
       url: URL(string: "https://test.googlevideo.com/audio?sig=private")!, duration: 258,

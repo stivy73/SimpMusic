@@ -159,6 +159,54 @@ final class YouTubePlayerCipherTests: XCTestCase {
     } catch {}
   }
 
+  func testUploadedAACOnPersonalCDNSurvivesDeciphering() async throws {
+    let registry = Data(registry.utf8)
+    let cipher = YouTubePlayerCipher(download: { url, _ in
+      if url.path == "/iframe_api" { return Data(#"player/cbcfbf2f/"#.utf8) }
+      return registry
+    })
+    let info = try await cipher.playerInfo()
+    let urls = [
+      "https://rr1---sn-test.c.youtube.com/videoplayback?itag=140&sig=private&opaque=%2B+%2f",
+      "https://rr2---sn-test.c.youtube.com/videoplayback?itag=141&sig=private",
+    ]
+    let object: [String: Any] = [
+      "videoDetails": [
+        "videoId": "upload", "title": "Private", "author": "Artist", "channelId": "artist",
+        "viewCount": "0",
+      ],
+      "streamingData": [
+        "adaptiveFormats": urls.enumerated().map { i, url in
+          [
+            "itag": 140 + i, "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"", "bitrate": 128000,
+            "url": url,
+          ] as [String: Any]
+        }
+      ],
+    ]
+    let video = try JSONDecoder().decode(
+      YouTubeVideo.self, from: JSONSerialization.data(withJSONObject: object))
+    let result = try await cipher.decipher(video: video, player: info)
+    XCTAssertEqual(YouTubeAudio.candidates(result).map(\.absoluteString), urls)
+    XCTAssertEqual(result.streamingData?.adaptiveFormats.compactMap(\.url), urls)
+  }
+
+  func testPersonalCDNDoesNotAdmitWebPagesForeignHostsOrURLCredentials() throws {
+    XCTAssertNoThrow(
+      try CipherStreamRequest(
+        url: "https://rr1.c.youtube.com/videoplayback?sig=private", cipher: nil))
+    for address in [
+      "http://rr1.c.youtube.com/videoplayback", "https://www.youtube.com/watch?v=private",
+      "https://rr1.c.youtube.com/watch", "https://c.youtube.com/videoplayback",
+      "https://rr1.c.youtube.com.attacker.invalid/videoplayback",
+      "https://user@rr1.c.youtube.com/videoplayback",
+      "https://rr1.c.youtube.com:8443/videoplayback",
+      "https://rr1.c.youtube.com/videoplayback#fragment",
+    ] {
+      XCTAssertThrowsError(try CipherStreamRequest(url: address, cipher: nil), address)
+    }
+  }
+
   func testMalformedAACDoesNotHideAValidAlternative() async throws {
     let registry = Data(registry.utf8)
     let cipher = YouTubePlayerCipher(download: { url, _ in
