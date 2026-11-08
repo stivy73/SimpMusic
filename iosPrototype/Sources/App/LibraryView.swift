@@ -7,7 +7,8 @@ extension LibraryModel {
     #if DEBUG
       if ProcessInfo.processInfo.arguments.contains("--test-reset-collection-preferences") {
         for key in [
-          "albums", "artists", "playlists", "songs", "likes", "local", "offline", "favoriteAlbums",
+          "albums", "artists", "playlists", "songs", "likes", "uploads", "uploadAlbums", "local",
+          "offline", "favoriteAlbums",
         ] {
           UserDefaults.standard.removeObject(forKey: "collectionPresentation." + key)
         }
@@ -41,14 +42,19 @@ extension LibraryModel {
             switch kind {
             case .songs: (id, title) = ("saved-fixture", "Brano salvato di prova")
             case .likes: (id, title) = ("liked-fixture", "Brano piaciuto di prova")
+            case .uploadAlbums:
+              (id, title) = (
+                "FEmusic_library_privately_owned_release_detail_fixture", "Album caricato di prova"
+              )
+            case .uploads: (id, title) = ("uploaded-fixture", "Brano caricato di prova")
             case .playlists: (id, title) = ("VLfixture", "Playlist di prova")
             case .artists: (id, title) = ("UCfixture", "Artista seguito di prova")
             }
-            return [
-              DiscoveryItem(
-                kind: kind.itemKind, mediaId: id, title: title, subtitle: "Account di prova",
-                artwork: nil)
-            ]
+            var item = DiscoveryItem(
+              kind: kind.itemKind, mediaId: id, title: title, subtitle: "Account di prova",
+              artwork: nil)
+            if kind == .uploads || kind == .uploadAlbums { item.isUploaded = true }
+            return [item]
           },
           rateSong: { _, _, _ in
             if ProcessInfo.processInfo.arguments.contains("--test-like-failure") {
@@ -74,6 +80,7 @@ private enum LibrarySection: String, CaseIterable, Identifiable {
   case albums = "Album"
   case songs = "Brani salvati"
   case likes = "Mi piace"
+  case uploads = "Caricamenti"
   case playlists = "Playlist"
   case artists = "Artisti seguiti"
   case offline = "Download e offline"
@@ -82,6 +89,7 @@ private enum LibrarySection: String, CaseIterable, Identifiable {
     switch self {
     case .songs: .songs
     case .likes: .likes
+    case .uploads: .uploads
     case .playlists: .playlists
     case .artists: .artists
     default: nil
@@ -96,25 +104,33 @@ struct LibraryView: View {
   @State private var createPlaylist = false
   var body: some View {
     VStack(spacing: 0) {
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 8) {
-          ForEach(LibrarySection.allCases) { value in
-            Button {
-              section = value
-            } label: {
-              Text(value.rawValue).font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 16).padding(.vertical, 10)
-                .foregroundStyle(section == value ? Color.black : Color.primary)
-                .background(section == value ? Color.cyan : Color.gray.opacity(0.2), in: Capsule())
-            }.buttonStyle(.plain).accessibilityIdentifier("library-section-" + value.name)
-              .accessibilityAddTraits(section == value ? .isSelected : [])
-          }
-        }.padding()
+      ScrollViewReader { proxy in
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: 8) {
+            ForEach(LibrarySection.allCases) { value in
+              Button {
+                section = value
+              } label: {
+                Text(value.rawValue).font(.subheadline.weight(.semibold))
+                  .padding(.horizontal, 16).padding(.vertical, 10)
+                  .foregroundStyle(section == value ? Color.black : Color.primary)
+                  .background(
+                    section == value ? Color.cyan : Color.gray.opacity(0.2), in: Capsule())
+              }.buttonStyle(.plain).accessibilityIdentifier("library-section-" + value.name)
+                .accessibilityAddTraits(section == value ? .isSelected : []).id(value)
+            }
+          }.padding()
+        }
+        .onChange(of: section) { _, value in
+          withAnimation { proxy.scrollTo(value, anchor: .center) }
+        }
       }
       if !model.favorites.isEmpty || !model.favoriteAlbums.isEmpty {
         HStack {
-          Text("Importazione nei Mi piace: \(model.favorites.count) brani, \(model.favoriteAlbums.count) album")
-            .font(.caption)
+          Text(
+            "Importazione nei Mi piace: \(model.favorites.count) brani, \(model.favoriteAlbums.count) album"
+          )
+          .font(.caption)
           Spacer()
           Button(model.migratingFavorites ? "Sincronizzo…" : "Riprova sincronizzazione") {
             guard let session = library.session else { library.showLogin = true; return }
@@ -129,11 +145,15 @@ struct LibraryView: View {
         ContentUnavailableView {
           Label("La tua libreria YouTube Music", systemImage: "person.crop.circle")
         } description: {
-          Text("Accedi per sincronizzare album, brani, Mi piace, playlist e artisti seguiti.")
+          Text(
+            "Accedi per sincronizzare album, brani, Mi piace, playlist, artisti e caricamenti personali."
+          )
         } actions: {
           Button("Accedi a YouTube Music") { library.showLogin = true }.buttonStyle(
             .borderedProminent)
         }
+      } else if section == .uploads {
+        UploadsLibraryView(library: library)
       } else if let remote = section.remote {
         RemoteLibraryView(library: library, kind: remote).id(remote)
       } else {
@@ -245,6 +265,21 @@ extension LibrarySection {
   }
 }
 
+private struct UploadsLibraryView: View {
+  @ObservedObject var library: LibraryModel
+  @State private var kind = RemoteLibraryKind.uploads
+  var body: some View {
+    VStack(spacing: 8) {
+      Picker("Caricamenti", selection: $kind) {
+        Text("Brani").tag(RemoteLibraryKind.uploads)
+        Text("Album").tag(RemoteLibraryKind.uploadAlbums)
+      }.pickerStyle(.segmented).padding(.horizontal)
+        .accessibilityIdentifier("uploads-kind")
+      RemoteLibraryView(library: library, kind: kind).id(kind)
+    }
+  }
+}
+
 private struct RemoteLibraryView: View {
   @ObservedObject var library: LibraryModel
   let kind: RemoteLibraryKind
@@ -266,8 +301,17 @@ private struct RemoteLibraryView: View {
           .accessibilityIdentifier("library-remote-count")
       }
       if state.items.isEmpty && state.loaded && !state.loading && state.error == nil {
-        ContentUnavailableView("Nessun elemento nella raccolta", systemImage: "music.note.list")
-      } else if kind == .songs || kind == .likes {
+        ContentUnavailableView {
+          Label(
+            kind == .uploads || kind == .uploadAlbums
+              ? "Nessun caricamento personale" : "Nessun elemento nella raccolta",
+            systemImage: "music.note.list")
+        } description: {
+          if kind == .uploads || kind == .uploadAlbums {
+            Text("Qui trovi la musica caricata nell’account YouTube Music selezionato.")
+          }
+        }
+      } else if kind.itemKind == .song {
         LibrarySongCollection(songs: state.items.map(Song.init), key: kind.rawValue)
       } else {
         LibraryCollection(
@@ -275,7 +319,12 @@ private struct RemoteLibraryView: View {
         ) { item, layout, _ in
           if let target = item.target {
             NavigationLink {
-              if kind == .playlists {
+              if kind == .uploadAlbums {
+                AlbumView(
+                  album: LibraryAlbum(
+                    id: item.mediaId, title: item.title, artist: item.subtitle,
+                    artwork: item.artwork), identity: library.session?.identity)
+              } else if kind == .playlists {
                 RemotePlaylistView(playlist: item)
               } else {
                 HomeBrowseView(title: item.title, target: target)

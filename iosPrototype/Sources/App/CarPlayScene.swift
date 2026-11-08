@@ -288,6 +288,28 @@
             self?.browse(BrowseTarget(browseId: "VLLM"), title: "Brani piaciuti")
           }, at: 0)
       }
+      if app.library.session != nil {
+        preferred.append(
+          Tile(id: "yt-uploads", title: "Caricamenti personali", symbol: "icloud.and.arrow.up") {
+            [weak self] in
+            guard let self else { return }
+            self.push(
+              [
+                Tile(id: "upload-songs", title: "Brani caricati", symbol: "music.note.list") {
+                  [weak self] in
+                  self?.browse(
+                    BrowseTarget(browseId: RemoteLibraryKind.uploads.browseID),
+                    title: "Brani caricati")
+                },
+                Tile(id: "upload-albums", title: "Album caricati", symbol: "square.stack.fill") {
+                  [weak self] in
+                  self?.browse(
+                    BrowseTarget(browseId: RemoteLibraryKind.uploadAlbums.browseID),
+                    title: "Album caricati")
+                },
+              ], title: "Caricamenti personali")
+          })
+      }
       preferred.insert(
         Tile(
           id: "offline", title: "Download e offline",
@@ -778,7 +800,9 @@
       tasks.append(
         Task {
           do {
-            if albumArtwork != nil || target.browseId.hasPrefix("MPRE") {
+            if albumArtwork != nil || target.browseId.hasPrefix("MPRE")
+              || target.browseId.hasPrefix("FEmusic_library_privately_owned_release_detail")
+            {
               let detail = try await AlbumDetail.load(
                 album: LibraryAlbum(
                   id: target.browseId, title: title, artist: albumArtist ?? "",
@@ -797,10 +821,23 @@
             var tokens = Set<String>()
             var token: String?
             repeat {
-              let page = try await provider.page(target: target, continuation: token)
+              let uploadKind = [RemoteLibraryKind.uploads, .uploadAlbums].first {
+                $0.browseID == target.browseId
+              }
+              let page: HomePage
+              if let uploadKind {
+                page = try await provider.libraryPage(kind: uploadKind, continuation: token)
+              } else {
+                page = try await provider.page(target: target, continuation: token)
+              }
               try Task.checkCancellation()
               guard detailRevision == expected, controller != nil else { return }
-              items += page.shelves.flatMap(\.items).filter { seen.insert($0.id).inserted }
+              items += page.shelves.flatMap(\.items).filter { seen.insert($0.id).inserted }.map {
+                item in
+                var item = item
+                if uploadKind != nil { item.isUploaded = true }
+                return item
+              }
               token = page.continuation
               if let token, !tokens.insert(token).inserted {
                 throw LibraryError.repeatedContinuation

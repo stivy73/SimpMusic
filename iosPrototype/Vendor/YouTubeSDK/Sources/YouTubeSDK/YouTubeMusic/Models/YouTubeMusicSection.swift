@@ -69,7 +69,8 @@ public struct YouTubeMusicSection: Identifiable, Sendable {
     let type = music?["pageType"] as? String ?? ""
     let subtitleRuns = (box["subtitle"] as? [String: Any])?["runs"] as? [[String: Any]] ?? []
     let artists = subtitleRuns.filter {
-      discoveryBrowseEndpoint($0["navigationEndpoint"])?.browseId.hasPrefix("UC") == true
+      let id = discoveryBrowseEndpoint($0["navigationEndpoint"])?.browseId ?? ""
+      return id.hasPrefix("UC") || id.hasPrefix("FEmusic_library_privately_owned_artist_detail")
     }.compactMap { $0["text"] as? String }
     var normalized = box
     normalized["title"] = discoveryText(box["title"])
@@ -88,7 +89,9 @@ public struct YouTubeMusicSection: Identifiable, Sendable {
       row["thumbnail"] = box["thumbnailRenderer"]
       if let song = YouTubeMusicSong(from: row) { return .song(song) }
     }
-    if type == "MUSIC_PAGE_TYPE_ALBUM" || browseId.hasPrefix("MPRE") {
+    if type == "MUSIC_PAGE_TYPE_ALBUM" || browseId.hasPrefix("MPRE")
+      || browseId.hasPrefix("FEmusic_library_privately_owned_release_detail")
+    {
       normalized["year"] = subtitleRuns.compactMap { $0["text"] as? String }
         .first { $0.count == 4 && Int($0) != nil }
       return YouTubeMusicAlbum(from: normalized).map(YouTubeMusicItem.album)
@@ -98,7 +101,9 @@ public struct YouTubeMusicSection: Identifiable, Sendable {
     {
       return YouTubeMusicPlaylist(from: normalized).map(YouTubeMusicItem.playlist)
     }
-    if type == "MUSIC_PAGE_TYPE_ARTIST" || browseId.hasPrefix("UC") {
+    if type == "MUSIC_PAGE_TYPE_ARTIST" || browseId.hasPrefix("UC")
+      || browseId.hasPrefix("FEmusic_library_privately_owned_artist_detail")
+    {
       normalized["name"] = normalized["title"]
       return YouTubeMusicArtist(from: normalized).map(YouTubeMusicItem.artist)
     }

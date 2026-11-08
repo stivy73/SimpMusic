@@ -105,26 +105,32 @@ struct AlbumView: View {
     }.navigationTitle(shown.title).inlineNavigationTitle()
       .task(id: library.session) { await library.load(.likes) }
       .toolbar {
-        ToolbarItem(placement: .platformTrailing) {
-          Button {
-            guard library.session != nil else { library.showLogin = true; return }
-            guard let detail else { return }
-            Task {
-              await library.saveAlbumAndLikeTracks(detail)
-            }
-          } label: {
-            if likingAlbum && !liked {
-              ProgressView().accessibilityLabel("Salvataggio album")
-            } else {
-              Image(systemName: liked ? "heart.fill" : "heart")
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(liked ? Color.red : .primary)
-            }
-          }.tint(liked ? .red : .primary)
-            .disabled(likingAlbum || songs.isEmpty || (liked && allTracksLiked))
-            .accessibilityLabel(liked ? "Album salvato nella libreria YouTube Music" : "Salva album nella libreria e metti Mi piace alle tracce")
-            .accessibilityIdentifier("album-favorite").accessibilityValue(
-              liked ? "Attivo" : "Non attivo")
+        if !album.isUploaded {
+          ToolbarItem(placement: .platformTrailing) {
+            Button {
+              guard library.session != nil else { library.showLogin = true; return }
+              guard let detail else { return }
+              Task {
+                await library.saveAlbumAndLikeTracks(detail)
+              }
+            } label: {
+              if likingAlbum && !liked {
+                ProgressView().accessibilityLabel("Salvataggio album")
+              } else {
+                Image(systemName: liked ? "heart.fill" : "heart")
+                  .symbolRenderingMode(.monochrome)
+                  .foregroundStyle(liked ? Color.red : .primary)
+              }
+            }.tint(liked ? .red : .primary)
+              .disabled(likingAlbum || songs.isEmpty || (liked && allTracksLiked))
+              .accessibilityLabel(
+                liked
+                  ? "Album salvato nella libreria YouTube Music"
+                  : "Salva album nella libreria e metti Mi piace alle tracce"
+              )
+              .accessibilityIdentifier("album-favorite").accessibilityValue(
+                liked ? "Attivo" : "Non attivo")
+          }
         }
         ToolbarItem(placement: .platformTrailing) {
           Menu {

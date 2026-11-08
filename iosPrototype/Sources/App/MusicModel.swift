@@ -24,7 +24,7 @@ import YouTubeSDK
     var rate: Float { playing ? 1 : 0 }
     var timeControlStatus: AVPlayer.TimeControlStatus { playing ? .playing : .paused }
 
-    func load(videoId: String) {
+    func load(videoId: String, accountOnly: Bool = false) {
       pause()
       webView?.stopLoading()
       self.videoId = videoId
@@ -36,12 +36,14 @@ import YouTubeSDK
       wantsPlayback = true
       loadID = UUID()
     }
-    func prepareTransition(videoID: String) {}
+    func prepareTransition(videoID: String, accountOnly: Bool = false) {}
     func cancelTransition() {}
-    func transition(to videoID: String, seconds: Double, dj: Bool) -> Bool { false }
+    func transition(to videoID: String, seconds: Double, dj: Bool, accountOnly: Bool = false)
+      -> Bool
+    { false }
     var crossfadeStarts = 0
     var beforePlay: (() -> Bool)?
-    func restore(videoID: String, position: Double, duration: Double) {
+    func restore(videoID: String, position: Double, duration: Double, accountOnly: Bool = false) {
       clear()
       videoId = videoID
       elapsed = position
@@ -174,11 +176,13 @@ final class MusicModel: NSObject, ObservableObject {
     else { return }
     // The normal Next/end path needs the same source, buffer and player as a
     // crossfade. Prepare as soon as current playback is running, even with fade=0.
-    player.prepareTransition(videoID: queue[index].id)
+    player.prepareTransition(videoID: queue[index].id, accountOnly: queue[index].isUploaded == true)
     guard seconds > 0, player.durationSeconds > seconds * 2 else { return }
     let remaining = player.durationSeconds - player.elapsed
     if remaining > 0 && remaining <= seconds,
-      player.transition(to: queue[index].id, seconds: remaining, dj: AudioPreferences.shared.djMode)
+      player.transition(
+        to: queue[index].id, seconds: remaining, dj: AudioPreferences.shared.djMode,
+        accountOnly: queue[index].isUploaded == true)
     {
       sequence.select(index)
       play(queue[index], reusePlayback: true)
@@ -188,7 +192,7 @@ final class MusicModel: NSObject, ObservableObject {
   func prepareAlbumAudio(_ songs: [Song]) {
     // One speculative deck only. Active listening prioritizes the queue successor.
     guard !isPassenger, !player.playing, !player.isLoading, let first = songs.first else { return }
-    player.prepareTransition(videoID: first.id)
+    player.prepareTransition(videoID: first.id, accountOnly: first.isUploaded == true)
   }
 
   func setSleepTimer(_ timer: SleepTimer?) {
@@ -447,7 +451,9 @@ final class MusicModel: NSObject, ObservableObject {
       repeatMode = saved.repeatMode
       current = sequence.current.flatMap { queue.indices.contains($0) ? queue[$0] : nil }
       if let current {
-        player.restore(videoID: current.id, position: saved.position, duration: saved.duration)
+        player.restore(
+          videoID: current.id, position: saved.position, duration: saved.duration,
+          accountOnly: current.isUploaded == true)
       }
       if let timer = saved.timer, !timer.expired() { setSleepTimer(timer) }
     }
@@ -1137,7 +1143,7 @@ final class MusicModel: NSObject, ObservableObject {
     if !manualLyrics.isEmpty { timeline = LyricsTimeline(lrc: manualLyrics) }
     meaning = ""
     showPlayer = true
-    if !reusePlayback { player.load(videoId: song.id) }
+    if !reusePlayback { player.load(videoId: song.id, accountOnly: song.isUploaded == true) }
     #if DEBUG
       if ProcessInfo.processInfo.arguments.contains("--test-playback-order")
         || ProcessInfo.processInfo.arguments.contains("--test-full-search")

@@ -57,6 +57,7 @@ public struct LibraryAlbum: Identifiable, Codable, Sendable, Equatable {
   public let title: String
   public let artist: String
   public let artwork: URL?
+  public var isUploaded: Bool { id.hasPrefix("FEmusic_library_privately_owned_release_detail") }
   public init(id: String, title: String, artist: String, artwork: URL?) {
     self.id = id
     self.title = title

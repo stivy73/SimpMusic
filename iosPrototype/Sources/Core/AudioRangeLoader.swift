@@ -149,12 +149,20 @@ actor AudioRangeBuffer {
   private let diagnostic: (@Sendable (String) -> Void)?
   private var cached: [Int64: Data] = [:]
   private var order: [Int64] = []
-  private var pending: [Int64: Task<Data, Error>] = [:]
+  private struct Pending: Sendable {
+    let id: UUID
+    let task: Task<Data, Error>
+  }
+  typealias FetchRange = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+  private let fetchRange: FetchRange
+  private var pending: [Int64: Pending] = [:]
+  private var closing: Task<Void, Never>?
   private var closed = false
 
   init(
     source: YouTubeAudio.Source, session: URLSession? = nil,
-    diagnostic: (@Sendable (String) -> Void)? = nil
+    diagnostic: (@Sendable (String) -> Void)? = nil,
+    fetchRange: FetchRange? = nil
   ) {
     self.source = source
     self.diagnostic = diagnostic
@@ -166,6 +174,8 @@ actor AudioRangeBuffer {
       config.httpMaximumConnectionsPerHost = 2
       self.session = URLSession(configuration: config)
     }
+    let transport = self.session
+    self.fetchRange = fetchRange ?? { try await transport.data(for: $0) }
   }
 
   func block(at offset: Int64) async throws -> Data {
@@ -177,31 +187,33 @@ actor AudioRangeBuffer {
       touch(offset)
       return data
     }
-    let task: Task<Data, Error>
+    let entry: Pending
     if let existing = pending[offset] {
-      task = existing
+      entry = existing
     } else {
       let source = source
-      let session = session
+      let fetchRange = fetchRange
       let diagnostic = diagnostic
       let last = min(length, offset + Self.blockSize) - 1
-      task = Task {
+      let task = Task {
         try await Self.fetch(
-          source: source, session: session, offset: offset, last: last, diagnostic: diagnostic)
+          source: source, fetchRange: fetchRange, offset: offset, last: last, diagnostic: diagnostic
+        )
       }
-      pending[offset] = task
+      entry = Pending(id: UUID(), task: task)
+      pending[offset] = entry
     }
     do {
-      let data = try await task.value
+      let data = try await entry.task.value
       guard !closed else { throw CancellationError() }
-      pending[offset] = nil
+      if pending[offset]?.id == entry.id { pending[offset] = nil }
       cached[offset] = data
       touch(offset)
       while order.count > 32 { cached.removeValue(forKey: order.removeFirst()) }
       try Task.checkCancellation()
       return data
     } catch {
-      pending[offset] = nil
+      if pending[offset]?.id == entry.id { pending[offset] = nil }
       throw error
     }
   }
@@ -220,24 +232,35 @@ actor AudioRangeBuffer {
     Task { _ = try? await block(at: next) }
   }
 
-  func close() {
+  func close() async {
+    if let closing { await closing.value; return }
     closed = true
-    for task in pending.values { task.cancel() }
+    let tasks = pending.values.map(\.task)
+    for task in tasks { task.cancel() }
     pending.removeAll()
     cached.removeAll()
     order.removeAll()
-    session.invalidateAndCancel()
+    let session = session
+    // Cancellation is cooperative. A fetch may be between its cancellation
+    // check and URLSession task creation. Drain it before invalidating the
+    // session: creating a task in an invalidated session raises NSException.
+    let drain = Task {
+      for task in tasks { _ = try? await task.value }
+      session.invalidateAndCancel()
+    }
+    closing = drain
+    await drain.value
   }
 
   private static func fetch(
-    source: YouTubeAudio.Source, session: URLSession, offset: Int64, last: Int64,
+    source: YouTubeAudio.Source, fetchRange: FetchRange, offset: Int64, last: Int64,
     diagnostic: (@Sendable (String) -> Void)?
   ) async throws -> Data {
     for attempt in 0..<3 {
       try Task.checkCancellation()
       do {
         let request = try AudioRangeLoader.rangeRequest(source: source, offset: offset, last: last)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await fetchRange(request)
         try Task.checkCancellation()
         guard let http = response as? HTTPURLResponse else { throw AudioPlaybackError.unavailable }
         diagnostic?(

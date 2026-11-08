@@ -58,6 +58,11 @@
       showing = true
     }
     func send(_ songs: [Song], action: PassengerSelection.Action) {
+      guard !songs.contains(where: { $0.isUploaded == true }) else {
+        link.error =
+          "I caricamenti personali si ascoltano con l’account proprietario sul telefono principale."
+        return
+      }
       link.submit(
         action: action,
         tracks: songs.map { PassengerTrack(id: $0.id, title: $0.title, artist: $0.artist) })

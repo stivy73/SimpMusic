@@ -3,7 +3,7 @@ import Foundation
 import YouTubeSDK
 
 public enum RemoteLibraryKind: String, CaseIterable, Sendable, Identifiable {
-  case songs, likes, playlists, artists
+  case songs, likes, playlists, artists, uploads, uploadAlbums
   public var id: String { rawValue }
   public var title: String {
     switch self {
@@ -11,6 +11,8 @@ public enum RemoteLibraryKind: String, CaseIterable, Sendable, Identifiable {
     case .likes: "Mi piace"
     case .playlists: "Playlist"
     case .artists: "Artisti seguiti"
+    case .uploads: "Caricamenti"
+    case .uploadAlbums: "Album caricati"
     }
   }
   public var browseID: String {
@@ -19,13 +21,16 @@ public enum RemoteLibraryKind: String, CaseIterable, Sendable, Identifiable {
     case .likes: "VLLM"
     case .playlists: "FEmusic_liked_playlists"
     case .artists: "FEmusic_library_corpus_artists"
+    case .uploads: "FEmusic_library_privately_owned_tracks"
+    case .uploadAlbums: "FEmusic_library_privately_owned_releases"
     }
   }
   public var itemKind: DiscoveryItem.Kind {
     switch self {
-    case .songs, .likes: .song
+    case .songs, .likes, .uploads: .song
     case .playlists: .playlist
     case .artists: .artist
+    case .uploadAlbums: .album
     }
   }
 }
@@ -53,6 +58,8 @@ public enum RemoteLibraryCollection {
       try Task.checkCancellation()
       for item in page.shelves.flatMap(\.items)
       where item.kind == kind.itemKind && seen.insert(item.id).inserted {
+        var item = item
+        if kind == .uploads || kind == .uploadAlbums { item.isUploaded = true }
         items.append(item)
       }
       token = page.continuation

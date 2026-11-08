@@ -63,6 +63,7 @@ public struct DiscoveryItem: Identifiable, Codable, Hashable, Sendable {
   public let artwork: URL?
   public let durationSeconds: Double?
   public var id: String { kind.rawValue + ":" + mediaId }
+  public var isUploaded: Bool? = nil
   public var albumBrowseID: String? = nil
   public var artistBrowseID: String? = nil
   public var albumTitle: String? = nil
@@ -90,6 +91,7 @@ public struct DiscoveryItem: Identifiable, Codable, Hashable, Sendable {
   init(_ item: YouTubeMusicItem) {
     switch item {
     case .song(let value):
+      isUploaded = value.isUploaded ? true : nil
       albumBrowseID = value.albumBrowseID
       artistBrowseID = value.artistBrowseID
       albumTitle = value.album
@@ -101,6 +103,7 @@ public struct DiscoveryItem: Identifiable, Codable, Hashable, Sendable {
       artwork = value.thumbnailURL
       durationSeconds = value.duration
     case .album(let value):
+      isUploaded = value.id.hasPrefix("FEmusic_library_privately_owned_release_detail") ? true : nil
       kind = .album
       mediaId = value.id
       title = value.title
@@ -194,7 +197,11 @@ public struct HomePage: Sendable {
 public struct HomeDiscovery: Sendable {
   private let browse: YouTubeBrowse
   private let parser = YouTubeMusicClient()
-  public init(session: YouTubeSession?) { browse = YouTubeBrowse(session: session) }
+  private let signedIn: Bool
+  public init(session: YouTubeSession?) {
+    browse = YouTubeBrowse(session: session)
+    signedIn = session != nil
+  }
   public func page(target: BrowseTarget, continuation: String? = nil) async throws -> HomePage {
     let data = try await browse.request(
       browseId: target.browseId, params: target.params, token: continuation)
@@ -203,6 +210,9 @@ public struct HomeDiscovery: Sendable {
   public func libraryPage(kind: RemoteLibraryKind, continuation: String? = nil) async throws
     -> HomePage
   {
+    if kind == .uploads || kind == .uploadAlbums {
+      guard signedIn else { throw LibraryError.authentication }
+    }
     let data = try await browse.request(browseId: kind.browseID, token: continuation)
     let normalized = try LibraryBrowseEnvelope.normalize(data)
     return try await HomePage(parser.decodeDiscoveryPage(from: normalized, strictItems: true))

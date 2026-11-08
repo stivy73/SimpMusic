@@ -25,6 +25,7 @@ public struct AlbumDetail: Sendable {
     self.songs = songs.map { song in
       var track = song.withAlbumArtwork(album.artwork, artist: album.artist, albumID: album.id)
       track.albumTitle = album.title
+      if album.isUploaded { track.isUploaded = true }
       if track.artistReferences?.isEmpty != false { track.artistReferences = artists }
       if track.artistBrowseID == nil { track.artistBrowseID = artists.first?.id }
       return track

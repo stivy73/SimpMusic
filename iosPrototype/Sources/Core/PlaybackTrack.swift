@@ -11,6 +11,7 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
   public let artist: String
   public let artwork: URL?
   public let durationSeconds: Double?
+  public var isUploaded: Bool? = nil
   public var albumBrowseID: String? = nil
   public var albumTitle: String? = nil
   public var artistBrowseID: String? = nil
@@ -31,6 +32,7 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
     self.artistReferences = artistReferences
   }
   public init(_ item: DiscoveryItem) {
+    isUploaded = item.isUploaded
     albumBrowseID = item.albumBrowseID
     artistBrowseID = item.artistBrowseID
     albumTitle = item.albumTitle
@@ -42,10 +44,12 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
     durationSeconds = item.durationSeconds
   }
   public var discoveryItem: DiscoveryItem {
-    DiscoveryItem(
+    var item = DiscoveryItem(
       kind: .song, mediaId: id, title: title, subtitle: artist, artwork: artwork,
       durationSeconds: durationSeconds, albumBrowseID: albumBrowseID,
       artistBrowseID: artistBrowseID, albumTitle: albumTitle, artistReferences: artistReferences)
+    item.isUploaded = isUploaded
+    return item
   }
   public func withAlbumArtwork(
     _ albumArtwork: URL?, artist albumArtist: String? = nil, albumID: String? = nil
@@ -56,6 +60,7 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
         ? albumArtist ?? artist : artist,
       artwork: albumArtwork ?? artwork,
       durationSeconds: durationSeconds)
+    result.isUploaded = isUploaded
     result.artistBrowseID = artistBrowseID
     result.artistReferences = artistReferences
     result.albumTitle = albumTitle
@@ -63,6 +68,7 @@ public struct PlaybackTrack: Identifiable, Codable, Hashable, Sendable {
     return result
   }
   public init(_ song: YouTubeMusicSong, albumArtwork: URL? = nil) {
+    isUploaded = song.isUploaded ? true : nil
     id = song.videoId
     title = song.title
     artist = song.artistsDisplay

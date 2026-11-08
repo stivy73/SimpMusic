@@ -80,7 +80,8 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
       resolutions[track.id] = Task {
         do {
           let source = try await YouTubeAudio().resolve(
-            videoID: track.id, session: account, quality: AudioPreferences.shared.downloadQuality)
+            videoID: track.id, session: account, quality: AudioPreferences.shared.downloadQuality,
+            accountOnly: track.isUploaded == true)
           try Task.checkCancellation()
           guard active.contains(track.id) else { return }
           guard !source.isHLS else { throw OfflineError.unsupportedStream }

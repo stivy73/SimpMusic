@@ -1182,6 +1182,28 @@ final class PrototypeUITests: XCTestCase {
   }
 
   @MainActor
+  func testPersonalUploadsHaveSeparateSongsAndAlbums() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library"]
+    app.launch()
+    selectTab("Libreria", symbol: "square.stack.fill", in: app)
+    XCTAssertTrue(app.staticTexts["Album di prova"].waitForExistence(timeout: 10))
+    app.buttons["library-section-menu"].tap()
+    app.buttons["library-menu-uploads"].tap()
+    XCTAssertTrue(app.buttons["song-uploaded-fixture"].waitForExistence(timeout: 10))
+    let picker = app.segmentedControls["uploads-kind"]
+    picker.buttons["Album"].tap()
+    XCTAssertTrue(app.staticTexts["Album caricato di prova"].waitForExistence(timeout: 10))
+    XCTAssertFalse(app.buttons["song-uploaded-fixture"].exists)
+    picker.buttons["Brani"].tap()
+    XCTAssertTrue(app.buttons["song-uploaded-fixture"].waitForExistence(timeout: 10))
+    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    screenshot.name = "Caricamenti personali - Brani e Album"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+  }
+
+  @MainActor
   func testRejectedRemoteLikeShowsErrorAndKeepsLikedSong() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-remote-library", "--test-like-failure"]

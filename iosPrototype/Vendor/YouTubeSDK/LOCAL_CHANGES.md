@@ -60,3 +60,13 @@ retained for the artist chooser; the first artist ID stays backward compatible.
 The app's authenticated AlbumDetail loader isolates track shelves, excluding
 recommendation carousels, and loads every continuation before Play/Download album.
 No SDK transport, cookies, playback extraction or external dependency changes.
+
+Personal uploads (2026-11-08): responsive uploaded tracks retain the authenticated
+queue-menu video ID, private artist/release metadata and an `isUploaded` marker,
+also in mixed playlists without the Delete menu. The discovery decoder recognizes
+private release/artist browse IDs. Existing library transport owns all networking.
+The app exposes uploaded songs and albums with all continuation pages. Playback,
+restored queues, preparation and downloads retain the account-only requirement;
+private tracks do not fall back to anonymous streams or cross-account passenger
+playback. No upload/delete endpoint, credentials or SDK network logging is added.
+Reference: sigma67/ytmusicapi `mixins/uploads.py` and `parsers/uploads.py`.

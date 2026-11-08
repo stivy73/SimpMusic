@@ -27,6 +27,7 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
   public let duration: TimeInterval?
   public let thumbnailURL: URL?
   public let videoId: String
+  public let isUploaded: Bool
   public let isExplicit: Bool
 
   // Helper for UI
@@ -51,6 +52,34 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
       extractedId = vid
     }
 
+    func find(_ key: String, in value: Any, depth: Int = 0) -> [String: Any]? {
+      guard depth < 16 else { return nil }
+      if let values = value as? [Any] {
+        return values.lazy.compactMap { find(key, in: $0, depth: depth + 1) }.first
+      }
+      guard let object = value as? [String: Any] else { return nil }
+      if let result = object[key] as? [String: Any] { return result }
+      return object.values.lazy.compactMap { find(key, in: $0, depth: depth + 1) }.first
+    }
+    let menu = data["menu"] ?? [:]
+    func hasPrivateBrowse(_ value: Any) -> Bool {
+      if let array = value as? [Any] { return array.contains(where: hasPrivateBrowse) }
+      guard let object = value as? [String: Any] else { return false }
+      if let id = object["browseId"] as? String, id.hasPrefix("FEmusic_library_privately_owned_") {
+        return true
+      }
+      return object.values.contains(where: hasPrivateBrowse)
+    }
+    let uploaded =
+      find("musicDeletePrivatelyOwnedEntityCommand", in: menu) != nil
+      || hasPrivateBrowse(data["flexColumns"] ?? [])
+    if extractedId == nil, uploaded,
+      let queue = find("queueAddEndpoint", in: menu),
+      let target = queue["queueTarget"] as? [String: Any]
+    {
+      extractedId = target["videoId"] as? String
+    }
+    self.isUploaded = uploaded
     guard let finalId = extractedId else { return nil }
     self.id = finalId
     self.videoId = finalId
@@ -88,15 +117,18 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
           for run in runs {
             if let text = run["text"] as? String {
               if let endpoint = run["navigationEndpoint"] as? [String: Any],
-                let browse = endpoint["browseEndpoint"] as? [String: Any],
-                let pageType = browse["browseEndpointContextSupportedConfigs"] as? [String: Any]
+                let browse = endpoint["browseEndpoint"] as? [String: Any]
               {
 
                 // Check type (Artist vs Album)
-                let config = pageType["browseEndpointContextMusicConfig"] as? [String: Any]
+                let pageType = browse["browseEndpointContextSupportedConfigs"] as? [String: Any]
+                let config = pageType?["browseEndpointContextMusicConfig"] as? [String: Any]
                 let type = config?["pageType"] as? String
 
-                if type == "MUSIC_PAGE_TYPE_ARTIST" {
+                if type == "MUSIC_PAGE_TYPE_ARTIST"
+                  || (browse["browseId"] as? String)?.hasPrefix(
+                    "FEmusic_library_privately_owned_artist_detail") == true
+                {
                   foundArtists.append(text)
                   if foundArtistID == nil { foundArtistID = browse["browseId"] as? String }
                   if let id = browse["browseId"] as? String,
@@ -108,7 +140,10 @@ public struct YouTubeMusicSong: Identifiable, Sendable {
                   || type == "MUSIC_PAGE_TYPE_PODCAST_SHOW"
                 {
                   foundArtists.append(text)
-                } else if type == "MUSIC_PAGE_TYPE_ALBUM" {
+                } else if type == "MUSIC_PAGE_TYPE_ALBUM"
+                  || (browse["browseId"] as? String)?.hasPrefix(
+                    "FEmusic_library_privately_owned_release_detail") == true
+                {
                   foundAlbum = text
                   foundAlbumID = browse["browseId"] as? String
                 }

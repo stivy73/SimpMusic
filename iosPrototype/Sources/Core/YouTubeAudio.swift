@@ -149,6 +149,7 @@ public struct YouTubeAudio: Sendable {
   public func resolve(
     videoID: String, session account: YouTubeSession? = nil, quality: AudioQuality = .high,
     excluding: Set<URL> = [], preferHLS: Bool = false, preferHLSForLongTracks: Bool = false,
+    accountOnly: Bool = false,
     diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws
     -> Source
@@ -167,6 +168,7 @@ public struct YouTubeAudio: Sendable {
     if preferHLS { await YouTubePlayerCipher.shared.invalidate() }
     if let account {
       do {
+        _ = try account.authorization()
         trace.record("ACCOUNT_WEB player start")
         let video = try await webVideo(videoID: videoID, account: account, trace: trace)
         let selected = try await source(
@@ -186,6 +188,13 @@ public struct YouTubeAudio: Sendable {
         }
         trace.record("ACCOUNT_WEB failed: " + accountDiagnostic)
       }
+    }
+    if accountOnly {
+      throw AudioResolutionFailure(
+        accountDiagnostic: accountDiagnostic,
+        networkDiagnostic:
+          "Caricamento personale: occorre la sessione YouTube Music proprietaria; nessun tentativo pubblico.",
+        resolutionReport: trace.report)
     }
     // Some public mobile responses expose only a readable prefix. Bootstrap a
     // fresh anonymous visitor for the Apple player, then apply the SAME complete

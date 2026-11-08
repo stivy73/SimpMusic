@@ -75,11 +75,19 @@
       let source: YouTubeAudio.Source?
       let rangeToken: UUID?
       let context: AudioWarmupContext
+      let accountOnly: Bool
       let preparedAt: Date
     }
     private var prepared: PreparedDeck?
     private var preparingID: String?
     private var preparingContext: AudioWarmupContext?
+    private var preparingAccountOnly = false
+    private var requiresAccount = false
+    private var unavailableMessage: String {
+      requiresAccount
+        ? "Caricamento personale non disponibile. Verifica che l’account YouTube Music selezionato sia quello che possiede il brano, poi riprova."
+        : AudioPlaybackError.unavailable.localizedDescription
+    }
     private var preparationRevision = UUID()
     private var changingDeck = false
     private var transitionRequest: Task<Void, Never>?
@@ -110,18 +118,23 @@
       outgoingTap = nil
       nativePlayer.volume = Float(volume / 100)
     }
-    func prepareTransition(videoID: String) {
+    func prepareTransition(videoID: String, accountOnly: Bool = false) {
       guard !changingDeck, fadeTask == nil else { return }
       let context = warmupContext()
-      if let prepared, prepared.id == videoID,
+      if let prepared, prepared.id == videoID, prepared.accountOnly == accountOnly,
         AudioWarmupValidity.usable(preparedAt: prepared.preparedAt, sourceURL: prepared.sourceURL,
           context: prepared.context, current: context) { return }
-      if preparingID == videoID, preparingContext == context, transitionRequest != nil { return }
+      if preparingID == videoID, preparingContext == context, preparingAccountOnly == accountOnly,
+        transitionRequest != nil
+      {
+        return
+      }
       cancelTransition()
       let revision = UUID()
       preparationRevision = revision
       preparingID = videoID
       preparingContext = context
+      preparingAccountOnly = accountOnly
       warmStatus = "preparing " + videoID
       transitionRequest = Task {
         do {
@@ -141,7 +154,7 @@
           } else {
             let source = try await YouTubeAudio().resolve(
               videoID: videoID, session: context.session,
-              quality: context.quality, preferHLSForLongTracks: true)
+              quality: context.quality, preferHLSForLongTracks: true, accountOnly: accountOnly)
             resolvedSource = source
             sourceURL = source.url
             let token = UUID()
@@ -169,7 +182,7 @@
           prepared = PreparedDeck(
             id: videoID, player: deck, loader: loader, tap: tap, duration: duration,
             timingDiagnostic: timing.diagnostic, sourceURL: sourceURL, source: resolvedSource, rangeToken: rangeToken,
-            context: context, preparedAt: Date())
+            context: context, accountOnly: accountOnly, preparedAt: Date())
           warmStatus = "item " + videoID
           let deadline = Date().addingTimeInterval(8)
           while (item.status == .unknown || deck.status == .unknown) && Date() < deadline {
@@ -207,9 +220,11 @@
       }
     }
     @discardableResult func transition(
-      to videoID: String, seconds: Double, dj: Bool, preserveIntent: Bool = false
+      to videoID: String, seconds: Double, dj: Bool, preserveIntent: Bool = false,
+      accountOnly: Bool = false
     ) -> Bool {
       guard (seconds == 0 || playing), let deck = prepared, deck.id == videoID,
+        deck.accountOnly == accountOnly,
         warmReadyID == videoID, deck.player.currentItem?.status == .readyToPlay,
         AudioWarmupValidity.usable(preparedAt: deck.preparedAt, sourceURL: deck.sourceURL,
           context: deck.context, current: warmupContext())
@@ -249,6 +264,7 @@
       transitionRequest = nil
       warmReadyID = ""
       self.videoId = videoID
+      requiresAccount = deck.accountOnly
       let expected = preserveIntent ? intent.revision : intent.load()
       loadID = expected
       elapsed = 0
@@ -270,7 +286,7 @@
           guard let self, self.assetRevision == generation else { return }
           if !self.recoverAudio(reason: "Errore del flusso durante la transizione") {
             self.pause()
-            self.playbackError = AudioPlaybackError.unavailable.localizedDescription
+            self.playbackError = self.unavailableMessage
           }
         }
       }
@@ -334,9 +350,10 @@
     var beforePlay: (() -> Bool)?
     private var restoredPosition: Double?
     private var initialSeek: Double?
-    func restore(videoID: String, position: Double, duration: Double) {
+    func restore(videoID: String, position: Double, duration: Double, accountOnly: Bool = false) {
       clear()
       self.videoId = videoID
+      requiresAccount = accountOnly
       elapsed = position
       durationSeconds = duration
       restoredPosition = position
@@ -411,7 +428,8 @@
       }
     }
 
-    func load(videoId: String, startAt: Double? = nil) {
+    func load(videoId: String, startAt: Double? = nil, accountOnly: Bool = false) {
+      requiresAccount = accountOnly
       recovery = AudioRecovery()
       rejectedSources.removeAll()
       deferredRecovery = false
@@ -426,10 +444,15 @@
       let wasChangingDeck = changingDeck
       changingDeck = true
       defer { changingDeck = wasChangingDeck }
-      if !recovering, startAt == nil, transition(to: videoId, seconds: 0, dj: false) { return }
+      if !recovering, startAt == nil,
+        transition(to: videoId, seconds: 0, dj: false, accountOnly: requiresAccount)
+      {
+        return
+      }
       // Share a matching in-flight preparation instead of restarting its requests.
       let pendingWarmup = !recovering && startAt == nil && preparingID == videoId
-        && preparingContext == warmupContext() ? transitionRequest : nil
+          && preparingContext == warmupContext() && preparingAccountOnly == requiresAccount
+        ? transitionRequest : nil
       preparationBegan = ProcessInfo.processInfo.systemUptime
       restoredPosition = nil
       initialSeek = startAt
@@ -491,7 +514,11 @@
             await pendingWarmup.value
             try Task.checkCancellation()
             guard intent.revision == expected, assetRevision == generation else { return }
-            if transition(to: videoId, seconds: 0, dj: false, preserveIntent: true) { return }
+            if transition(
+              to: videoId, seconds: 0, dj: false, preserveIntent: true, accountOnly: requiresAccount
+            ) {
+              return
+            }
             cancelTransition()
           }
           let asset: AVURLAsset
@@ -510,7 +537,7 @@
             let source = try await YouTubeAudio().resolve(
               videoID: videoId, session: accountProvider(),
               quality: AudioPreferences.shared.currentQuality, excluding: rejectedSources,
-              preferHLS: recovering, preferHLSForLongTracks: true,
+              preferHLS: recovering, preferHLSForLongTracks: true, accountOnly: requiresAccount,
               diagnostic: { [weak self] report in
                 Task { @MainActor [weak self] in
                   guard let self, self.intent.revision == expected, self.assetRevision == generation,
@@ -607,7 +634,7 @@
                 self.isLoading = false
                 if !self.recoverAudio(reason: "Il flusso audio si è interrotto") {
                   self.pause()
-                  self.playbackError = AudioPlaybackError.unavailable.localizedDescription
+                  self.playbackError = self.unavailableMessage
                 }
               default: break
               }
@@ -639,7 +666,7 @@
           }
           if !recoverAudio(reason: "Caricamento audio non riuscito") {
             pause()
-            playbackError = AudioPlaybackError.unavailable.localizedDescription
+            playbackError = unavailableMessage
           }
         }
       }
@@ -815,7 +842,7 @@
       if let position = restoredPosition {
         restoredPosition = nil
         let id = videoId
-        load(videoId: id, startAt: position)
+        load(videoId: id, startAt: position, accountOnly: requiresAccount)
         return
       }
       controlRevision = UUID()
@@ -827,7 +854,7 @@
           deferredRecovery = false
           if recoverAudio(reason: "Riprendo il flusso interrotto") { return }
           pause()
-          playbackError = AudioPlaybackError.unavailable.localizedDescription
+          playbackError = unavailableMessage
           return
         }
         // A user can resume while replacement is still resolving. The ready/seek
