@@ -22,5 +22,26 @@ ridimensionamento e rotazione dell’invito. Archivio Release compilato e firmat
 con Xcode 27.2 RC (27B48), SDK iPhoneOS 27.2. Build 65, versione 0.17.2 su
 app, estensioni e Watch; minimi iOS 17 e watchOS 10 invariati.
 
-Consegna TestFlight in preparazione; nessuna nuova prova sul display fisico
-dell’auto è stata eseguita.
+IPA esportata e verificata: firma di distribuzione, CarPlay, Siri, Widget,
+Share e companion Watch. Sorgenti aggiornati sul fork `stivy73/SimpMusic`,
+branch `feature/youtube-library-albums`, commit
+`f2c461ef6296daa9bc3f3936eedc82f3bb2e664a`.
+
+IPA: `deliveries/NoteNarrate-iOS-0.17.2-build65.ipa`.
+SHA-256: `8311b8b010c537efb187f42218d8bb2f432bef5a28e0bde47c31cad75b42b0a5`.
+Archivio e simboli: `deliveries/archives/NoteNarrate-0.17.2-build65.xcarchive`.
+Verifiche: `deliveries/NoteNarrate-iOS-0.17.2-build65-validation.json`.
+
+Upload completato con il caricatore ufficiale Apple, senza errori.
+Delivery/build UUID: `bd3e7311-759a-45fb-b564-b8c2e1d4011b`.
+Elaborazione **VALID**, pubblico **INTERNAL_ONLY**, stato **IN_BETA_TESTING**.
+Associazioni a **Team interno** e **Stivy73** rilette via API; appartenenza
+al Team interno e accesso alla stessa app verificati per **Tommaso**
+(`tommaso.stival@icloud.com`) e **Girbreda** (`girbreda@gmail.com`).
+Note beta italiane salvate e rilette. Nessuna modifica degli altri tester,
+dei ruoli, della distribuzione automatica o della pubblicazione App Store.
+
+Ricevuta: `deliveries/NoteNarrate-iOS-0.17.2-build65-AppStore-status.json`,
+verificata il 10 novembre 2026 alle 21:13:42 UTC.
+Nessuna nuova prova sul display fisico dell’auto è stata eseguita:
+dimensione visualizzata e scansione dal display restano da confermare sull’auto.
