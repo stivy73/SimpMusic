@@ -904,7 +904,7 @@
       }
       var rows = link.peers.map { passengerRow($0) }
       let invite = CPListItem(
-        text: "Mostra QR", detailText: "Invita dal display dell’auto · da fermi",
+        text: "Mostra QR", detailText: nil,
         image: UIImage(systemName: "qrcode"))
       invite.accessoryType = .disclosureIndicator
       invite.handler = { [weak self] _, done in
@@ -985,26 +985,34 @@
         renderPassengers()
         return
       }
-      if passengerQRInvitation != invitation {
+      // A details-header thumbnail stays small even with a higher-resolution image.
+      // The image-only grid has the largest square slot (220 pt on iOS 27.2).
+      if #available(iOS 26.4, *) { passengersTemplate.listHeader = nil }
+      let maximumSize: CGSize
+      if #available(iOS 26.0, *) {
+        maximumSize = CPListImageRowItemGridElement.maximumImageSize
+      } else {
+        maximumSize = CPListImageRowItem.maximumImageSize
+      }
+      let displayScale = max(1, controller?.carTraitCollection.displayScale ?? 2)
+      let side = min(
+        2048, max(128, Int((min(maximumSize.width, maximumSize.height) * displayScale).rounded(.down))))
+      if passengerQRInvitation != invitation || passengerQRImage?.cgImage?.width != side
+        || passengerQRImage?.scale != displayScale
+      {
         passengerQRInvitation = invitation
-        passengerQRImage = PassengerQRCode.image(for: invitation).map {
-          UIImage(cgImage: $0).withRenderingMode(.alwaysOriginal)
-        }
-        if #available(iOS 26.4, *), let image = passengerQRImage {
-          passengersTemplate.listHeader = CPListTemplateDetailsHeader(
-            thumbnail: CPThumbnailImage(image: image), title: "Scansiona con NoteNarrate",
-            subtitle: "Da fermi · Bluetooth attivo su entrambi gli iPhone", actionButtons: [])
+        passengerQRImage = PassengerQRCode.image(for: invitation, side: side).map {
+          UIImage(cgImage: $0, scale: displayScale, orientation: .up)
+            .withRenderingMode(.alwaysOriginal)
         }
       }
       var items: [any CPListTemplateItem] = []
-      if #available(iOS 26.4, *) {
-        // The native header gives the square QR more room than a list-row icon.
-      } else if let image = passengerQRImage {
+      if let image = passengerQRImage {
         let row: CPListImageRowItem
         if #available(iOS 26.0, *) {
-          let element = CPListImageRowItemRowElement(
-            image: image, title: "Scansiona QR", subtitle: nil)
-          row = CPListImageRowItem(text: nil, elements: [element], allowsMultipleLines: false)
+          let element = CPListImageRowItemGridElement(image: image)
+          if #available(iOS 26.4, *) { element.accessibilityLabel = "Scansiona con NoteNarrate" }
+          row = CPListImageRowItem(text: nil, gridElements: [element], allowsMultipleLines: false)
         } else {
           row = CPListImageRowItem(text: "Scansiona con NoteNarrate", images: [image])
         }

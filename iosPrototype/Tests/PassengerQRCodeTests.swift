@@ -14,7 +14,7 @@ final class PassengerQRCodeTests: XCTestCase {
 
   func testPhoneAndCarPlaySizesDecodeToTheSameInvitation() throws {
     let invitation = PassengerInvitation()
-    for side in [128, 160, 180, 240, 360, 720] {
+    for side in [128, 160, 180, 220, 240, 360, 440, 720] {
       let image = try XCTUnwrap(PassengerQRCode.image(for: invitation, side: side))
       XCTAssertEqual(image.width, side)
       XCTAssertEqual(image.height, side)
@@ -22,7 +22,7 @@ final class PassengerQRCodeTests: XCTestCase {
     }
   }
 
-  func testNativeHeaderDownscalingAndSessionRotation() throws {
+  func testNativeDownscalingAndSessionRotation() throws {
     let original = PassengerInvitation()
     let image = try XCTUnwrap(PassengerQRCode.image(for: original))
     for side in [160, 200, 240] {
