@@ -18,4 +18,21 @@ SDK 27.2. Versione/build verificati su app, tre estensioni e Watch.
 Minimi iOS 17 e watchOS 10 invariati. Ricevitori Chromecast e AirPlay fisici
 ancora da verificare.
 
-Consegna TestFlight in preparazione.
+IPA esportata e verificata: firma di distribuzione, framework Google Cast
+incorporato, CarPlay, Siri, Widget, Share e companion Watch.
+Sorgenti sul fork `stivy73/SimpMusic`, branch `feature/youtube-library-albums`,
+commit `9f1032e05a18256d245baed5a3af815427c6aa81`.
+
+IPA: `deliveries/NoteNarrate-iOS-0.17.3-build66.ipa`.
+SHA-256: `1be38a5ce2fa08d993d2ad9aeea62b31f6086695c006bbd75168a54db5b2bf6f`.
+Archivio e simboli: `deliveries/archives/NoteNarrate-0.17.3-build66.xcarchive`.
+Verifiche: `deliveries/NoteNarrate-iOS-0.17.3-build66-validation.json`.
+
+Upload Apple completato senza errori, delivery/build UUID
+`9d903840-b60c-418c-9d27-5ae74109bc16`. Build resa disponibile agli interni.
+
+L'11 novembre il report del Duo ha identificato un crash immediato all'avvio:
+`DYLD 1 Library missing`, `@rpath/GoogleCast.framework/GoogleCast`.
+Il framework era incorporato e firmato, ma mancava il percorso
+`@executable_path/Frameworks` nell'eseguibile. La firma non rilevava questo difetto.
+La build 67 corregge il percorso e aggiunge verifiche di caricamento e avvio reale.

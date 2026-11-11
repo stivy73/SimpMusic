@@ -142,6 +142,9 @@ def verify(ipa):
         )
         require("audio" in info.get("UIBackgroundModes", []), "Background audio missing")
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+        runtime_frameworks = json.loads(subprocess.check_output([
+            sys.executable, str(Path(__file__).with_name("CheckRuntimeFrameworks.py")), str(app)
+        ], text=True))
         return {
             "app": info["CFBundleDisplayName"],
             "version": info["CFBundleShortVersionString"],
@@ -151,6 +154,7 @@ def verify(ipa):
             "signature_carplay": True,
             "profile_carplay": True,
             "codesign_verified": True,
+            "runtime_frameworks": runtime_frameworks,
             "siri_media_extension_verified": voice,
             "widget_app_group_verified": voice,
             "siri_example_phrases_verified": voice,

@@ -3,6 +3,29 @@ import UIKit
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testReleaseColdLaunchShowsHomeTwice() {
+    let app = XCUIApplication()
+    for _ in 0..<2 {
+      app.launch()
+      XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
+      XCTAssertTrue(app.buttons["open-passenger-session"].firstMatch.waitForExistence(timeout: 20))
+      app.terminate()
+    }
+  }
+
+  @MainActor
+  func testColdLaunchLoadsCastFrameworkAndOpensPlayerTwice() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback"]
+    for _ in 0..<2 {
+      app.launch()
+      XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
+      XCTAssertTrue(app.buttons["playback-toggle"].waitForExistence(timeout: 20))
+      app.terminate()
+    }
+  }
+
+  @MainActor
   func testPassengerTLSBridgeRoutesCollectionsAndKeepsPassengerSilent() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-local-playback", "--test-passenger-loopback"]
