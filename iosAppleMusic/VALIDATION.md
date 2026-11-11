@@ -202,3 +202,14 @@ vuoto valido e rifiuto payload catalogo/malformato/errore HTTP); Debug riuscita.
 Primo tentativo export/upload: timeout recuperando elenco app; API buildUploads
 conferma soltanto AWAITING_UPLOAD con uploadedDate=null per build 5. La build finale
 include la ricerca mirata; non è stata consegnata la variante diagnostica iniziale.
+
+Build finale 5 consegnata: VALID / IN_BETA_TESTING,
+ID 3d8a1323-4a3c-42a6-bb26-cf032785bf22, app separata 6833455204.
+Upload confermato da Xcode e buildUploads COMPLETE; gruppo Stivy73 soltanto,
+manuale, un solo tester e appartenenza riletta. Note italiane caricate.
+IPA: iosAppleMusic/deliveries/0.1.0-5/NoteNarrateMusic.ipa.
+SHA256 e404e9c6f421687cfdbfe83d5bb4afc2c5f4bac4de8ef70d4a2836958fdbcd03.
+Sorgenti 495a505f sincronizzati sul fork personale. Archivio Release firmato
+riuscito, iPhone/Watch entrambi versione 0.1.0 build 5 con identità separate YT.
+Resta da provare Heaven on Earth nella ricerca Libreria e condividere il report;
+la build è diagnostica, non prova la soluzione del problema sul dispositivo.
