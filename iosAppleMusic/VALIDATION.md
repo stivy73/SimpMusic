@@ -128,3 +128,14 @@ risolto definitivamente il codice 6 sulla sola base della compilazione.
 Riferimenti Apple: https://developer.apple.com/videos/play/wwdc2026/254/
 https://developer.apple.com/documentation/applemusicapi/get-all-library-songs
 https://developer.apple.com/documentation/applemusicapi/get-all-library-playlists
+
+Build 3 distribuita: `VALID` / `IN_BETA_TESTING`, ID
+`73f2ce57-41cc-4dff-a02d-d21c31d719db`, app separata `6833455204`. Riletti
+solo gruppo Stivy73, distribuzione manuale, un tester. Note italiane caricate.
+Lo stato INSTALLED è dell'app e non verifica il test della build 3.
+
+IPA: `iosAppleMusic/deliveries/0.1.0-3/NoteNarrateMusic.ipa`.
+SHA256: `9c680f223b6e2b812892f4adbed3642dde886cbf1757926791f7ce94a2710973`.
+Commit sorgente `d864eefd`, sincronizzato nel fork personale. Resta da provare
+la stessa playlist sul dispositivo e condividere il report dopo il tentativo
+se l'errore persiste; per la libreria eseguire la verifica cloud in sola lettura.
