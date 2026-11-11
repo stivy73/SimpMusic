@@ -48,8 +48,8 @@ fornitore deve essere incorporata nell'app.
 
 ## Prima della distribuzione
 
-Non è ancora una release pronta per App Store. Mancano attivazione MusicKit
-sul nuovo App ID e firma/provisioning, verifica live della ricerca Google,
+Non è ancora una release pronta per App Store. MusicKit è attivo sul nuovo App ID
+e la beta firmata 0.1.0 (1) è stata distribuita al solo Stivy73. Mancano verifica live della ricerca Google,
 privacy/support URL e metadati pubblici. Occorrono prove reali con account Apple
 Music, gestione abbonamenti/accesso negato, AirPlay, Siri, Watch e CarPlay.
 Non sono state migrate radio AI, ricezione share di raccolte da altri servizi,
