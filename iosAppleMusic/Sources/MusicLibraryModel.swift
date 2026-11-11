@@ -8,6 +8,7 @@ final class MusicLibraryModel: ObservableObject {
   @Published var authorization = MusicAuthorization.currentStatus
   @Published var accessReport = "Nessuna verifica eseguita."
   @Published var checkingAccess = false
+  @Published var checkingCloudLibrary = false
   @Published var subscriptionVerified = false
   @Published var canPlayCatalog = false
   @Published var songs: [MusicKit.Song] = []
@@ -19,6 +20,7 @@ final class MusicLibraryModel: ObservableObject {
   @Published var query = ""
   @Published var nowPlaying: MusicKit.Song?
   @Published var queueSongs: [MusicKit.Song] = []
+  @Published var preparingPlayback = false
   @Published var playing = false
   @Published var position = 0.0
   @Published var duration = 0.0
@@ -53,15 +55,15 @@ final class MusicLibraryModel: ObservableObject {
     var failures: [String] = []
     // Subscription/token access must not gate the local music library.
     do {
-      var request = MusicLibraryRequest<MusicKit.Song>(); request.limit = 100
+      var request = MusicLibraryRequest<MusicKit.Song>(); request.limit = 100; request.includeOnlyDownloadedContent = false
       songs = try await collect(request.response().items); record("Libreria brani: \(songs.count)")
     } catch { recordFailure(error,stage:"Brani"); failures.append("Brani: " + accessMessage(error)) }
     do {
-      var request = MusicLibraryRequest<Album>(); request.limit = 100
+      var request = MusicLibraryRequest<Album>(); request.limit = 100; request.includeOnlyDownloadedContent = false
       albums = try await collect(request.response().items); record("Libreria album: \(albums.count)")
     } catch { recordFailure(error,stage:"Album"); failures.append("Album: " + accessMessage(error)) }
     do {
-      var request = MusicLibraryRequest<Playlist>(); request.limit = 100
+      var request = MusicLibraryRequest<Playlist>(); request.limit = 100; request.includeOnlyDownloadedContent = false
       playlists = try await collect(request.response().items); record("Libreria playlist: \(playlists.count)")
     } catch { recordFailure(error,stage:"Playlist"); failures.append("Playlist: " + accessMessage(error)) }
     do {
@@ -100,6 +102,21 @@ final class MusicLibraryModel: ObservableObject {
     } catch { recordFailure(error,stage:"Rinnovo token"); self.error = accessMessage(error) }
     await refresh()
   }
+  func checkCloudLibrary() async {
+    guard authorization == .authorized, !checkingCloudLibrary else { return }
+    checkingCloudLibrary = true; defer { checkingCloudLibrary = false }
+    for resource in MusicCloudProbe.Resource.allCases {
+      let stage = "Libreria cloud \(resource.rawValue)"
+      do {
+        let request = MusicCloudProbe.request(for:resource)
+        let result = try await withTokenRecovery {
+          let response = try await MusicDataRequest(urlRequest:request).response()
+          return try MusicCloudProbe.parse(response.data,status:response.urlResponse.statusCode)
+        }
+        record("\(stage): HTTP 200; prima pagina=\(result.firstPageCount); altre pagine=\(result.hasMore)")
+      } catch { recordFailure(error,stage:stage) }
+    }
+  }
   private func accessMessage(_ error: any Error) -> String {
     if Self.isDeveloperTokenFailure(error) {
       return "Apple non riesce a generare il token sviluppatore per NoteNarrate Music. Questa verifica non indica che il tuo abbonamento sia assente. Prova Ripristina collegamento in Impostazioni; se persiste, condividi la diagnostica Apple Music."
@@ -116,6 +133,9 @@ final class MusicLibraryModel: ObservableObject {
     return error.localizedDescription
   }
   private func recordFailure(_ error: any Error, stage: String) {
+    if let response = error as? MusicDataRequest.Error {
+      record("\(stage): HTTP \(response.status); codice Apple=\(response.code)")
+    }
     let ns = error as NSError
     let kind = (error as? MusicTokenRequestError)?.rawValue ?? "altro"
     // Never include userInfo, URL, localizedDescription, tokens or response bodies.
@@ -160,47 +180,75 @@ final class MusicLibraryModel: ObservableObject {
     try session.setActive(true)
   }
   func play(_ song: MusicKit.Song, in list: [MusicKit.Song]) async {
-    do {
-      guard try await MusicSubscription.current.canPlayCatalogContent || song.playParameters != nil else {
-        throw MusicPortError.subscriptionRequired
-      }
-      try activateAudio()
-      queueSongs = list.isEmpty ? [song] : list
-      player.queue = ApplicationMusicPlayer.Queue(for: queueSongs, startingAt: song)
-      try await player.play(); nowPlaying = song; duration = song.duration ?? 0; error = nil
-    } catch { self.error = error.localizedDescription }
+    let values = list.isEmpty ? [song] : list
+    record("Selezione brano: parametri=\(song.playParameters != nil); elementi=\(values.count)")
+    await startPlayback(queue:ApplicationMusicPlayer.Queue(for:values,startingAt:song),origin:"Brano")
   }
   func play(album: Album) async {
-    do {
-      let detail = try await album.with([.tracks])
-      let allTracks: [Track]
-      if let page = detail.tracks { allTracks = try await collect(page) } else { allTracks = [] }
-      let tracks = allTracks.compactMap { track -> MusicKit.Song? in
-        if case .song(let song) = track { return song }; return nil
-      }
-      guard let first = tracks.first else { throw MusicPortError.emptyCollection }
-      await play(first, in: tracks)
-    } catch { self.error = error.localizedDescription }
+    record("Selezione album: parametri=\(album.playParameters != nil)")
+    // Let MusicKit expand the album, retaining its playback context and lazy loading.
+    await startPlayback(queue:ApplicationMusicPlayer.Queue(for:[album]),origin:"Album")
   }
   func play(playlist: Playlist) async {
+    record("Selezione playlist: parametri=\(playlist.playParameters != nil)")
+    // Do not flatten library playlist tracks into detached Song values.
+    await startPlayback(queue:ApplicationMusicPlayer.Queue(for:[playlist]),origin:"Playlist")
+  }
+  private func startPlayback(queue: ApplicationMusicPlayer.Queue, origin: String) async {
+    guard !preparingPlayback else { record("\(origin): preparazione già in corso"); return }
+    preparingPlayback = true; defer { preparingPlayback = false }
+    var stage = "Sessione audio"
     do {
-      let detail = try await playlist.with([.tracks])
-      let allTracks: [Track]
-      if let page = detail.tracks { allTracks = try await collect(page) } else { allTracks = [] }
-      let tracks = allTracks.compactMap { track -> MusicKit.Song? in
-        if case .song(let song) = track { return song }; return nil
-      }
-      guard let first = tracks.first else { throw MusicPortError.emptyCollection }
-      await play(first, in: tracks)
-    } catch { self.error = error.localizedDescription }
+      error = nil
+      try activateAudio()
+      player.stop()
+      player.queue = queue
+      stage = "Preparazione audio \(origin)"
+      record("\(stage): avviata; coda nativa")
+      try await player.prepareToPlay()
+      try Task.checkCancellation()
+      record("\(stage): riuscita")
+      stage = "Avvio audio \(origin)"
+      try await player.play()
+      syncPlaybackState()
+      record("\(stage): riuscito; stato=\(player.state.playbackStatus)")
+    } catch {
+      recordFailure(error,stage:stage)
+      if Task.isCancelled { player.stop(); return }
+      self.error = playbackMessage(error)
+    }
+  }
+  private func syncPlaybackState() {
+    queueSongs = player.queue.entries.compactMap { entry in
+      if case .song(let song) = entry.item { return song }; return nil
+    }
+    playing = player.state.playbackStatus == .playing
+    if let entry = player.queue.currentEntry, case .song(let song) = entry.item {
+      nowPlaying = song; duration = song.duration ?? 0
+    }
+  }
+  private func playbackMessage(_ error: any Error) -> String {
+    let ns = error as NSError
+    if ns.domain == "MPMusicPlayerControllerErrorDomain", ns.code == 6 {
+      return "Apple Music non è riuscita a preparare l’audio (codice 6). Se il problema persiste, condividi la diagnostica da Impostazioni → Collegamento Apple Music."
+    }
+    return accessMessage(error)
   }
   func toggle() async {
     if playing { player.pause() }
     else { await resume() }
   }
-  func resume() async { do { try activateAudio(); try await player.play() } catch { self.error = error.localizedDescription } }
-  func next() async { do { try await player.skipToNextEntry() } catch { self.error = error.localizedDescription } }
-  func previous() async { do { try await player.skipToPreviousEntry() } catch { self.error = error.localizedDescription } }
+  func resume() async {
+    guard !preparingPlayback else { return }
+    preparingPlayback = true; defer { preparingPlayback = false }
+    do {
+      try activateAudio()
+      if !player.isPreparedToPlay { try await player.prepareToPlay() }
+      try await player.play(); syncPlaybackState(); record("Ripresa audio: riuscita")
+    } catch { recordFailure(error,stage:"Ripresa audio"); self.error = playbackMessage(error) }
+  }
+  func next() async { do { try await player.skipToNextEntry() } catch { recordFailure(error,stage:"Brano successivo"); self.error = playbackMessage(error) } }
+  func previous() async { do { try await player.skipToPreviousEntry() } catch { recordFailure(error,stage:"Brano precedente"); self.error = playbackMessage(error) } }
   func add(_ song: MusicKit.Song) async {
     do { try await MusicLibrary.shared.add(song); await refresh() }
     catch { self.error = error.localizedDescription }

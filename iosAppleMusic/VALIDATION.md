@@ -99,3 +99,32 @@ IPA: `iosAppleMusic/deliveries/0.1.0-2/NoteNarrateMusic.ipa` (esclusa da Git).
 SHA256: `a853e999aa9a1f0cb768e2e2f6e94656d3c81fd20a739a76e63e0fa8c25dc722`.
 Commit sorgente: `8a086e0b`, sincronizzato sul branch personale `codex/apple-music`.
 Nessuna modifica all'app NoteNarrate YouTube Music o ai suoi gruppi.
+
+## Playlist e preparazione audio — build 0.1.0 (3)
+
+Dati reali build 2: catalogo e rinnovo token funzionanti, libreria nativa con
+0 brani/0 album/6 playlist; errore `MPMusicPlayerControllerErrorDomain 6` durante
+un tentativo di riproduzione. Il codice 6 riguarda la preparazione audio e non
+prova un fallimento token. Il report precedente non registrava le fasi playback.
+
+Modifica: album e playlist sono passati al player come contenitori MusicKit
+originali (`Queue(for:[playlist])` / `[album]`), eliminando lettura completa e
+conversione di tutte le tracce in Song prima di avviare. Preparazione e avvio
+espliciti, log separati per sessione/preparazione/play, conteggi e presenza dei
+parametri, prevenzione degli avvii sovrapposti. I comandi successivo/precedente
+e ripresa registrano anch'essi gli errori. Nessun ID, titolo o token nel report.
+
+Lettura libreria con includeOnlyDownloadedContent=false esplicito. Aggiunta
+Verifica libreria cloud: tre GET MusicDataRequest ufficiali, limit=1, in sola
+lettura; nessun download/import/modifica. I conteggi campione vengono marcati
+come prima pagina, non come totali. Status di autenticazione, errori e risposte
+non valide non vengono trasformati in librerie vuote.
+
+Verifiche locali: 20 test passati, Debug riuscita, avvio persistente simulatore,
+archivio Release iPhone/Watch firmato riuscito. La riproduzione reale e l'origine
+dei conteggi libreria restano da confermare sul dispositivo; non dichiarare
+risolto definitivamente il codice 6 sulla sola base della compilazione.
+
+Riferimenti Apple: https://developer.apple.com/videos/play/wwdc2026/254/
+https://developer.apple.com/documentation/applemusicapi/get-all-library-songs
+https://developer.apple.com/documentation/applemusicapi/get-all-library-playlists

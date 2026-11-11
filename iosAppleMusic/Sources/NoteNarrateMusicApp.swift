@@ -62,7 +62,7 @@ struct MusicRoot: View {
           Button { player=true } label: { CoverRow(artwork:song.artwork,title:song.title,subtitle:song.artistName) }.buttonStyle(.plain)
           Spacer()
           Button { Task { await music.toggle() } } label: { Image(systemName: music.playing ? "pause.fill":"play.fill").padding() }
-            .accessibilityLabel(music.playing ? "Pausa":"Riproduci")
+            .accessibilityLabel(music.playing ? "Pausa":"Riproduci").disabled(music.preparingPlayback)
         }.padding(.horizontal).padding(.vertical,8).background(.regularMaterial)
       }
     }
@@ -122,11 +122,12 @@ struct MusicPlayerScreen: View {
               Text(Duration.seconds(music.position).formatted(.time(pattern:.minuteSecond)))
               Spacer();Text(Duration.seconds(music.duration).formatted(.time(pattern:.minuteSecond)))
             }.font(.caption.monospacedDigit())
+            if music.preparingPlayback { ProgressView("Preparazione Apple Music…") }
             HStack(spacing:48) {
               Button { Task { await music.previous() } } label: { Image(systemName:"backward.end.fill") }
               Button { Task { await music.toggle() } } label: { Image(systemName:music.playing ? "pause.fill":"play.fill").font(.system(size:48)) }
               Button { Task { await music.next() } } label: { Image(systemName:"forward.end.fill") }
-            }.font(.title).buttonStyle(.plain)
+            }.font(.title).buttonStyle(.plain).disabled(music.preparingPlayback)
             HStack {
               Button("Significato",systemImage:"lightbulb") { meaning=true }
               Spacer();RoutePicker().frame(width:44,height:44).accessibilityLabel("AirPlay")
@@ -190,6 +191,9 @@ struct MusicSettings: View {
           .disabled(music.checkingAccess || music.loading)
         if music.checkingAccess { ProgressView("Verifica collegamento…") }
         Text("Rinnova l’accesso tramite MusicKit senza cambiare il tuo account Apple o la libreria.").font(.caption)
+        Button("Verifica libreria cloud") { Task { await music.checkCloudLibrary() } }
+          .disabled(music.checkingCloudLibrary || music.loading)
+        if music.checkingCloudLibrary { ProgressView("Verifica libreria cloud…") }
         DisclosureGroup("Diagnostica Apple Music") {
           Text(music.accessReport).font(.caption.monospaced()).textSelection(.enabled)
           ShareLink("Condividi diagnostica",item:music.accessReport)

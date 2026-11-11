@@ -1,16 +1,19 @@
-NoteNarrate Music — 0.1.0 (2)
+NoteNarrate Music — 0.1.0 (3)
 
-Libreria: la lettura di brani, album e playlist non dipende più dal successo
-della verifica dell’abbonamento. Un errore in una raccolta non impedisce le altre.
+Riproduzione album e playlist: ora viene passata a MusicKit direttamente la
+raccolta originale, senza estrarre tutte le tracce prima dell’avvio. La coda
+mantiene il contesto della playlist e viene preparata prima della riproduzione.
 
-Token Apple Music: nuovo tentativo automatico senza cache quando Apple segnala
-un errore del token sviluppatore. Nessun rinnovo automatico sugli errori di consenso.
+La diagnostica registra la selezione, la presenza dei parametri di riproduzione,
+la preparazione e l’avvio. Gli errori di playback (incluso codice 6) entrano nel
+report; i controlli evitano avvii sovrapposti durante la preparazione.
 
-In Impostazioni → Collegamento Apple Music sono disponibili Ripristina collegamento
-e Diagnostica Apple Music → Condividi diagnostica. Il report contiene fasi,
-codici errore e conteggi, senza chiavi, token o titoli della libreria.
+In Impostazioni → Collegamento Apple Music è disponibile Verifica libreria cloud.
+Legge una sola pagina da brani, album e playlist dell’account, senza modificare
+né importare nulla. Il report distingue dati vuoti, altre pagine ed errori HTTP.
 
-Da provare: aggiornare la libreria, cercare Seal, riprodurre un brano. Se l’errore
-persiste, usare Ripristina collegamento e inviare la nuova diagnostica.
+Da provare: avviare Brani preferiti e Raccolta; se compare ancora errore 6,
+condividere la diagnostica dopo il tentativo. Per album/brani mancanti, eseguire
+Verifica libreria cloud e condividere il report.
 
-Solo tester interno Stivy73; app separata da NoteNarrate YouTube Music.
+Solo Stivy73. App separata da NoteNarrate YouTube Music.
