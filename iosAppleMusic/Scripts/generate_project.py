@@ -3,7 +3,7 @@ import hashlib,plistlib
 root=Path(__file__).resolve().parents[2];base=root/'iosAppleMusic';objects=[]
 def ident(s):return hashlib.sha1(('apple-music-'+s).encode()).hexdigest()[:24].upper()
 def obj(name,s):objects.append(f'{ident(name)} = {{ {s} }};');return ident(name)
-files=['Sources/MusicWatchBridge.swift','../iosPrototype/Sources/Core/WatchCompanion.swift','../iosPrototype/WatchApp/WatchSessionLink.swift','Sources/MusicIntents.swift','Sources/MusicCarPlay.swift','Sources/LicensedLyrics.swift','Sources/MusicLibraryModel.swift','Sources/NarrationModel.swift','Sources/NoteNarrateMusicApp.swift','../iosPrototype/Sources/Core/Interpretation.swift','../iosPrototype/Sources/Core/GeminiService.swift','../iosPrototype/Sources/Core/SpeechStream.swift','../iosPrototype/Sources/Core/PCMStreamPlayer.swift']
+files=['Sources/SongWebMeaning.swift','Sources/MeaningHTTP.swift','Sources/SongMeaningSourcesView.swift','Sources/MusicWatchBridge.swift','../iosPrototype/Sources/Core/WatchCompanion.swift','../iosPrototype/WatchApp/WatchSessionLink.swift','Sources/MusicIntents.swift','Sources/MusicCarPlay.swift','Sources/LicensedLyrics.swift','Sources/MusicLibraryModel.swift','Sources/NarrationModel.swift','Sources/NoteNarrateMusicApp.swift','../iosPrototype/Sources/Core/Interpretation.swift','../iosPrototype/Sources/Core/GeminiService.swift','../iosPrototype/Sources/Core/SpeechStream.swift','../iosPrototype/Sources/Core/PCMStreamPlayer.swift']
 refs=[];builds=[]
 for f in files:
  refs.append(obj(f,'isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "'+f+'"; sourceTree = "<group>";'))

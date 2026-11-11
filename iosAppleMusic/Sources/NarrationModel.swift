@@ -7,6 +7,7 @@ import Combine
 final class NarrationModel: ObservableObject {
   @Published var key = ""
   @Published var model = UserDefaults.standard.string(forKey: "meaningModel") ?? "gemini-3.8-flash"
+  @Published var searchEvidence: SongSearchEvidence?
   @Published var sourceURL: URL?
   @Published var attribution: String?
   @Published var text = ""
@@ -20,21 +21,23 @@ final class NarrationModel: ObservableObject {
   init() { key = SecretStore.read() ?? ""; useGeminiVoice = UserDefaults.standard.bool(forKey: "geminiVoice") }
   func save() throws { try SecretStore.save(key); UserDefaults.standard.set(model, forKey: "meaningModel"); UserDefaults.standard.set(useGeminiVoice, forKey: "geminiVoice") }
   func explain(id: String, title: String, artist: String) {
-    stop(); error = nil; text = ""; attribution = nil; sourceURL = nil; busy = true
+    stop(); error = nil; text = ""; attribution = nil; sourceURL = nil; searchEvidence = nil; busy = true
     let requestRevision = revision
     let key = key; let model = model
     task = Task { [weak self] in
       guard let self else { return }
       defer { if self.revision == requestRevision { self.busy = false } }
       do {
-        let document = try await LicensedLyricsService().lyrics(id: id, title: title, artist: artist)
+        let result = try await SongWebMeaning().explain(title: title, artist: artist, model: model, key: key)
         try Task.checkCancellation()
-        self.sourceURL = document.sourceURL
-        self.attribution = document.provider + " · " + document.copyright
-        let interpretation = try await GeminiService().explain(key: key, model: model, title: title, artist: artist, lyrics: document.text, streaming: true)
-        try Task.checkCancellation(); self.text = interpretation
+        self.searchEvidence = result.evidence
+        self.attribution = result.evidence == nil ? nil : "Fonti · Google Search"
+        self.text = result.text
       } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
+  }
+  func clearInterpretation() {
+    stop(); text = ""; error = nil; attribution = nil; sourceURL = nil; searchEvidence = nil
   }
   func read() {
     guard !text.isEmpty else { return }

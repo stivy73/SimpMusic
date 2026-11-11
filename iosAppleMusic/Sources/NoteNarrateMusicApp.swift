@@ -68,7 +68,7 @@ struct MusicRoot: View {
     }
     .sheet(isPresented:$player) { MusicPlayerScreen() }
     .task { await music.refresh() }
-    .onChange(of:music.nowPlaying?.id) { _,_ in narration.stop();narration.text="";narration.attribution=nil }
+    .onChange(of:music.nowPlaying?.id) { _,_ in narration.clearInterpretation() }
     .alert("Apple Music",isPresented:Binding(get:{music.error != nil},set:{if !$0 { music.error=nil }})) { Button("OK") { music.error=nil } } message: { Text(music.error ?? "") }
   }
 }
@@ -150,30 +150,31 @@ struct MeaningScreen: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("Testi con licenza") {
-          Text("L’interpretazione utilizza esclusivamente un testo fornito dal servizio autorizzato. Titolo e artista vengono inviati al servizio testi; il testo e i riferimenti del brano vengono inviati a Google solo dopo la tua conferma.")
+        Section("Significato e fonti") {
+          Text("Titolo e artista vengono inviati a Gemini, che cerca spiegazioni, interviste e dichiarazioni con Google Search. I testi delle canzoni non vengono cercati né recuperati. Le interpretazioni possono contenere errori.")
           if let attribution=narration.attribution { Text(attribution).font(.caption) }
           if let url=narration.sourceURL { Link("Fonte del testo",destination:url) }
         }
-        Button("Prepara interpretazione") { consent=true }.disabled(narration.busy)
-        if narration.busy { ProgressView("Preparazione…") }
+        Button("Cerca significato") { consent=true }.disabled(narration.busy)
+        if narration.busy { ProgressView("Ricerca delle fonti…") }
         if let error=narration.error { Text(error).foregroundStyle(.orange) }
         if !narration.text.isEmpty {
           Section("Interpretazione AI") {
             Text(narration.text).textSelection(.enabled)
+            if let evidence = narration.searchEvidence { SongSearchSourcesView(evidence:evidence) }
             Button("Leggi interpretazione",systemImage:"speaker.wave.2") { music.player.pause();narration.read() }
           }
         }
         Button("Interrompi",role:.destructive) { narration.stop() }
       }.navigationTitle("Significato")
         .toolbar { Button("Chiudi") { narration.stop();dismiss() } }
-        .alert("Inviare il testo a Gemini?",isPresented:$consent) {
-          Button("Invia e interpreta") {
+        .alert("Cercare il significato con Google?",isPresented:$consent) {
+          Button("Cerca e interpreta") {
             guard let song=music.nowPlaying else { return }
             narration.explain(id:song.id.rawValue,title:song.title,artist:song.artistName)
           }
           Button("Annulla",role:.cancel) {}
-        } message: { Text("Il servizio testi riceverà il riferimento al brano. Titolo, artista e testo autorizzato saranno inviati a Google per generare l'interpretazione. La risposta AI può contenere errori. La lettura Gemini, se attiva, invia anche l'interpretazione a Google.") }
+        } message: { Text("Titolo e artista saranno inviati a Gemini e Google Search per cercare fonti sul significato della canzone. Non viene inviato l’audio. La risposta AI può contenere errori. La lettura Gemini, se attiva, invia anche l’interpretazione a Google.") }
     }
   }
 }
@@ -187,13 +188,13 @@ struct MusicSettings: View {
         SecureField("Chiave API",text:$narration.key).textInputAutocapitalization(.never).autocorrectionDisabled()
         TextField("Modello",text:$narration.model).textInputAutocapitalization(.never).autocorrectionDisabled()
         Toggle("Usa voce Gemini",isOn:$narration.useGeminiVoice)
-        Text("La chiave resta nel Portachiavi del dispositivo. Il testo viene inviato a Google solo dopo la tua conferma. La voce di sistema non richiede l'invio dell'interpretazione a Google.").font(.caption)
+        Text("La chiave resta nel Portachiavi del dispositivo. Titolo e artista vengono inviati a Gemini e Google Search solo dopo la tua conferma. La voce di sistema non richiede l'invio dell'interpretazione a Google.").font(.caption)
         Button("Salva impostazioni") { do { try narration.save();onSaved() } catch {message=error.localizedDescription} }
         if let message { Text(message) }
       }
       Section("Privacy") {
-        Text("Apple Music gestisce accesso e riproduzione. Questa app non estrae file audio e non usa cookie YouTube. Le interpretazioni restano nella sessione corrente. Il servizio testi riceve i riferimenti del brano scelto.")
-        Button("Cancella testo e interpretazione",role:.destructive) { narration.stop();narration.attribution=nil;narration.text="" }
+        Text("Apple Music gestisce accesso e riproduzione. Questa app non estrae file audio e non usa cookie YouTube. Le interpretazioni restano nella sessione corrente. La ricerca del significato invia a Google titolo e artista del brano scelto. Le fonti e i risultati non vengono salvati su disco.")
+        Button("Cancella testo e interpretazione",role:.destructive) { narration.clearInterpretation() }
       }
     }.navigationTitle("Impostazioni")
   }

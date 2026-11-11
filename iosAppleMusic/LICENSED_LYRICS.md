@@ -1,6 +1,8 @@
 # Contratto del servizio testi
 
-Stato: client pronto, nessun contratto/provider/backend attivo. Questo documento
+Stato: adapter futuro, nessun contratto/provider/backend attivo. Il flusso
+attuale usa la routine ShareNarrate descritta in INTERPRETATION.md e non chiama
+questo servizio. Questo documento
 non concede diritti sui testi. Il controllo `permittedUses` verifica quanto
 asserito dal nostro backend fidato; non prova da solo l'esistenza di una licenza.
 

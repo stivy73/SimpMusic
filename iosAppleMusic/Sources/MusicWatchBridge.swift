@@ -20,7 +20,7 @@ import Combine
       case .next:Task { await self.music.next() }
       case .previous:Task { await self.music.previous() }
       case .stopExplanation:self.narration.stop()
-      case .explain: self.narration.error="Apri Significato su iPhone per autorizzare il servizio testi e Gemini."
+      case .explain: self.narration.error="Apri Significato su iPhone per autorizzare Gemini e Google Search."
       case .radio: self.narration.error="La radio è disponibile dalle funzioni Apple Music su iPhone."
       case .playOccurrence:
         guard let id=command.occurrenceID,let entry=self.music.player.queue.entries.first(where:{ self.ids[String(describing:$0.id)]?.uuidString == id }) else { throw WatchCommandError.stale }
@@ -42,7 +42,7 @@ import Combine
       value.track = .init(id:ids[entryKey]?.uuidString ?? song.id.rawValue,title:song.title,artist:song.artistName)
     }
     value.playing=music.playing;value.elapsed=music.position;value.duration=music.duration
-    value.preparingMeaning=narration.busy;value.meaning=narration.text;value.progress=narration.error ?? music.error ?? ""
+    value.preparingMeaning=narration.busy;value.meaning="";value.progress=narration.error ?? music.error ?? ""
     value.queueTotal=entries.count
     let current=entries.firstIndex(where:{$0.id==music.player.queue.currentEntry?.id}) ?? 0
     value.queue=entries[WatchSnapshot.queueRange(count:entries.count,currentOffset:current)].compactMap { entry in
