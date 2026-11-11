@@ -3,6 +3,60 @@ import XCTest
 @testable import PrototypeCore
 
 final class PassengerSessionTests: XCTestCase {
+  func testAlbumCoverSurvivesWireRoundTripAndOldPeersRemainCompatible() throws {
+    let cover = URL(string: "https://lh3.googleusercontent.com/album-cover=w600-h600-l90-rj")!
+    let track = PassengerTrack(
+      id: "abcdefghijk", title: "Album track", artist: "Artist", artwork: cover)
+    let encoded = try JSONEncoder().encode(track)
+    XCTAssertEqual(try JSONDecoder().decode(PassengerTrack.self, from: encoded).artwork, cover)
+    struct LegacyTrack: Decodable {
+      let id: String
+      let title: String
+      let artist: String
+    }
+    XCTAssertEqual(try JSONDecoder().decode(LegacyTrack.self, from: encoded).id, track.id)
+    let old = Data(#"{"id":"abcdefghijk","title":"Track","artist":"Artist"}"#.utf8)
+    let decoded = try JSONDecoder().decode(PassengerTrack.self, from: old)
+    XCTAssertNil(decoded.artwork)
+    XCTAssertTrue(decoded.valid)
+  }
+  func testArtworkIsLimitedToPublicImageCDNs() throws {
+    for address in [
+      "http://lh3.googleusercontent.com/cover", "file:///tmp/cover", "https://127.0.0.1/cover",
+      "https://lh3.googleusercontent.com.evil.test/cover",
+      "https://user:password@i.ytimg.com/cover", "https://i.ytimg.com/cover?access_token=secret",
+    ] {
+      let url = URL(string: address)!
+      XCTAssertNil(
+        PassengerTrack(id: "abcdefghijk", title: "Track", artist: "Artist", artwork: url).artwork)
+      let raw = try JSONSerialization.data(withJSONObject: [
+        "id": "abcdefghijk", "title": "Track", "artist": "Artist", "artwork": address,
+      ])
+      XCTAssertFalse(try JSONDecoder().decode(PassengerTrack.self, from: raw).valid)
+    }
+    for host in [
+      "lh3.googleusercontent.com", "yt3.ggpht.com", "i.ytimg.com", "is1-ssl.mzstatic.com",
+      "i.scdn.co",
+    ] {
+      let cover = URL(string: "https://" + host + "/cover")!
+      XCTAssertEqual(
+        PassengerTrack(id: "abcdefghijk", title: "Track", artist: "Artist", artwork: cover).artwork,
+        cover)
+    }
+  }
+  func testFiveHundredTracksKeepCoversWithinTheFrameLimit() throws {
+    let cover = URL(
+      string: "https://lh3.googleusercontent.com/" + String(repeating: "a", count: 470))!
+    let track = PassengerTrack(
+      id: "abcdefghijk", title: String(repeating: "🎵", count: 160),
+      artist: String(repeating: "語", count: 160), artwork: cover)
+    let selection = PassengerSelection(
+      sessionID: UUID(), action: .enqueue, tracks: Array(repeating: track, count: 500))
+    try selection.validate(sessionID: selection.sessionID)
+    let data = try PassengerMessage(.selection(selection)).encoded()
+    XCTAssertLessThan(data.count, PassengerFrameBuffer.maximum)
+  }
+
   func testBonjourNamesAcceptOnlyUUIDAndNumericCollisionSuffix() {
     let invitation = PassengerInvitation()
     XCTAssertEqual(

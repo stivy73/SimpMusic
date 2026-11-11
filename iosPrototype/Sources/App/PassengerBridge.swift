@@ -33,7 +33,7 @@
         let songs = request.tracks.map {
           Song(
             id: $0.id, title: $0.title, artist: $0.artist,
-            artwork: URL(string: "https://i.ytimg.com/vi/\($0.id)/hqdefault.jpg"))
+            artwork: $0.artwork)
         }
         self.music.applySelection(songs, action: request.action)
         self.publish()
@@ -65,7 +65,9 @@
       }
       link.submit(
         action: action,
-        tracks: songs.map { PassengerTrack(id: $0.id, title: $0.title, artist: $0.artist) })
+        tracks: songs.map {
+          PassengerTrack(id: $0.id, title: $0.title, artist: $0.artist, artwork: $0.artwork)
+        })
     }
     private func publish() {
       guard link.mode == .hosting else { return }
@@ -106,7 +108,8 @@
             ["abcdefghijk", "lmnopqrstuv"].contains(id) ? audio : originalProvider(id)
           }
           let tracks = [
-            PassengerTrack(id: "abcdefghijk", title: "Dal passeggero 1", artist: "Prova"),
+            PassengerTrack(id: "abcdefghijk", title: "Dal passeggero 1", artist: "Prova",
+              artwork: URL(string: "https://lh3.googleusercontent.com/passenger-album-cover")),
             PassengerTrack(id: "lmnopqrstuv", title: "Dal passeggero 2", artist: "Prova"),
           ]
           let count = music.queue.count
@@ -129,7 +132,7 @@
           guest.submit(action: .playNow, tracks: tracks)
           guard await wait({ guest.receipt?.success == true }),
             music.queue.map(\.id) == tracks.map(\.id),
-            music.current?.id == tracks[0].id
+            music.current?.id == tracks[0].id, music.current?.artwork == tracks[0].artwork
           else { return "FAIL play now" }
           let occurrences = music.queueRows.map(\.id)
           if let receipt = guest.receipt, let connection = guest.connectionID {
@@ -162,11 +165,11 @@
             return "FAIL passenger mode"
           }
           let songs = tracks.map {
-            Song(id: $0.id, title: $0.title, artist: $0.artist, artwork: nil)
+            Song(id: $0.id, title: $0.title, artist: $0.artist, artwork: $0.artwork)
           }
           music.enqueue(contentsOf: songs)
           guard await wait({ link.receipt?.success == true }), requests.count == 1,
-            requests[0].tracks.count == 2, music.queueRows.map(\.id) == occurrences,
+            requests[0].tracks.count == 2, requests[0].tracks[0].artwork == songs[0].artwork, music.queueRows.map(\.id) == occurrences,
             !music.player.wantsPlayback
           else { return "FAIL passenger enqueue/local silence" }
           try await Task.sleep(for: .milliseconds(1100))
@@ -175,7 +178,7 @@
             music.queueRows.map(\.id) == occurrences, !music.player.wantsPlayback
           else { return "FAIL passenger play routing" }
           return
-            "PASS TLS automatic join, atomic queue, play now, idempotency, passenger routing, local silence"
+            "PASS TLS automatic join, atomic queue, play now, idempotency, passenger routing, local silence, original album cover"
         } catch { return "FAIL fixture " + error.localizedDescription }
       }
     #endif

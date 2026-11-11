@@ -71,15 +71,18 @@ public enum PassengerError: Error, LocalizedError {
   }
 }
 
-/// Only catalog identifiers and display metadata cross phones. No URLs, cookies, lyrics or keys.
+/// Only catalog identifiers, display metadata and public cover URLs cross phones.
+/// No playback URLs, cookies, lyrics or keys.
 public struct PassengerTrack: Codable, Equatable, Sendable {
   public let id: String
   public let title: String
   public let artist: String
-  public init(id: String, title: String, artist: String) {
+  public let artwork: URL?
+  public init(id: String, title: String, artist: String, artwork: URL? = nil) {
     self.id = id
     self.title = String(title.prefix(160))
     self.artist = String(artist.prefix(160))
+    self.artwork = Self.publicArtwork(artwork)
   }
   public var valid: Bool {
     id.utf8.count == 11
@@ -87,6 +90,26 @@ public struct PassengerTrack: Codable, Equatable, Sendable {
         (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 45
           || $0 == 95
       } && !title.isEmpty && title.count <= 160 && artist.count <= 160
+      && (artwork == nil || Self.publicArtwork(artwork) != nil)
+  }
+
+  private static func publicArtwork(_ url: URL?) -> URL? {
+    guard let url, url.absoluteString.utf8.count <= 512,
+      url.scheme?.lowercased() == "https", let host = url.host?.lowercased(),
+      url.user == nil, url.password == nil, url.fragment == nil,
+      url.port == nil || url.port == 443,
+      ["googleusercontent.com", "ggpht.com", "ytimg.com", "mzstatic.com", "scdn.co"].contains(
+        where: {
+          host == $0 || host.hasSuffix("." + $0)
+        }), let parts = URLComponents(url: url, resolvingAgainstBaseURL: false)
+    else { return nil }
+    let credentials: Set<String> = [
+      "token", "access_token", "key", "api_key", "authorization", "cookie", "session", "sid",
+      "sapisid",
+    ]
+    guard !(parts.queryItems ?? []).contains(where: { credentials.contains($0.name.lowercased()) })
+    else { return nil }
+    return url
   }
 }
 
