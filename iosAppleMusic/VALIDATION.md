@@ -88,3 +88,14 @@ considerare risolto il rifiuto remoto del token.
 Riferimenti Apple:
 https://developer.apple.com/documentation/musickit/musictokenrequesterror/developertokenrequestfailed
 https://developer.apple.com/documentation/musickit/musictokenrequestoptions/ignorecache
+
+Build 2 distribuita su TestFlight: `VALID` / `IN_BETA_TESTING`, build ID
+`92398806-dd46-4b20-bd19-16f72a957767`. Confermati soltanto il gruppo interno
+Stivy73 (manuale), un tester e note italiane. Lo stato INSTALLED del tester si
+riferisce all'app e non prova che abbia già installato e verificato la build 2.
+Il test reale del recupero token rimane da confermare dal dispositivo.
+
+IPA: `iosAppleMusic/deliveries/0.1.0-2/NoteNarrateMusic.ipa` (esclusa da Git).
+SHA256: `a853e999aa9a1f0cb768e2e2f6e94656d3c81fd20a739a76e63e0fa8c25dc722`.
+Commit sorgente: `8a086e0b`, sincronizzato sul branch personale `codex/apple-music`.
+Nessuna modifica all'app NoteNarrate YouTube Music o ai suoi gruppi.
