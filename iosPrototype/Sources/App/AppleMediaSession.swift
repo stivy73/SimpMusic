@@ -3,6 +3,9 @@
   import Combine
   import MediaPlayer
   import UIKit
+  #if DEBUG
+    import CoreImage
+  #endif
 
   /// iPhone and CarPlay share one playback/interpretation session, including cold car launch.
   @MainActor
@@ -44,7 +47,16 @@
         }
       #endif
     }
+    func showPassengerQR(_ invitation: PassengerInvitation?) {
+      media.showPassengerQR(invitation)
+    }
     #if DEBUG
+      func verifyPassengerQRArtwork() async -> String {
+        for _ in 0..<100 where music.current == nil || music.player.isLoading {
+          try? await Task.sleep(for: .milliseconds(100))
+        }
+        return media.verifyPassengerQRArtwork()
+      }
       private func diagnoseAudioTiming() async {
         var report: [String: String] = [:]
         do {
@@ -83,6 +95,52 @@
     private var artwork: MPMediaItemArtwork?
     private var artworkID: String?
     private var artworkRevision = UUID()
+    private var passengerInvitation: PassengerInvitation?
+    private var passengerArtwork: MPMediaItemArtwork?
+
+    func showPassengerQR(_ invitation: PassengerInvitation?) {
+      guard passengerInvitation != invitation else { return }
+      passengerInvitation = invitation
+      passengerArtwork = invitation.flatMap { value in
+        PassengerQRCode.image(for: value).map { Self.systemArtwork(UIImage(cgImage: $0)) }
+      }
+      artworkRevision = UUID()
+      update()
+    }
+    #if DEBUG
+      func verifyPassengerQRArtwork() -> String {
+        guard model.current != nil else { return "FAIL no track" }
+        // Deterministic album cover ensures restoration is checked even before a network image arrives.
+        let savedArtwork = artwork
+        defer { artwork = savedArtwork; artworkRevision = UUID(); update() }
+        let cover = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 300)).image { context in
+          UIColor.systemBlue.setFill()
+          context.fill(CGRect(x: 0, y: 0, width: 300, height: 300))
+        }
+        artwork = Self.systemArtwork(cover)
+        artworkRevision = UUID()
+        update()
+        let original = (center.nowPlayingInfo?[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork)?.image(at: CGSize(width: 600, height: 600))?.pngData()
+        let title = center.nowPlayingInfo?[MPMediaItemPropertyTitle] as? String
+        let playing = model.player.playing
+        let invitation = PassengerInvitation()
+        showPassengerQR(invitation)
+        defer { showPassengerQR(nil) }
+        guard let image = (center.nowPlayingInfo?[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork)?.image(at: CGSize(width: 600, height: 600)), let cg = image.cgImage else { return "FAIL missing QR" }
+        // Software decoding also works in Simulator without the Vision neural-engine backend.
+        let detector = CIDetector(
+          ofType: CIDetectorTypeQRCode,
+          context: CIContext(options: [.useSoftwareRenderer: true]),
+          options: [CIDetectorAccuracy: CIDetectorAccuracyHigh])
+        let payload = (detector?.features(in: CIImage(cgImage: cg)).first as? CIQRCodeFeature)?.messageString
+        guard payload == invitation.text, cg.width == cg.height,
+          title == center.nowPlayingInfo?[MPMediaItemPropertyTitle] as? String,
+          playing == model.player.playing else { return "FAIL QR or playback changed" }
+        showPassengerQR(nil)
+        let restored = (center.nowPlayingInfo?[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork)?.image(at: CGSize(width: 600, height: 600))?.pngData()
+        return original == restored ? "PASS square QR decodes, playback unchanged, artwork restored" : "FAIL cover not restored"
+      }
+    #endif
     private var publication = NowPlayingPublication()
     private let center = MPNowPlayingInfoCenter.default()
 
@@ -211,7 +269,10 @@
       artworkID = song?.id
       artworkRevision = UUID()
       update()
-      guard let song else { return }
+      guard let song else {
+        showPassengerQR(nil)
+        return
+      }
       artworkTask = Task {
         guard
           let image = await AppleArtworkStore.shared.image(primary: song.artwork, videoID: song.id),
@@ -277,7 +338,7 @@
         if duration > 0 { info[MPMediaItemPropertyPlaybackDuration] = duration }
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position
       }
-      if let artwork { info[MPMediaItemPropertyArtwork] = artwork }
+      if let displayArtwork = passengerArtwork ?? artwork { info[MPMediaItemPropertyArtwork] = displayArtwork }
       center.nowPlayingInfo = info
       #if DEBUG
         let timeline = "\(live ? 0 : duration):\(live ? 0 : position):\(rate):\(live)"

@@ -3,6 +3,17 @@ import UIKit
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testPassengerQRUsesSystemArtworkAndRestoresOriginalWithoutChangingPlayback() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-carplay-passenger-qr"]
+    app.launch()
+    let result = app.staticTexts["passenger-qr-artwork-qa"]
+    XCTAssertTrue(result.waitForExistence(timeout: 20))
+    let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@", "PASS"), object: result)
+    XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 15), .completed, result.label)
+  }
+
+  @MainActor
   func testReleaseColdLaunchShowsHomeTwice() {
     let app = XCUIApplication()
     for _ in 0..<2 {

@@ -66,7 +66,7 @@
   /// Native large cover rows and track lists; no lyrics, interpretation text or video on the vehicle display.
   @MainActor
   final class CarPlayScene: UIResponder, CPTemplateApplicationSceneDelegate,
-    CPNowPlayingTemplateObserver
+    CPNowPlayingTemplateObserver, CPInterfaceControllerDelegate
   {
     private enum Layout { case covers, tracks }
     private struct Tile {
@@ -126,6 +126,7 @@
     private let queueTemplate = CPListTemplate(title: "Coda", sections: [])
     private let passengersTemplate = CPListTemplate(title: "Passeggeri", sections: [])
     private var passengerQRVisible = false
+    private var passengerQRInPlayer = false
     private var passengerQRInvitation: PassengerInvitation?
     private var passengerQRImage: UIImage?
     private var queueOffset = 0
@@ -135,6 +136,7 @@
       didConnect interfaceController: CPInterfaceController
     ) {
       controller = interfaceController
+      interfaceController.delegate = self
       // Use the same native mini-player/shared template setup as Vocalia.
       // CarPlay owns artwork taps and transport controls; do not opt out of it.
       let nowPlaying = CPNowPlayingTemplate.shared
@@ -182,6 +184,8 @@
       _ templateApplicationScene: CPTemplateApplicationScene,
       didDisconnectInterfaceController interfaceController: CPInterfaceController
     ) {
+      closePassengerQR()
+      interfaceController.delegate = nil
       CPNowPlayingTemplate.shared.remove(self)
       if meaningAlert != nil { app.music.stopMeaning(resume: true) }
       searchTask?.cancel()
@@ -880,7 +884,48 @@
       controller?.pushTemplate(queueTemplate, animated: true, completion: { _, _ in })
     }
 
+    func templateDidDisappear(_ aTemplate: CPTemplate, animated: Bool) {
+      if aTemplate === CPNowPlayingTemplate.shared, passengerQRInPlayer { closePassengerQR() }
+    }
+
+    private func closePassengerQR() {
+      passengerQRInPlayer = false
+      passengerQRVisible = false
+      app.showPassengerQR(nil)
+      meaningButtonState = nil
+      configureNowPlaying()
+    }
+
+    private func showPassengerQR() {
+      guard app.passengers.link.mode == .hosting, let invitation = app.passengers.link.invitation else { return }
+      passengerQRVisible = true
+      guard let controller, app.music.current != nil else { renderPassengerQR(); return }
+      passengerQRInPlayer = true
+      app.showPassengerQR(invitation)
+      meaningButtonState = nil
+      configureNowPlaying()
+      let template = CPNowPlayingTemplate.shared
+      guard controller.topTemplate !== template else { return }
+      let completion: (Bool, Error?) -> Void = { [weak self] success, _ in
+        if !success { self?.closePassengerQR() }
+      }
+      if controller.templates.contains(where: { $0 === template }) {
+        controller.pop(to: template, animated: true, completion: completion)
+      } else {
+        controller.pushTemplate(template, animated: true, completion: completion)
+      }
+    }
+
     private func renderPassengers() {
+      if passengerQRInPlayer {
+        guard app.passengers.link.mode == .hosting, let invitation = app.passengers.link.invitation else {
+          closePassengerQR()
+          renderPassengers()
+          return
+        }
+        app.showPassengerQR(invitation)
+        return
+      }
       if passengerQRVisible {
         renderPassengerQR()
         return
@@ -897,8 +942,7 @@
           done()
           guard let self else { return }
           self.app.passengers.link.activateForCarPlay()
-          self.passengerQRVisible = true
-          self.renderPassengers()
+          self.showPassengerQR()
         }
         passengersTemplate.updateSections([CPListSection(items: [row, reopen])])
         return
@@ -911,8 +955,7 @@
       invite.handler = { [weak self] _, done in
         done()
         guard let self else { return }
-        self.passengerQRVisible = true
-        self.renderPassengers()
+        self.showPassengerQR()
       }
       rows.insert(invite, at: 0)
       if link.peers.isEmpty {
@@ -1174,6 +1217,17 @@
     }
 
     private func configureNowPlaying() {
+      if passengerQRInPlayer {
+        guard app.music.current != nil else { closePassengerQR(); return }
+        guard meaningButtonState != "passenger-qr" else { return }
+        meaningButtonState = "passenger-qr"
+        CPNowPlayingTemplate.shared.isUpNextButtonEnabled = false
+        let close = CPNowPlayingImageButton(image: UIImage(systemName: "xmark.circle.fill")!) { [weak self] _ in
+          self?.closePassengerQR()
+        }
+        CPNowPlayingTemplate.shared.updateNowPlayingButtons([close])
+        return
+      }
       CPNowPlayingTemplate.shared.isUpNextButtonEnabled = !app.music.queue.isEmpty
       let active = app.music.busyMeaning || app.music.reading
       let enabled = app.music.current != nil && !app.music.player.isLoading

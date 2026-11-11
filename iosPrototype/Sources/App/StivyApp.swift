@@ -169,6 +169,10 @@ struct RootView: View {
               Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("passenger-loopback-qa")
                 .task { qaAlbumPaging = await AppleAppSession.shared.passengers.verifyLoopback() }
             }
+            if ProcessInfo.processInfo.arguments.contains("--test-carplay-passenger-qr") {
+              Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("passenger-qr-artwork-qa")
+                .task { qaAlbumPaging = await AppleAppSession.shared.verifyPassengerQRArtwork() }
+            }
             if ProcessInfo.processInfo.arguments.contains("--test-carplay-home-pages") {
               Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("carplay-home-page-qa")
                 .task { qaAlbumPaging = await CarPlayScene().verifyHomePageHandlers() }
