@@ -22,3 +22,18 @@ CarPlay, AirPlay, Watch e Siri. Nessun servizio testi live né richiesta Google 
 - Routine ShareNarrate: prompt, fonti associate al testo, suggerimenti Google,
   fallback in assenza di grounding, URL HTTPS e parti thought verificati con fixture.
 Nessun archivio firmato, upload TestFlight o invio App Store eseguito.
+
+## Preparazione TestFlight — 11 novembre 2026
+
+Archivio Release firmato ed esportazione App Store Connect per soli interni
+riusciti. IPA 0.1.0 (1), iPhone e Watch con versioni/companion ID allineati,
+team 63W2ZKR3Z7, `get-task-allow=false` e `beta-reports-active=true` nei profili.
+SHA256 IPA: `ec43076b9c8696269fa1ad5b89e510bdef85a2ead629c54c23c9bf0aafdaa85a`.
+Artefatto: `iosAppleMusic/deliveries/0.1.0-1/NoteNarrateMusic.ipa` (escluso da Git).
+
+L'utente ha richiesto espressamente solo Stivy73 per questa app: la richiesta
+sostituisce l'assegnazione abituale a Team interno per questa consegna.
+Gli altri gruppi dell'app YouTube Music non vengono modificati.
+Scheda separata App Store Connect e attivazione MusicKit richiedono ancora
+accesso Apple nel browser. Nessuna beta dichiarata disponibile prima della
+verifica di upload, processing, assegnazione e tester effettivi.

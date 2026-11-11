@@ -1,0 +1,13 @@
+Prima beta Apple Music — 0.1.0 (1)
+
+Accesso e riproduzione con MusicKit, ricerca brani, libreria album e playlist,
+coda, AirPlay e companion Apple Watch.
+
+Significato delle canzoni con la routine ShareNarrate: Gemini e Google Search
+usano titolo e artista e mostrano fonti e suggerimenti; nessun recupero dei testi
+musicali. Richiede una chiave Gemini personale nelle Impostazioni.
+
+Da provare: autorizzazione Apple Music, riproduzione e cambio brano, raccolte
+lunghe, significato con fonti, voce iOS/Gemini e comandi Watch.
+
+Questa beta è destinata solo al tester Stivy73. Nessun invio pubblico App Store.
