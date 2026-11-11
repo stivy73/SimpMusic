@@ -162,3 +162,14 @@ fallita, URL esterni/risorsa diversa, ciclo, annullamento, risposta vuota valida
 merge con playlist locali e decoder reale MusicKit per album, brani e playlist
 fittizi con playParameters. Debug compilato; archivio finale Release firmato.
 Il risultato sulla libreria reale richiede verifica iPhone dopo l'aggiornamento.
+
+Build 4 distribuita: `VALID` / `IN_BETA_TESTING`, ID
+`c5440a8e-9d05-4924-857a-ab04bd65ce8e`, app separata `6833455204`.
+Riletti gruppo assegnato Stivy73 soltanto, distribuzione manuale e appartenenza
+dell'unico tester autorizzato. Note italiane caricate. Nessuna modifica all'app
+YouTube Music. INSTALLED riguarda l'app, non dimostra l'installazione della build 4.
+
+IPA: `iosAppleMusic/deliveries/0.1.0-4/NoteNarrateMusic.ipa`.
+SHA256: `571373710cded80c3574a201e0232562130051890885077eac951c80f3021d67`.
+Commit sorgente `d128d239`, sincronizzato nel fork personale. Visualizzazione
+della libreria reale e riproduzione restano da verificare sul dispositivo.
