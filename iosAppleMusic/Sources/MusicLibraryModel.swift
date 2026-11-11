@@ -6,6 +6,9 @@ import AVFoundation
 @MainActor
 final class MusicLibraryModel: ObservableObject {
   @Published var authorization = MusicAuthorization.currentStatus
+  @Published var accessReport = "Nessuna verifica eseguita."
+  @Published var checkingAccess = false
+  @Published var subscriptionVerified = false
   @Published var canPlayCatalog = false
   @Published var songs: [MusicKit.Song] = []
   @Published var albums: [Album] = []
@@ -21,6 +24,7 @@ final class MusicLibraryModel: ObservableObject {
   @Published var duration = 0.0
   var beforePlayback: (() -> Void)?
   let player = ApplicationMusicPlayer.shared
+  private var accessEvents: [String] = []
   private var searchRevision = UUID()
   private var timer: AnyCancellable?
   init() {
@@ -44,18 +48,88 @@ final class MusicLibraryModel: ObservableObject {
   }
   func refresh() async {
     authorization = MusicAuthorization.currentStatus
-    guard authorization == .authorized else { return }
+    guard authorization == .authorized, !loading else { return }
     loading = true; defer { loading = false }
+    var failures: [String] = []
+    // Subscription/token access must not gate the local music library.
     do {
-      canPlayCatalog = try await MusicSubscription.current.canPlayCatalogContent
-      var songRequest = MusicLibraryRequest<MusicKit.Song>(); songRequest.limit = 100
-      songs = try await collect(songRequest.response().items)
-      var albumRequest = MusicLibraryRequest<Album>(); albumRequest.limit = 100
-      albums = try await collect(albumRequest.response().items)
-      var playlistRequest = MusicLibraryRequest<Playlist>(); playlistRequest.limit = 100
-      playlists = try await collect(playlistRequest.response().items)
-      error = nil
-    } catch { self.error = error.localizedDescription }
+      var request = MusicLibraryRequest<MusicKit.Song>(); request.limit = 100
+      songs = try await collect(request.response().items); record("Libreria brani: \(songs.count)")
+    } catch { recordFailure(error,stage:"Brani"); failures.append("Brani: " + accessMessage(error)) }
+    do {
+      var request = MusicLibraryRequest<Album>(); request.limit = 100
+      albums = try await collect(request.response().items); record("Libreria album: \(albums.count)")
+    } catch { recordFailure(error,stage:"Album"); failures.append("Album: " + accessMessage(error)) }
+    do {
+      var request = MusicLibraryRequest<Playlist>(); request.limit = 100
+      playlists = try await collect(request.response().items); record("Libreria playlist: \(playlists.count)")
+    } catch { recordFailure(error,stage:"Playlist"); failures.append("Playlist: " + accessMessage(error)) }
+    do {
+      canPlayCatalog = try await withTokenRecovery { try await MusicSubscription.current.canPlayCatalogContent }
+      subscriptionVerified = true; record("Abbonamento: verifica riuscita; catalogo=\(canPlayCatalog)")
+    } catch {
+      subscriptionVerified = false; recordFailure(error, stage:"Abbonamento")
+      failures.append(accessMessage(error))
+    }
+    error = failures.isEmpty ? nil : Array(Set(failures)).sorted().joined(separator:"\n\n")
+  }
+  nonisolated private static func isDeveloperTokenFailure(_ error: any Error) -> Bool {
+    if let value = error as? MusicTokenRequestError, value == .developerTokenRequestFailed { return true }
+    if let nested = (error as NSError).userInfo[NSUnderlyingErrorKey] as? MusicTokenRequestError {
+      return nested == .developerTokenRequestFailed
+    }
+    return false
+  }
+  private func withTokenRecovery<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
+    let recovery = MusicAccessRecovery(isDeveloperTokenFailure:Self.isDeveloperTokenFailure,
+      renewDeveloperToken:{ [weak self] in
+        await self?.record("Token sviluppatore: nuovo tentativo senza cache")
+        _ = try await MusicDataRequest.tokenProvider.developerToken(options:.ignoreCache)
+        await self?.record("Token sviluppatore: rinnovo riuscito")
+      })
+    return try await recovery.perform(operation)
+  }
+  func restoreAccess() async {
+    guard !checkingAccess else { return }
+    checkingAccess = true; defer { checkingAccess = false }
+    record("Ripristino richiesto; autorizzazione=\(authorization)")
+    if MusicAuthorization.currentStatus != .authorized { await connect(); return }
+    do {
+      _ = try await MusicDataRequest.tokenProvider.developerToken(options:.ignoreCache)
+      record("Token sviluppatore: rinnovo manuale riuscito")
+    } catch { recordFailure(error,stage:"Rinnovo token"); self.error = accessMessage(error) }
+    await refresh()
+  }
+  private func accessMessage(_ error: any Error) -> String {
+    if Self.isDeveloperTokenFailure(error) {
+      return "Apple non riesce a generare il token sviluppatore per NoteNarrate Music. Questa verifica non indica che il tuo abbonamento sia assente. Prova Ripristina collegamento in Impostazioni; se persiste, condividi la diagnostica Apple Music."
+    }
+    if let value = error as? MusicTokenRequestError {
+      switch value {
+      case .userNotSignedIn: return "Apri Musica e verifica l’account Apple usato per l’abbonamento, poi riprova."
+      case .permissionDenied, .userTokenRevoked: return "Consenti l’accesso di NoteNarrate Music alla libreria nelle Impostazioni di iOS."
+      case .privacyAcknowledgementRequired: return "Apri Musica e completa le richieste Apple in sospeso, poi riprova."
+      case .userTokenRequestFailed: return "Apple non riesce ad autorizzare l’account musicale. Apri Musica, poi riprova il collegamento."
+      default: break
+      }
+    }
+    return error.localizedDescription
+  }
+  private func recordFailure(_ error: any Error, stage: String) {
+    let ns = error as NSError
+    let kind = (error as? MusicTokenRequestError)?.rawValue ?? "altro"
+    // Never include userInfo, URL, localizedDescription, tokens or response bodies.
+    let domain = ns.domain.filter { $0.isLetter || $0.isNumber || ".-_".contains($0) }.prefix(120)
+    record("\(stage): errore \(kind), dominio=\(domain), codice=\(ns.code)")
+    if let nested = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+      let nestedDomain = nested.domain.filter { $0.isLetter || $0.isNumber || ".-_".contains($0) }.prefix(120)
+      record("\(stage): causa dominio=\(nestedDomain), codice=\(nested.code)")
+    }
+  }
+  private func record(_ event: String) {
+    accessEvents.append(event); accessEvents = Array(accessEvents.suffix(35))
+    let bundle = Bundle.main
+    accessReport = "NoteNarrate Music \(bundle.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "?") (\(bundle.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?"))\nBundle: \(bundle.bundleIdentifier ?? "?")\niOS: \(UIDevice.current.systemVersion)\nAutorizzazione: \(MusicAuthorization.currentStatus)\n" + accessEvents.joined(separator:"\n")
   }
   private func collect<T: MusicItem & Decodable>(_ initial: MusicItemCollection<T>) async throws -> [T] {
     var values = Array(initial); var page = initial
@@ -73,10 +147,11 @@ final class MusicLibraryModel: ObservableObject {
     guard !term.isEmpty else { results = []; return }
     do {
       var request = MusicCatalogSearchRequest(term: term, types: [MusicKit.Song.self]); request.limit = 25
-      let response = try await request.response()
+      let searchRequest = request
+      let response = try await withTokenRecovery { try await searchRequest.response() }
       guard searchRevision == revision else { return }
-      results = Array(response.songs); error = nil
-    } catch { if searchRevision == revision { self.error = error.localizedDescription } }
+      results = Array(response.songs); error = nil; record("Ricerca catalogo: riuscita")
+    } catch { if searchRevision == revision { recordFailure(error,stage:"Ricerca catalogo"); self.error = accessMessage(error) } }
   }
   private func activateAudio() throws {
     beforePlayback?()

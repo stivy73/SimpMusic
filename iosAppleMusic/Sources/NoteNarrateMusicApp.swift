@@ -28,7 +28,7 @@ struct MusicRoot: View {
             } actions: { Button("Collega Apple Music") { Task { await music.connect() } }.buttonStyle(.borderedProminent) }
           } else {
             List {
-              if !music.canPlayCatalog { Text("Per ascoltare il catalogo, attiva un abbonamento nell'app Musica.").foregroundStyle(.secondary) }
+              if music.subscriptionVerified && !music.canPlayCatalog { Text("Per ascoltare il catalogo, attiva un abbonamento nell'app Musica.").foregroundStyle(.secondary) }
               Section("Brani della libreria") { SongRows(songs: music.songs) }
             }.overlay { if music.loading { ProgressView() } }
               .refreshable { await music.refresh() }
@@ -179,11 +179,22 @@ struct MeaningScreen: View {
   }
 }
 struct MusicSettings: View {
+  @EnvironmentObject var music: MusicLibraryModel
   var onSaved: () -> Void = {}
   @EnvironmentObject var narration: NarrationModel
   @State private var message: String?
   var body: some View {
     Form {
+      Section("Collegamento Apple Music") {
+        Button("Ripristina collegamento") { Task { await music.restoreAccess() } }
+          .disabled(music.checkingAccess || music.loading)
+        if music.checkingAccess { ProgressView("Verifica collegamento…") }
+        Text("Rinnova l’accesso tramite MusicKit senza cambiare il tuo account Apple o la libreria.").font(.caption)
+        DisclosureGroup("Diagnostica Apple Music") {
+          Text(music.accessReport).font(.caption.monospaced()).textSelection(.enabled)
+          ShareLink("Condividi diagnostica",item:music.accessReport)
+        }
+      }
       Section("Gemini") {
         SecureField("Chiave API",text:$narration.key).textInputAutocapitalization(.never).autocorrectionDisabled()
         TextField("Modello",text:$narration.model).textInputAutocapitalization(.never).autocorrectionDisabled()

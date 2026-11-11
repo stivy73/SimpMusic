@@ -1,13 +1,16 @@
-Prima beta Apple Music — 0.1.0 (1)
+NoteNarrate Music — 0.1.0 (2)
 
-Accesso e riproduzione con MusicKit, ricerca brani, libreria album e playlist,
-coda, AirPlay e companion Apple Watch.
+Libreria: la lettura di brani, album e playlist non dipende più dal successo
+della verifica dell’abbonamento. Un errore in una raccolta non impedisce le altre.
 
-Significato delle canzoni con la routine ShareNarrate: Gemini e Google Search
-usano titolo e artista e mostrano fonti e suggerimenti; nessun recupero dei testi
-musicali. Richiede una chiave Gemini personale nelle Impostazioni.
+Token Apple Music: nuovo tentativo automatico senza cache quando Apple segnala
+un errore del token sviluppatore. Nessun rinnovo automatico sugli errori di consenso.
 
-Da provare: autorizzazione Apple Music, riproduzione e cambio brano, raccolte
-lunghe, significato con fonti, voce iOS/Gemini e comandi Watch.
+In Impostazioni → Collegamento Apple Music sono disponibili Ripristina collegamento
+e Diagnostica Apple Music → Condividi diagnostica. Il report contiene fasi,
+codici errore e conteggi, senza chiavi, token o titoli della libreria.
 
-Questa beta è destinata solo al tester Stivy73. Nessun invio pubblico App Store.
+Da provare: aggiornare la libreria, cercare Seal, riprodurre un brano. Se l’errore
+persiste, usare Ripristina collegamento e inviare la nuova diagnostica.
+
+Solo tester interno Stivy73; app separata da NoteNarrate YouTube Music.

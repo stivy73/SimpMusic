@@ -60,3 +60,31 @@ Sorgenti e configurazione beta sincronizzati su `stivy73/SimpMusic`, branch
 `codex/apple-music`, commit sorgente di consegna `b91ea6b5`.
 Il timeout della prima assegnazione API è stato risolto rileggendo lo stato e
 usando la relazione build→gruppo; l'API e la UI hanno confermato il risultato.
+
+## Correzione accesso MusicKit — build 0.1.0 (2)
+
+Segnalazione reale: ricerca «Seal» con `developerTokenRequestFailed` e libreria
+vuota. Verificato in Apple Developer il bundle `com.stivy.notenarrate.applemusic`
+e MusicKit selezionato in App Services. Il messaggio identifica un fallimento
+nel recupero del token sviluppatore; non dimostra assenza di abbonamento.
+La causa remota del rifiuto Apple non è ancora confermata da un test fisico.
+
+Individuato un difetto locale: `refresh()` verificava prima MusicSubscription e
+saltava tutte le richieste libreria quando questa verifica falliva. Ora brani,
+album e playlist vengono letti prima e con errori indipendenti; un errore token
+non viene presentato come abbonamento assente.
+
+Ricerca e verifica abbonamento tentano un solo rinnovo sviluppatore con l'opzione
+MusicKit ufficiale `.ignoreCache`, poi ripetono la richiesta una volta. Gli errori
+consenso non attivano questo recupero. Il comando manuale Ripristina collegamento
+è disponibile in Impostazioni con report condivisibile di fasi/domain/code e
+conteggi, senza token, chiavi, risposte HTTP o titoli della libreria.
+
+Verifiche: 16 test passati, build Debug riuscita, app persistente nel simulatore,
+archivio Release iPhone/Watch firmato riuscito. MusicKit con account reale non
+verificabile nel simulatore: attendere il test iPhone e il report prima di
+considerare risolto il rifiuto remoto del token.
+
+Riferimenti Apple:
+https://developer.apple.com/documentation/musickit/musictokenrequesterror/developertokenrequestfailed
+https://developer.apple.com/documentation/musickit/musictokenrequestoptions/ignorecache
