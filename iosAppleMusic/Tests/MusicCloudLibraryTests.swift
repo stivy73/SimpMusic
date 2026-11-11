@@ -14,6 +14,30 @@ private actor CloudPages {
   func capturedRequests() -> [URLRequest] { requests }
 }
 final class MusicCloudLibraryTests: XCTestCase {
+  func testLibraryAlbumSearchUsesOnlyLibraryEndpointAndEncodesExactInput() throws {
+    let term = "Heaven on Earth (Deluxe Edition) & Belinda Carlisle"
+    let request = MusicCloudProbe.albumSearchRequest(term:term)
+    let components = try XCTUnwrap(URLComponents(url:try XCTUnwrap(request.url),resolvingAgainstBaseURL:false))
+    XCTAssertEqual(components.host,"api.music.apple.com")
+    XCTAssertEqual(components.path,"/v1/me/library/search")
+    XCTAssertEqual(components.queryItems?.first(where:{$0.name == "term"})?.value,term)
+    XCTAssertEqual(components.queryItems?.first(where:{$0.name == "types"})?.value,"library-albums")
+    XCTAssertEqual(request.cachePolicy,.reloadIgnoringLocalCacheData)
+  }
+  func testLibraryAlbumSearchDecodesOnlyLibraryResultsAndReportsMorePages() throws {
+    let data = Data(#"{"results":{"library-albums":{"data":[{"id":"library-album"}],"next":"/v1/me/library/search?offset=25"}}}"#.utf8)
+    let result = try MusicCloudProbe.albumSearchPage(CloudFixture.self,data:data,status:200)
+    XCTAssertEqual(result.data.map(\.id),["library-album"])
+    XCTAssertNotNil(result.next)
+    let empty = try MusicCloudProbe.albumSearchPage(CloudFixture.self,data:Data(#"{"results":{}}"#.utf8),status:200)
+    XCTAssertTrue(empty.data.isEmpty)
+  }
+  func testLibraryAlbumSearchRejectsCatalogPayloadMalformedResponsesAndHTTPFailures() {
+    for body in [#"{}"#, #"{"results":{"albums":{"data":[]}}}"#, #"{"results":{"library-albums":{}}}"#, #"{"results":{},"errors":[]}"#] {
+      XCTAssertThrowsError(try MusicCloudProbe.albumSearchPage(CloudFixture.self,data:Data(body.utf8),status:200))
+    }
+    XCTAssertThrowsError(try MusicCloudProbe.albumSearchPage(CloudFixture.self,data:Data(#"{"results":{}}"#.utf8),status:403))
+  }
   func testCloudMergeKeepsDeviceOnlyItemsAndUsesUpdatedCloudMetadata() {
     struct Item: Identifiable { let id: String; let title: String }
     let result = MusicCloudLibrary.combining([Item(id:"shared",title:"New metadata"),Item(id:"cloud",title:"Cloud")],

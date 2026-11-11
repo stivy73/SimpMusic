@@ -8,5 +8,7 @@ La schermata Libreria mostra il numero di album e playlist e distingue esplicita
 
 Da provare: aprire Libreria, aggiornare e condividere la diagnostica Apple Music da Impostazioni. Indicare se Sincronizza libreria è attivo nelle Impostazioni di Musica e un album mancante.
 
-30 test superati. Non è ancora confermata la soluzione sul dispositivo.
+Ricerca album nella schermata Libreria: confronta MusicLibrarySearchRequest e il servizio cloud personale (fino a 25 risultati per sorgente), senza usare il catalogo come se fosse libreria. La diagnostica aggiunge il confronto per titolo con MPMediaQuery. Prova cercando Heaven on Earth.
+
+33 test superati. Non è ancora confermata la soluzione sul dispositivo.
 Solo Stivy73. App separata da NoteNarrate YouTube Music.

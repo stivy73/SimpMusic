@@ -42,6 +42,16 @@ struct MusicRoot: View {
       }.tag(1).tabItem { Label("Cerca",systemImage:"magnifyingglass") }
       NavigationStack {
         List {
+          if !music.libraryAlbumQuery.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
+            Section("Risultati nella tua libreria · \(music.libraryAlbumMatches.count)") {
+              if music.searchingLibraryAlbums { ProgressView("Ricerca nella libreria…") }
+              else if music.libraryAlbumMatches.isEmpty { Text("Nessun album restituito per questa ricerca.").foregroundStyle(.secondary) }
+              ForEach(music.libraryAlbumMatches) { album in
+                Button { Task { await music.play(album:album) } } label: { CoverRow(artwork:album.artwork,title:album.title,subtitle:album.artistName) }
+              }
+              Text("Fino a 25 risultati per sorgente. Questa ricerca riguarda la tua libreria, non il catalogo Apple Music.").font(.caption).foregroundStyle(.secondary)
+            }
+          }
           Section("Album · \(music.albums.count)") {
             if music.albums.isEmpty { Text("Nessun album restituito da Apple Music.").foregroundStyle(.secondary) }
             ForEach(music.albums) { album in
@@ -58,6 +68,10 @@ struct MusicRoot: View {
             Text("Se mancano elementi visibili in Musica, condividi la diagnostica Apple Music dalle Impostazioni. Il rinnovo del collegamento non aggiunge elementi alla libreria.").font(.caption).foregroundStyle(.secondary)
           }
         }.navigationTitle("Libreria").refreshable { await music.refresh() }
+          .searchable(text:$music.libraryAlbumQuery,prompt:"Cerca un album nella tua libreria")
+          .task(id:music.libraryAlbumQuery) {
+            do { try await Task.sleep(for:.milliseconds(400)); try Task.checkCancellation(); await music.searchLibraryAlbums() } catch {}
+          }
       }.tag(2).tabItem { Label("Libreria",systemImage:"square.stack") }
       NavigationStack { MusicSettings(onSaved:{selectedTab=0}) }.tag(3).tabItem { Label("Impostazioni",systemImage:"gearshape") }
     }

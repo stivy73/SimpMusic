@@ -189,3 +189,16 @@ Il refresh cloud usa reloadIgnoringLocalCacheData e Cache-Control no-cache.
 30 test passati, incluso controllo che ogni pagina richieda dati aggiornati.
 Debug compilata. Necessario report fisico per determinare perché Musica mostri
 una raccolta diversa dalle API MusicKit; non dichiarare il problema risolto.
+
+Utente conferma Sincronizza libreria attivo; caso: Heaven on Earth (Deluxe Edition)
+di Belinda Carlisle, visibile in Musica ma assente nell'app. Aggiunta ricerca
+album dalla schermata Libreria con debounce e gestione richieste superate:
+MusicLibrarySearchRequest e /v1/me/library/search?types=library-albums, più
+conteggio MPMediaQuery filtrato per titolo. Nessuna ricerca nel catalogo pubblico,
+nessuna aggiunta alla libreria, risultati nativi riproducibili separati dall'elenco
+completo; limite esplicito 25 per sorgente e presenza di altre pagine nel report.
+33 test passati (inclusi input esatto codificato, risposte library-albums,
+vuoto valido e rifiuto payload catalogo/malformato/errore HTTP); Debug riuscita.
+Primo tentativo export/upload: timeout recuperando elenco app; API buildUploads
+conferma soltanto AWAITING_UPLOAD con uploadedDate=null per build 5. La build finale
+include la ricerca mirata; non è stata consegnata la variante diagnostica iniziale.

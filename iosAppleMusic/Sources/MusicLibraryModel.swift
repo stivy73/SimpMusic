@@ -19,6 +19,10 @@ final class MusicLibraryModel: ObservableObject {
   @Published var error: String?
   @Published var loading = false
   @Published var mediaLibrarySummary = ""
+  @Published var libraryAlbumQuery = ""
+  @Published var libraryAlbumMatches: [Album] = []
+  @Published var searchingLibraryAlbums = false
+  private var albumSearchRevision = UUID()
   @Published var query = ""
   @Published var nowPlaying: MusicKit.Song?
   @Published var queueSongs: [MusicKit.Song] = []
@@ -212,6 +216,43 @@ final class MusicLibraryModel: ObservableObject {
       values.append(contentsOf:next); page=next
     }
     return values
+  }
+  func searchLibraryAlbums() async {
+    guard authorization == .authorized else { return }
+    let revision = UUID(); albumSearchRevision = revision
+    let term = libraryAlbumQuery.trimmingCharacters(in:.whitespacesAndNewlines)
+    libraryAlbumMatches = []
+    guard !term.isEmpty else { searchingLibraryAlbums = false; return }
+    searchingLibraryAlbums = true
+    defer { if albumSearchRevision == revision { searchingLibraryAlbums = false } }
+    var matches: [Album] = []
+    do {
+      var request = MusicLibrarySearchRequest(term:term,types:[Album.self]); request.limit = 25
+      let response = try await request.response()
+      guard revision == albumSearchRevision else { return }
+      matches = Array(response.albums); libraryAlbumMatches = matches
+      record("Ricerca album locale: prima pagina=\(matches.count); altre pagine=\(response.albums.hasNextBatch)")
+    } catch { if Task.isCancelled { return }; if revision == albumSearchRevision { recordFailure(error,stage:"Ricerca album locale") } }
+    guard revision == albumSearchRevision, !Task.isCancelled else { return }
+    do {
+      let request = MusicCloudProbe.albumSearchRequest(term:term)
+      let page = try await withTokenRecovery {
+        let response = try await MusicDataRequest(urlRequest:request).response()
+        return try MusicCloudProbe.albumSearchPage(Album.self,data:response.data,status:response.urlResponse.statusCode)
+      }
+      guard revision == albumSearchRevision else { return }
+      libraryAlbumMatches = MusicCloudLibrary.combining(page.data,local:matches)
+      record("Ricerca album cloud: prima pagina=\(page.data.count); altre pagine=\(page.next?.isEmpty == false)")
+    } catch { if Task.isCancelled { return }; if revision == albumSearchRevision { recordFailure(error,stage:"Ricerca album cloud"); self.error = accessMessage(error) } }
+    guard revision == albumSearchRevision, !Task.isCancelled else { return }
+    let count = await Task.detached(priority:.userInitiated) {
+      guard MPMediaLibrary.authorizationStatus() == .authorized else { return -1 }
+      let request = MPMediaQuery.albums()
+      request.addFilterPredicate(MPMediaPropertyPredicate(value:term,forProperty:MPMediaItemPropertyAlbumTitle,comparisonType:.contains))
+      return request.collections?.count ?? 0
+    }.value
+    guard revision == albumSearchRevision else { return }
+    record("Ricerca album multimediale iOS: corrispondenze=\(count); risultati pubblicati=\(libraryAlbumMatches.count)")
   }
   func search() async {
     guard authorization == .authorized else { return }
