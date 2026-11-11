@@ -1049,7 +1049,16 @@ struct PlayerControls: View {
         Slider(value: Binding(get: { player.volume }, set: { player.setVolume($0) }), in: 0...100)
           .accessibilityLabel("Volume del player")
         Image(systemName: "speaker.wave.3.fill")
+        #if os(iOS)
+          AudioOutputButtons()
+        #endif
       }.font(.caption)
+      #if os(iOS)
+        if player.cast.connected {
+          Text("Chromecast: tieni NoteNarrate aperta. La narrazione usa l’uscita audio dell’iPhone.")
+            .font(.caption).foregroundStyle(.secondary)
+        }
+      #endif
     }
   }
 }

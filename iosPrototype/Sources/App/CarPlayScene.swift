@@ -10,6 +10,7 @@
       _ application: UIApplication,
       didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+      CastPlayback.configure()
       ReleaseNotifications.register()
       _ = AppleAppSession.shared
       return true

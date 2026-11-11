@@ -5,9 +5,13 @@
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Collega il passeggero alla sessione musicale dell’auto anche quando CarPlay wireless impedisce la comunicazione Wi-Fi tra gli iPhone. Vengono scambiate solo selezioni e comandi protetti dall’invito QR.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Collega i telefoni vicini per scegliere insieme la musica riprodotta dall’iPhone collegato a CarPlay.</string>
+	<string>Trova Chromecast e dispositivi audio sulla rete Wi-Fi e collega i passeggeri alla sessione in auto.</string>
 	<key>NSBonjourServices</key>
-	<array><string>_nnpassenger._tcp</string></array>
+	<array>
+		<string>_nnpassenger._tcp</string>
+		<string>_googlecast._tcp</string>
+		<string>_CC1AD845._googlecast._tcp</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Scansiona il QR della sessione NoteNarrate nell’auto per collegare il telefono del passeggero.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>

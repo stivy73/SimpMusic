@@ -64,6 +64,8 @@
     private(set) var nativePlayer = AVPlayer()
     private let effectsTap = AudioEffectsTap()
     private var effectsSubscription: AnyCancellable?
+    lazy var cast = CastPlayback(player: self)
+    var castAccountOnly: Bool { requiresAccount }
     private struct PreparedDeck {
       let id: String
       let player: AVPlayer
@@ -119,7 +121,7 @@
       nativePlayer.volume = Float(volume / 100)
     }
     func prepareTransition(videoID: String, accountOnly: Bool = false) {
-      guard !changingDeck, fadeTask == nil else { return }
+      guard !cast.connected, !changingDeck, fadeTask == nil else { return }
       let context = warmupContext()
       if let prepared, prepared.id == videoID, prepared.accountOnly == accountOnly,
         AudioWarmupValidity.usable(preparedAt: prepared.preparedAt, sourceURL: prepared.sourceURL,
@@ -223,7 +225,7 @@
       to videoID: String, seconds: Double, dj: Bool, preserveIntent: Bool = false,
       accountOnly: Bool = false
     ) -> Bool {
-      guard (seconds == 0 || playing), let deck = prepared, deck.id == videoID,
+      guard !cast.connected, (seconds == 0 || playing), let deck = prepared, deck.id == videoID,
         deck.accountOnly == accountOnly,
         warmReadyID == videoID, deck.player.currentItem?.status == .readyToPlay,
         AudioWarmupValidity.usable(preparedAt: deck.preparedAt, sourceURL: deck.sourceURL,
@@ -391,11 +393,12 @@
       bindPlayer()
     }
     private func bindPlayer() {
+      nativePlayer.allowsExternalPlayback = true
       let observedPlayer = nativePlayer
       rateObservation = nativePlayer.observe(\.timeControlStatus, options: [.new]) {
         @Sendable [weak self] player, _ in
         Task { @MainActor [weak self] in
-          guard let self, self.nativePlayer === observedPlayer else { return }
+          guard let self, self.nativePlayer === observedPlayer, !self.cast.connected else { return }
           let active = observedPlayer.timeControlStatus == .playing
           self.playing = active
           if active {
@@ -416,7 +419,7 @@
           guard let self, self.nativePlayer === observedPlayer, seconds.isFinite, seconds >= 0
           else { return }
           // Item replacement briefly reports zero before the restoring seek ends.
-          guard !self.isLoading, self.initialSeek == nil else { return }
+          guard !self.cast.connected, !self.isLoading, self.initialSeek == nil else { return }
           self.elapsed = seconds
           #if DEBUG
             if self.nativePlayer.currentItem?.status == .readyToPlay {
@@ -430,6 +433,11 @@
 
     func load(videoId: String, startAt: Double? = nil, accountOnly: Bool = false) {
       requiresAccount = accountOnly
+      if cast.connected {
+        request?.cancel(); cancelTransition(); recoveryWatch?.cancel()
+        intent.load(); intent.play()
+        cast.load(id: videoId, position: startAt ?? 0, accountOnly: accountOnly); return
+      }
       recovery = AudioRecovery()
       rejectedSources.removeAll()
       deferredRecovery = false
@@ -705,7 +713,7 @@
 
     private func startPreparedPlayback() {
       defer { finishLoadingTask() }
-      guard intent.wantsPlayback, !isLoading, initialSeek == nil,
+      guard !cast.connected, intent.wantsPlayback, !isLoading, initialSeek == nil,
         beforePlay?() ?? true
       else { return }
       do {
@@ -801,7 +809,17 @@
       backgroundTask = .invalid
     }
 
+    func syncCastPlayback(playing value: Bool) {
+      if playing != value { controlRevision = UUID() }
+      playing = value
+      if value { intent.play() } else { intent.pause() }
+    }
+    func prepareForCasting() {
+      request?.cancel(); assetRevision = UUID(); cancelTransition()
+      recoveryWatch?.cancel(); nativePlayer.pause()
+    }
     func clear() {
+      cast.clear()
       preparationBegan = nil
       recoveryWatch?.cancel()
       recoveryWatch = nil
@@ -839,6 +857,7 @@
 
     func play() {
       guard beforePlay?() ?? true else { return }
+      if cast.connected { controlRevision = UUID(); intent.play(); cast.play(); return }
       if let position = restoredPosition {
         restoredPosition = nil
         let id = videoId
@@ -870,6 +889,7 @@
       }
     }
     func pause() {
+      if cast.connected { controlRevision = UUID(); intent.pause(); cast.pause(); playing = false; return }
       // Pause/track-end/narration silence both audible decks, retaining only the
       // muted successor. Otherwise normal auto-advance would discard its warmup.
       cancelTransition(discardPrepared: false)
@@ -880,6 +900,7 @@
       playing = false
     }
     func seek(to time: CMTime) {
+      if cast.connected { if time.seconds.isFinite { cast.seek(max(0, time.seconds)) }; return }
       cancelTransition()
       guard time.seconds.isFinite else { return }
       let value = max(0, min(durationSeconds > 0 ? durationSeconds : time.seconds, time.seconds))
@@ -898,10 +919,12 @@
     }
     func setVolume(_ value: Double) {
       volume = min(100, max(0, value))
+      if cast.connected { cast.volume(volume); return }
       if fadeTask == nil { nativePlayer.volume = Float(volume / 100) }
     }
     func currentTime() -> CMTime {
-      restoredPosition == nil && !isLoading && initialSeek == nil
+      if cast.connected { return CMTime(seconds: elapsed, preferredTimescale: 600) }
+      return restoredPosition == nil && !isLoading && initialSeek == nil
         ? nativePlayer.currentTime() : CMTime(seconds: elapsed, preferredTimescale: 600)
     }
     func interruptionBegan() {
