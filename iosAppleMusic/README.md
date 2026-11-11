@@ -6,7 +6,8 @@ Variante nativa MusicKit separata dal target YouTube Music. Versione iniziale
 ## Implementato
 
 - Autorizzazione Apple Music esplicita, ricerca brani nel catalogo, libreria
-  brani/album/playlist con paginazione anche delle tracce delle raccolte.
+  cloud completa di brani/album/playlist con paginazione e ripiego locale.
+  I contenuti locali non presenti nel cloud vengono conservati per ID.
 - Riproduzione con ApplicationMusicPlayer, coda, seek, aggiunta alla libreria,
   condivisione link e selettore AirPlay di sistema.
 - CarPlay con liste paginate e Now Playing; per il nuovo App ID resta necessario

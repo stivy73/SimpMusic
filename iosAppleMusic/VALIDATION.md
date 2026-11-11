@@ -139,3 +139,26 @@ SHA256: `9c680f223b6e2b812892f4adbed3642dde886cbf1757926791f7ce94a2710973`.
 Commit sorgente `d864eefd`, sincronizzato nel fork personale. Resta da provare
 la stessa playlist sul dispositivo e condividere il report dopo il tentativo
 se l'errore persiste; per la libreria eseguire la verifica cloud in sola lettura.
+
+## Libreria cloud completa — build 0.1.0 (4)
+
+Report reale build 3: richieste native 0 brani, 0 album, 6 playlist. Probe cloud
+HTTP 200: songs prima pagina 0 senza next; albums prima pagina 1 senza next;
+playlists prima pagina 1 con next. Dimostrata una differenza tra la risposta
+MusicLibraryRequest locale e la risorsa album disponibile nell'account cloud.
+
+Implementata lettura di `/v1/me/library/songs`, `/albums`, `/playlists` con
+MusicDataRequest e token gestiti da MusicKit. Limite 100 per pagina e lettura di
+ogni next; URL successivi ammessi solo sullo stesso endpoint HTTPS Apple, senza
+credenziali nel codice, cambio host/risorsa, frammenti o cicli. La raccolta viene
+applicata solo a caricamento completo; errori HTTP/malformati non equivalgono a
+una libreria vuota. Contenuti cloud decodificati nelle strutture MusicKit native,
+senza ricostruire ID o parametri opachi di riproduzione. Si preferisce il valore
+cloud per gli ID condivisi e si conservano gli elementi presenti solo sul device.
+La lettura locale resta disponibile se il caricamento cloud fallisce.
+
+Verifiche: 30 test passati, inclusi pagine multiple, duplicati, pagina successiva
+fallita, URL esterni/risorsa diversa, ciclo, annullamento, risposta vuota valida,
+merge con playlist locali e decoder reale MusicKit per album, brani e playlist
+fittizi con playParameters. Debug compilato; archivio finale Release firmato.
+Il risultato sulla libreria reale richiede verifica iPhone dopo l'aggiornamento.

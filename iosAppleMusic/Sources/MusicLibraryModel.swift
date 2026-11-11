@@ -53,19 +53,50 @@ final class MusicLibraryModel: ObservableObject {
     guard authorization == .authorized, !loading else { return }
     loading = true; defer { loading = false }
     var failures: [String] = []
-    // Subscription/token access must not gate the local music library.
+    // Show native data quickly, then prefer the complete account cloud library.
+    var localSongs: [MusicKit.Song]?
+    var localAlbums: [Album]?
+    var localPlaylists: [Playlist]?
     do {
       var request = MusicLibraryRequest<MusicKit.Song>(); request.limit = 100; request.includeOnlyDownloadedContent = false
-      songs = try await collect(request.response().items); record("Libreria brani: \(songs.count)")
-    } catch { recordFailure(error,stage:"Brani"); failures.append("Brani: " + accessMessage(error)) }
+      let values = try await collect(request.response().items); localSongs = values
+      if !values.isEmpty || songs.isEmpty { songs = values }
+      record("Libreria locale brani: \(values.count)")
+    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Brani locali") }
     do {
       var request = MusicLibraryRequest<Album>(); request.limit = 100; request.includeOnlyDownloadedContent = false
-      albums = try await collect(request.response().items); record("Libreria album: \(albums.count)")
-    } catch { recordFailure(error,stage:"Album"); failures.append("Album: " + accessMessage(error)) }
+      let values = try await collect(request.response().items); localAlbums = values
+      if !values.isEmpty || albums.isEmpty { albums = values }
+      record("Libreria locale album: \(values.count)")
+    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Album locali") }
     do {
       var request = MusicLibraryRequest<Playlist>(); request.limit = 100; request.includeOnlyDownloadedContent = false
-      playlists = try await collect(request.response().items); record("Libreria playlist: \(playlists.count)")
-    } catch { recordFailure(error,stage:"Playlist"); failures.append("Playlist: " + accessMessage(error)) }
+      let values = try await collect(request.response().items); localPlaylists = values
+      if !values.isEmpty || playlists.isEmpty { playlists = values }
+      record("Libreria locale playlist: \(values.count)")
+    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Playlist locali") }
+    let cloud = MusicCloudLibrary(fetch:{ [weak self] request in
+      guard let self else { throw CancellationError() }
+      return try await self.withTokenRecovery {
+        let response = try await MusicDataRequest(urlRequest:request).response()
+        return MusicCloudLibrary.Response(data:response.data,status:response.urlResponse.statusCode)
+      }
+    })
+    do {
+      let result = try await cloud.load(MusicKit.Song.self,resource:.songs)
+      songs = MusicCloudLibrary.combining(result.items,local:localSongs ?? [])
+      record("Libreria cloud brani: completata; elementi=\(result.items.count); pagine=\(result.pages)")
+    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Brani cloud"); failures.append("Brani cloud: " + accessMessage(error)) }
+    do {
+      let result = try await cloud.load(Album.self,resource:.albums)
+      albums = MusicCloudLibrary.combining(result.items,local:localAlbums ?? [])
+      record("Libreria cloud album: completata; elementi=\(result.items.count); pagine=\(result.pages)")
+    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Album cloud"); failures.append("Album cloud: " + accessMessage(error)) }
+    do {
+      let result = try await cloud.load(Playlist.self,resource:.playlists)
+      playlists = MusicCloudLibrary.combining(result.items,local:localPlaylists ?? [])
+      record("Libreria cloud playlist: completata; elementi=\(result.items.count); pagine=\(result.pages)")
+    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Playlist cloud"); failures.append("Playlist cloud: " + accessMessage(error)) }
     do {
       canPlayCatalog = try await withTokenRecovery { try await MusicSubscription.current.canPlayCatalogContent }
       subscriptionVerified = true; record("Abbonamento: verifica riuscita; catalogo=\(canPlayCatalog)")

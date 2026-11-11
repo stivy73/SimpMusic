@@ -1,19 +1,19 @@
-NoteNarrate Music — 0.1.0 (3)
+NoteNarrate Music — 0.1.0 (4)
 
-Riproduzione album e playlist: ora viene passata a MusicKit direttamente la
-raccolta originale, senza estrarre tutte le tracce prima dell’avvio. La coda
-mantiene il contesto della playlist e viene preparata prima della riproduzione.
+La libreria usa ora i dati dell’account Apple Music cloud: brani, album e playlist
+vengono letti completamente, seguendo tutte le pagine fornite da Apple. La lettura
+locale rimane disponibile come ripiego se la rete non risponde. I contenuti e le
+playlist presenti solo sul dispositivo vengono conservati senza duplicare gli ID.
 
-La diagnostica registra la selezione, la presenza dei parametri di riproduzione,
-la preparazione e l’avvio. Gli errori di playback (incluso codice 6) entrano nel
-report; i controlli evitano avvii sovrapposti durante la preparazione.
+Corregge il caso riscontrato: album assenti nella richiesta locale ma restituiti
+con HTTP 200 dal servizio cloud Apple. Le playlist non si fermano alla prima pagina.
+Non vengono trasferiti o aggiunti contenuti da YouTube Music.
 
-In Impostazioni → Collegamento Apple Music è disponibile Verifica libreria cloud.
-Legge una sola pagina da brani, album e playlist dell’account, senza modificare
-né importare nulla. Il report distingue dati vuoti, altre pagine ed errori HTTP.
+I dati incompleti non sostituiscono una raccolta completa. Album, brani e playlist
+mantengono gli ID e i parametri di riproduzione MusicKit ricevuti da Apple.
 
-Da provare: avviare Brani preferiti e Raccolta; se compare ancora errore 6,
-condividere la diagnostica dopo il tentativo. Per album/brani mancanti, eseguire
-Verifica libreria cloud e condividere il report.
+Da provare: Libreria → aggiornamento; verificare l’album assente e le playlist.
+Nella diagnostica le righe Libreria cloud riportano elementi totali e pagine.
+La lettura locale e la verifica cloud campione restano distinguibili nel report.
 
 Solo Stivy73. App separata da NoteNarrate YouTube Music.
