@@ -123,12 +123,14 @@ struct WatchPlayerView: View {
             } label: {
               Label("Coda", systemImage: "list.bullet")
             }
+            #if !APPLE_MUSIC
             Button {
               link.send(.radio)
             } label: {
               Label("Radio del brano", systemImage: "dot.radiowaves.left.and.right")
             }
             .disabled(!link.reachable || link.pending)
+            #endif
           } else {
             ContentUnavailableView(
               "NoteNarrate", systemImage: "music.note",

@@ -1,0 +1,3 @@
+// swift-tools-version: 6.0
+import PackageDescription
+let package=Package(name:"AppleMusicContracts",platforms:[.macOS(.v14)],products:[.library(name:"LyricsContract",targets:["LyricsContract"])],targets:[.target(name:"LyricsContract",path:"Sources",exclude:["MusicLibraryModel.swift","NarrationModel.swift","NoteNarrateMusicApp.swift","MusicCarPlay.swift","MusicIntents.swift","MusicWatchBridge.swift"],sources:["LicensedLyrics.swift"]),.testTarget(name:"LyricsContractTests",dependencies:["LyricsContract"],path:"Tests")])
