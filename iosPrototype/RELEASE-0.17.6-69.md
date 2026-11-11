@@ -31,4 +31,15 @@ La verifica fisica sul display auto resta da confermare.
 IPA: `deliveries/NoteNarrate-iOS-0.17.6-build69.ipa`.
 Archivio e simboli: `deliveries/archives/NoteNarrate-0.17.6-build69.xcarchive`.
 SHA-256: `3c3280028abcc8433f53529d12772ab4db4bdafa4a28f8c4bcac420319584757`.
-Consegna TestFlight: in corso; stati Apple e gruppi da rileggere dopo upload.
+Sorgenti: `7ba6cc6037097052e65fbf2ab2fa277545cd7b95`, pubblicati su
+`stivy73/SimpMusic`, branch `feature/youtube-library-albums`.
+Upload Apple completato (altool exit 0, UPLOAD SUCCEEDED).
+Delivery UUID: `64653dc9-f4dd-4a9e-b13c-a74814a95232`.
+Il timeout iniziale del servizio Content Delivery e stato recuperato nello
+stesso invio; nessun secondo upload.
+Apple: VALID, INTERNAL_ONLY, IN_BETA_TESTING. Assegnata a Team interno e
+Stivy73; confermata appartenenza di Tommaso e Girbreda al Team interno e
+accesso a questa app. Note italiane salvate e rilette integralmente.
+Ricevuta: `deliveries/NoteNarrate-iOS-0.17.6-build69-AppStore-status.json`.
+Validazioni: `deliveries/NoteNarrate-iOS-0.17.6-build69-validation.json`.
+Nessun utente o ruolo modificato; nessuna distribuzione pubblica App Store.
