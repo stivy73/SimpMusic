@@ -2,6 +2,7 @@
 import SwiftUI
 import Combine
 import AVFoundation
+@preconcurrency import MediaPlayer
 
 @MainActor
 final class MusicLibraryModel: ObservableObject {
@@ -17,6 +18,7 @@ final class MusicLibraryModel: ObservableObject {
   @Published var results: [MusicKit.Song] = []
   @Published var error: String?
   @Published var loading = false
+  @Published var mediaLibrarySummary = ""
   @Published var query = ""
   @Published var nowPlaying: MusicKit.Song?
   @Published var queueSongs: [MusicKit.Song] = []
@@ -53,6 +55,7 @@ final class MusicLibraryModel: ObservableObject {
     guard authorization == .authorized, !loading else { return }
     loading = true; defer { loading = false }
     var failures: [String] = []
+    await compareDeviceLibrary()
     // Show native data quickly, then prefer the complete account cloud library.
     var localSongs: [MusicKit.Song]?
     var localAlbums: [Album]?
@@ -104,7 +107,26 @@ final class MusicLibraryModel: ObservableObject {
       subscriptionVerified = false; recordFailure(error, stage:"Abbonamento")
       failures.append(accessMessage(error))
     }
+    record("Elenco pubblicato: brani=\(songs.count); album=\(albums.count); playlist=\(playlists.count)")
     error = failures.isEmpty ? nil : Array(Set(failures)).sorted().joined(separator:"\n\n")
+  }
+  // Independent, read-only view of the device media database. Counts only:
+  // no album titles, account identifiers or media URLs enter shared diagnostics.
+  private func compareDeviceLibrary() async {
+    let report = await Task.detached(priority:.userInitiated) {
+      let status = MPMediaLibrary.authorizationStatus()
+      guard status == .authorized else {
+        return "Libreria multimediale iOS: autorizzazione=\(status.rawValue); lettura non eseguita"
+      }
+      let tracks = MPMediaQuery.songs().items ?? []
+      let albums = MPMediaQuery.albums().collections ?? []
+      let playlists = MPMediaQuery.playlists().collections ?? []
+      let cloud = tracks.lazy.filter { $0.isCloudItem }.count
+      return "Libreria multimediale iOS: brani=\(tracks.count); album=\(albums.count); playlist=\(playlists.count); brani cloud=\(cloud)"
+    }.value
+    guard !Task.isCancelled else { return }
+    mediaLibrarySummary = report
+    record(report)
   }
   nonisolated private static func isDeveloperTokenFailure(_ error: any Error) -> Bool {
     if let value = error as? MusicTokenRequestError, value == .developerTokenRequestFailed { return true }

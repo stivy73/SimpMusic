@@ -33,7 +33,9 @@ struct MusicCloudLibrary: Sendable {
       try Task.checkCancellation()
       guard pages < 1000 else { throw LoadError.excessivePages }
       guard visited.insert(url).inserted else { throw LoadError.repeatedPage }
-      var request = URLRequest(url:url); request.timeoutInterval = 20
+      var request = URLRequest(url:url,cachePolicy:.reloadIgnoringLocalCacheData)
+      request.timeoutInterval = 20
+      request.setValue("no-cache",forHTTPHeaderField:"Cache-Control")
       let response = try await fetch(request)
       try Task.checkCancellation()
       guard response.status == 200 else { throw LoadError.http(response.status) }

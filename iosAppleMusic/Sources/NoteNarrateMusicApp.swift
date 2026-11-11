@@ -42,15 +42,20 @@ struct MusicRoot: View {
       }.tag(1).tabItem { Label("Cerca",systemImage:"magnifyingglass") }
       NavigationStack {
         List {
-          Section("Album") {
+          Section("Album · \(music.albums.count)") {
+            if music.albums.isEmpty { Text("Nessun album restituito da Apple Music.").foregroundStyle(.secondary) }
             ForEach(music.albums) { album in
               Button { Task { await music.play(album:album) } } label: { CoverRow(artwork:album.artwork,title:album.title,subtitle:album.artistName) }
             }
           }
-          Section("Playlist") {
+          Section("Playlist · \(music.playlists.count)") {
             ForEach(music.playlists) { playlist in
               Button { Task { await music.play(playlist:playlist) } } label: { CoverRow(artwork:playlist.artwork,title:playlist.name,subtitle:playlist.curatorName ?? "Playlist") }
             }
+          }
+          Section {
+            Text("Brani: \(music.songs.count) · Album: \(music.albums.count) · Playlist: \(music.playlists.count)").font(.caption).foregroundStyle(.secondary)
+            Text("Se mancano elementi visibili in Musica, condividi la diagnostica Apple Music dalle Impostazioni. Il rinnovo del collegamento non aggiunge elementi alla libreria.").font(.caption).foregroundStyle(.secondary)
           }
         }.navigationTitle("Libreria").refreshable { await music.refresh() }
       }.tag(2).tabItem { Label("Libreria",systemImage:"square.stack") }

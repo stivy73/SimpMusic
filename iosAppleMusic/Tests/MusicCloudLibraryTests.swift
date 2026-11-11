@@ -11,6 +11,7 @@ private actor CloudPages {
     return pages[requests.count-1]
   }
   func count() -> Int { requests.count }
+  func capturedRequests() -> [URLRequest] { requests }
 }
 final class MusicCloudLibraryTests: XCTestCase {
   func testCloudMergeKeepsDeviceOnlyItemsAndUsesUpdatedCloudMetadata() {
@@ -26,6 +27,9 @@ final class MusicCloudLibraryTests: XCTestCase {
     let result = try await client.load(CloudFixture.self,resource:.albums)
     XCTAssertEqual(result.items.map(\.id),["a","b","c"])
     XCTAssertEqual(result.pages,2)
+    let requests = await fixture.capturedRequests()
+    XCTAssertTrue(requests.allSatisfy { $0.cachePolicy == .reloadIgnoringLocalCacheData })
+    XCTAssertTrue(requests.allSatisfy { $0.value(forHTTPHeaderField:"Cache-Control") == "no-cache" })
   }
   func testFailureOnSecondPageDoesNotReturnAnIncompleteCollection() async {
     let fixture = CloudPages([#"{"data":[{"id":"a"}],"next":"/v1/me/library/albums?offset=100"}"#])

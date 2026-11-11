@@ -1,19 +1,12 @@
-NoteNarrate Music — 0.1.0 (4)
+NoteNarrate Music — 0.1.0 (5)
 
-La libreria usa ora i dati dell’account Apple Music cloud: brani, album e playlist
-vengono letti completamente, seguendo tutte le pagine fornite da Apple. La lettura
-locale rimane disponibile come ripiego se la rete non risponde. I contenuti e le
-playlist presenti solo sul dispositivo vengono conservati senza duplicare gli ID.
+Build diagnostica per confrontare gli album visibili in Musica con quelli accessibili a NoteNarrate. Il report della build 4 conferma 0 brani e 1 album restituiti dal servizio cloud; la causa della differenza resta da determinare sul dispositivo.
 
-Corregge il caso riscontrato: album assenti nella richiesta locale ma restituiti
-con HTTP 200 dal servizio cloud Apple. Le playlist non si fermano alla prima pagina.
-Non vengono trasferiti o aggiunti contenuti da YouTube Music.
+Il refresh cloud non riusa risposte in cache. La diagnostica confronta MusicKit locale, servizio cloud e libreria multimediale iOS (MPMediaQuery), riportando soltanto conteggi e stato di autorizzazione. Nessun titolo, URL multimediale o account nel nuovo report. Sono presenti anche i conteggi dell’elenco pubblicato.
 
-I dati incompleti non sostituiscono una raccolta completa. Album, brani e playlist
-mantengono gli ID e i parametri di riproduzione MusicKit ricevuti da Apple.
+La schermata Libreria mostra il numero di album e playlist e distingue esplicitamente l’elenco vuoto.
 
-Da provare: Libreria → aggiornamento; verificare l’album assente e le playlist.
-Nella diagnostica le righe Libreria cloud riportano elementi totali e pagine.
-La lettura locale e la verifica cloud campione restano distinguibili nel report.
+Da provare: aprire Libreria, aggiornare e condividere la diagnostica Apple Music da Impostazioni. Indicare se Sincronizza libreria è attivo nelle Impostazioni di Musica e un album mancante.
 
+30 test superati. Non è ancora confermata la soluzione sul dispositivo.
 Solo Stivy73. App separata da NoteNarrate YouTube Music.

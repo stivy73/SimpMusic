@@ -173,3 +173,19 @@ IPA: `iosAppleMusic/deliveries/0.1.0-4/NoteNarrateMusic.ipa`.
 SHA256: `571373710cded80c3574a201e0232562130051890885077eac951c80f3021d67`.
 Commit sorgente `d128d239`, sincronizzato nel fork personale. Visualizzazione
 della libreria reale e riproduzione restano da verificare sul dispositivo.
+
+## Confronto libreria dispositivo — build 0.1.0 (5)
+
+Report reale build 4 ripetibile dopo rinnovo token: MusicKit locale 0 brani,
+0 album, 6 playlist; cloud 0 brani, 1 album, 6 playlist, una pagina completa.
+La paginazione da sola non ha risolto gli album mancanti. Non attribuire la causa
+al token (rinnovo riuscito) o alla sincronizzazione senza ulteriore evidenza.
+
+Aggiunto confronto indipendente in sola lettura con MPMediaQuery songs/albums/
+playlists, solo se MPMediaLibrary risulta autorizzata. Il confronto avviene fuori
+MainActor e trasferisce soltanto conteggi, senza ID, titoli o URL. Report finale
+con conteggi effettivamente pubblicati e intestazioni Album/Playlist con totali.
+Il refresh cloud usa reloadIgnoringLocalCacheData e Cache-Control no-cache.
+30 test passati, incluso controllo che ogni pagina richieda dati aggiornati.
+Debug compilata. Necessario report fisico per determinare perché Musica mostri
+una raccolta diversa dalle API MusicKit; non dichiarare il problema risolto.
