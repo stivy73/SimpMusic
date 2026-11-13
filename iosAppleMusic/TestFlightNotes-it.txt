@@ -1,12 +1,10 @@
-NoteNarrate Music — 0.1.0 (7)
+NoteNarrate Music — 0.1.0 (8)
 
-Corregge la separazione tra risultati della ricerca personale ed elenco Album: gli album trovati ora entrano anche nell’elenco principale, senza duplicare gli ID.
+Gli album della tua libreria ora compaiono anche nella Home, sopra i brani.
+Home, Libreria → Album e risultati della ricerca usano lo stesso componente per copertina, titolo, artista e riproduzione. Home e Libreria mostrano lo stesso elenco music.albums, compresi gli album recuperati dalla ricerca personale.
 
-L’app conserva soltanto gli ID degli album recuperati e li verifica nuovamente con la libreria dell’account Apple attuale al successivo avvio o aggiornamento. Non visualizza copie di album salvate fuori dalla verifica Apple e non usa risultati del catalogo pubblico come se fossero elementi della libreria.
+Nessun caricamento separato per la Home: quando l’elenco viene aggiornato, entrambe le schermate riflettono gli stessi album. Rimangono il recupero album della build 7 e quello dei brani della build 6.
 
-Il recupero automatico confronta i titoli degli album rilevati su iOS con l’elenco e cerca quelli mancanti nella libreria personale, fino a 25 ricerche per aggiornamento. Se ne restano altri, la schermata indica di aggiornare nuovamente. La ricerca personale legge tutte le pagine disponibili.
+Da provare: verificare Heaven on Earth in Home e avviarlo dalla copertina, quindi confrontare l’elenco con Libreria → Album.
 
-Da provare: aggiornare Libreria e verificare Heaven on Earth. Se occorre cercarlo una volta, poi cancellare il testo della ricerca, aggiornare e riaprire l’app: deve restare nell’elenco principale dopo la verifica Apple.
-
-48 test superati. Da confermare sul dispositivo. Restano i recuperi dei brani della build 6.
 Solo Stivy73. App separata da NoteNarrate YouTube Music.

@@ -29,6 +29,10 @@ struct MusicRoot: View {
           } else {
             List {
               if music.subscriptionVerified && !music.canPlayCatalog { Text("Per ascoltare il catalogo, attiva un abbonamento nell'app Musica.").foregroundStyle(.secondary) }
+              Section("Album della libreria · \(music.albums.count)") {
+                if music.albums.isEmpty && !music.loading { Text("Nessun album nella libreria.").foregroundStyle(.secondary) }
+                AlbumRows(albums:music.albums)
+              }
               Section("Brani della libreria") { SongRows(songs: music.songs) }
             }.overlay { if music.loading { ProgressView() } }
               .refreshable { await music.refresh() }
@@ -46,17 +50,13 @@ struct MusicRoot: View {
             Section("Risultati nella tua libreria · \(music.libraryAlbumMatches.count)") {
               if music.searchingLibraryAlbums { ProgressView("Ricerca nella libreria…") }
               else if music.libraryAlbumMatches.isEmpty { Text("Nessun album restituito per questa ricerca.").foregroundStyle(.secondary) }
-              ForEach(music.libraryAlbumMatches) { album in
-                Button { Task { await music.play(album:album) } } label: { CoverRow(artwork:album.artwork,title:album.title,subtitle:album.artistName) }
-              }
+              AlbumRows(albums:music.libraryAlbumMatches)
               Text("Gli album trovati sono inclusi anche nell’elenco principale della tua libreria.").font(.caption).foregroundStyle(.secondary)
             }
           }
           Section("Album · \(music.albums.count)") {
             if music.albums.isEmpty { Text("Nessun album restituito da Apple Music.").foregroundStyle(.secondary) }
-            ForEach(music.albums) { album in
-              Button { Task { await music.play(album:album) } } label: { CoverRow(artwork:album.artwork,title:album.title,subtitle:album.artistName) }
-            }
+            AlbumRows(albums:music.albums)
           }
           Section("Playlist · \(music.playlists.count)") {
             ForEach(music.playlists) { playlist in
@@ -108,6 +108,17 @@ struct Cover: View {
   var body: some View {
     if let artwork { ArtworkImage(artwork,width:320).scaledToFit() }
     else { RoundedRectangle(cornerRadius:12).fill(.gray.opacity(0.2)).overlay { Image(systemName:"music.note") } }
+  }
+}
+struct AlbumRows: View {
+  @EnvironmentObject var music: MusicLibraryModel
+  let albums: [Album]
+  var body: some View {
+    ForEach(albums) { album in
+      Button { Task { await music.play(album:album) } } label: {
+        CoverRow(artwork:album.artwork,title:album.title,subtitle:album.artistName)
+      }
+    }
   }
 }
 struct SongRows: View {

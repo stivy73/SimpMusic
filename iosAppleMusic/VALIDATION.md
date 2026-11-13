@@ -287,3 +287,18 @@ Resta da confermare sul dispositivo Heaven on Earth nell’elenco principale,
 senza testo di ricerca, dopo aggiornamento e dopo riavvio. Se non rilevato
 automaticamente da iOS, una ricerca sulla nuova build conserva l’ID per la
 verifica Apple successiva; i risultati della vecchia build non erano persistiti.
+
+## Album nella Home — build 0.1.0 (8)
+
+L’utente conferma che Heaven on Earth è presente in ricerca e in Libreria/Album
+ma manca nella Home. Verificato il percorso UI: la Home mostrava esclusivamente
+SongRows; non era un ulteriore errore di caricamento o sincronizzazione album.
+
+Aggiunta sezione Album della libreria in Home, sopra i brani, con conteggio e
+stesso music.albums della Libreria. Estratto AlbumRows comune per Home, elenco
+Album e risultati della ricerca: stessa copertina/titolo/artista e stesso comando
+MusicLibraryModel.play(album:). Nessun elenco o caricamento autonomo della Home.
+Modifica di presentazione: verifica con compilazione Debug e archivio Release;
+nessun test aggiunto che duplichi il semplice binding SwiftUI. Il motore di
+recupero della build 7 resta invariato e già coperto dai 48 test precedenti.
+Resta da confermare resa e riproduzione da Home sul dispositivo.
