@@ -568,3 +568,29 @@ Preferiti Artisti in griglia, pagina artista, cancellazione della sola ricerca
 Rock e pagina Nuove uscite. Nessun account o ascolto musicale reale collaudato.
 Dettagli di riuso, comportamento, prove e limiti in DISCOVERY_PORT.md.
 Nessuna nuova beta TestFlight, versione/build ancora 0.1.0 (11) per sviluppo.
+
+## Consegna TestFlight 0.1.0 (12) — 13 novembre 2026
+
+Alla successiva richiesta di consegna, aggiornati a build 12 app, Watch ed
+estensione. Commit sorgenti/versione `7de09c09d01ec8c76e58ff3e90fa1451c5a160e6`,
+sincronizzato nel solo fork personale stivy73/SimpMusic prima dell'upload.
+Include anche i precedenti lotti di libreria/navigazione, significato automatico,
+album, playlist e ricezione non ancora distribuiti dopo build 11.
+
+94 test di contratto riusciti; archivio Release, export App Store Connect e
+verifica firma dell'IPA riusciti. Tutti i target sono 0.1.0 (12), get-task-allow
+false; app ed estensione hanno esclusivamente il gruppo Apple Music dedicato.
+Pacchetto: iosAppleMusic/deliveries/0.1.0-12/NoteNarrateMusic.ipa.
+SHA256: 783040400ade9180daac11f691d78c26fd6cca49f71867d56ce8ce20d5ae5263.
+
+Upload altool completato senza errori; delivery e build ID
+1b1a05c9-db00-45c5-be17-5e9e1d1a2839. Apple ha elaborato VALID /
+IN_BETA_TESTING, app separata 6833455204, bundle com.stivy.notenarrate.applemusic.
+Gruppo Stivy73 soltanto, interno e manuale, come richiesto per questa variante;
+appartenenza dell'unico tester verificata, note italiane scritte e rilette.
+Nessuna modifica a utenti, ruoli, distribuzione automatica o variante YouTube.
+Lo stato INSTALLED del tester si riferisce all'app, non dimostra l'installazione
+o l'ascolto della nuova build 12. Il collaudo con dati reali su iPhone resta aperto.
+
+Ricevute: verification/package-0.1.0-12.json e
+verification/testflight-0.1.0-12.json. Nessun invio pubblico App Store.

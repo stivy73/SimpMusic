@@ -1,7 +1,9 @@
 # Home, Esplora, Artisti e Preferiti
 
 Lotto successivo ad album/playlist e ricezione, nella sola variante Apple Music.
-Versione di sviluppo 0.1.0 (11); nessun nuovo upload TestFlight.
+Verifica preliminare su versione di sviluppo 0.1.0 (11). Dopo la successiva
+richiesta del titolare, consegnato su TestFlight nella 0.1.0 (12), al solo Stivy73.
+Ricevuta: `verification/testflight-0.1.0-12.json`.
 
 ## Codice riutilizzato
 

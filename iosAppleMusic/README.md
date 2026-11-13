@@ -57,10 +57,13 @@ fornitore deve essere incorporata nell'app.
 ## Prima della distribuzione
 
 Non è ancora una release pronta per App Store. MusicKit è attivo sul nuovo App ID
-e la beta firmata 0.1.0 (9) è stata distribuita al solo Stivy73. Mancano verifica live della ricerca Google,
+e la beta firmata 0.1.0 (12) è stata distribuita al solo Stivy73. Mancano verifica live della ricerca Google,
 privacy/support URL e metadati pubblici. Occorrono prove reali con account Apple
 Music, gestione abbonamenti/accesso negato, AirPlay, Siri, Watch e CarPlay.
-Non sono state migrate radio AI, ricezione share di raccolte da altri servizi,
+Sono disponibili Home con caroselli e Altro, Esplora, Artisti e Preferiti,
+gestione delle playlist consentita da MusicKit e ricezione di brani/album/playlist
+Apple Music e Spotify. Vedere DISCOVERY_PORT.md e COLLECTION_PORT.md per
+comportamento e limiti del collaudo. Non sono state migrate radio AI,
 connessione passeggeri o Chromecast; non vengono presentate come disponibili.
 
 MusicKit è un App Service da attivare sull'App ID, non un entitlement inventato.
