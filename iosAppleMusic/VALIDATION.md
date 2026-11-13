@@ -399,3 +399,16 @@ SHA256: 7e6485f14c29cec8a6c0fb221a7ab8833a9e82546898aac3034578e2c72fbe34.
 Il sorgente StivyApp.swift nel checkout YouTube coincide con l’hash importato.
 Il controllo visivo resta sospeso per Mac bloccato; non viene dichiarato un
 collaudo di interfaccia o una riproduzione MusicKit sul dispositivo.
+
+Ripresa del collaudo UI il 13 novembre 2026 dopo sblocco del Mac. Installata solo
+nel simulatore iPhone 18 Pro / iOS 27.2 la build DEBUG PLAYER_LAYOUT_FIXTURE.
+Player completo osservato con copertina, trasporto, tempi e badge Apple Music.
+Verificati: play/pausa della fixture, seek con tempo da 0:42 a 2:10, chiusura
+tramite Indietro, mini player con pausa, riapertura e gesto dal bordo per tornare.
+Osservato il layout orizzontale a due colonne; la coda (0 elementi sintetici)
+si apre tramite azione di accessibilità. Restano da verificare lo scorrimento
+dei comandi inferiori in orizzontale e il pannello Fonti: nuovo blocco del Mac
+durante il test. Non si deduce un difetto dell’app dai drag senza esito nella
+superficie simulata. Nessun account o servizio musicale usato per queste prove.
+Audio MusicKit, libreria reale, coda con duplicati, narrazione, AirPlay e schermo
+fisico Duo rimangono prove distinte e non eseguite da questo collaudo sintetico.

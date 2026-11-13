@@ -65,6 +65,14 @@ esclusi dalla configurazione Release. Il test di layout non dimostra la
 riproduzione MusicKit, il caricamento di una libreria reale o il comportamento
 fisico dell’iPhone Duo.
 
-Prova visiva in Device Hub ancora da completare: il controllo del computer
-segnala il Mac bloccato. Prova fisica richiesta: avvio da traccia/album/playlist,
-mini player e ritorno, seek, trasporto, coda con duplicati, significato e AirPlay.
+Prova in Device Hub, iPhone 18 Pro / iOS 27.2, ripresa il 13 novembre 2026:
+apertura del player, ritorno al mini player, riapertura, pausa dal mini player e
+gesto dal bordo verificati. Nella fixture il comando play cambia in pausa e il
+seek aggiornato passa da 0:42 a 2:10; non è stato riprodotto audio reale.
+In orizzontale osservati copertina e controlli in due colonne; la coda vuota della
+fixture è stata aperta tramite accessibilità. Scorrimento dei comandi inferiori
+e pannello Fonti ancora da verificare: il Mac si è bloccato nuovamente durante
+il collaudo. Nessuna conclusione sullo scorrimento reale basata sui drag del test.
+
+Prova fisica richiesta: avvio da traccia/album/playlist, seek, trasporto, coda con
+duplicati, significato, AirPlay e disposizione delle barre sul dispositivo Duo.
