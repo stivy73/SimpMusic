@@ -14,7 +14,7 @@
   "groupMembershipVerified": true,
   "sourceCommit": "50c91bd147db4561b9e5ca5afa9b867357d903c3",
   "ipaSHA256": "7e6485f14c29cec8a6c0fb221a7ab8833a9e82546898aac3034578e2c72fbe34",
-  "uiVerification": "partial: Device Hub, iPhone 18 Pro / iOS 27.2, synthetic fixture",
+  "uiVerification": "completed: synthetic fixture; landscape sources issue identified",
   "physicalAudioVerification": "pending",
   "italianNotesVerified": true,
   "uiVerifiedScenarios": [
@@ -24,11 +24,13 @@
     "seek time display",
     "back button and edge swipe",
     "landscape two-column presentation",
-    "empty queue opening via accessibility"
+    "empty queue opening via accessibility",
+    "portrait sources pane",
+    "portrait player scrolling",
+    "landscape lower-controls scrolling"
   ],
-  "uiPendingScenarios": [
-    "landscape lower-controls scrolling",
-    "sources pane"
-  ],
-  "uiBlocker": "Mac locked again during testing"
+  "uiPendingScenarios": [],
+  "uiKnownIssues": [
+    "Landscape sources button selected without displaying a pane; fixed and visually verified in build 11"
+  ]
 }

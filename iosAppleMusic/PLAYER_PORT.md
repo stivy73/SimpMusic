@@ -1,6 +1,6 @@
 # Player condiviso con NoteNarrate YouTube Music
 
-La presentazione di build 10 deriva dal vero player in
+La presentazione introdotta nella build 10 deriva dal vero player in
 `iosPrototype/Sources/App/StivyApp.swift`, commit `5a277798`.
 SHA256 del sorgente originale:
 `23ab00e6eee9a94887e951f85345708d25a7e80413d96519f00cf0701afbedb2`.
@@ -70,9 +70,19 @@ apertura del player, ritorno al mini player, riapertura, pausa dal mini player e
 gesto dal bordo verificati. Nella fixture il comando play cambia in pausa e il
 seek aggiornato passa da 0:42 a 2:10; non è stato riprodotto audio reale.
 In orizzontale osservati copertina e controlli in due colonne; la coda vuota della
-fixture è stata aperta tramite accessibilità. Scorrimento dei comandi inferiori
-e pannello Fonti ancora da verificare: il Mac si è bloccato nuovamente durante
-il collaudo. Nessuna conclusione sullo scorrimento reale basata sui drag del test.
+fixture è stata aperta tramite accessibilità. Dopo il secondo sblocco del Mac,
+verificati il pannello Fonti in verticale e lo scorrimento del player in entrambe
+le orientazioni. Un trascinamento verticale dall’area del titolo porta i comandi
+Fonti e Coda dentro lo schermo in orizzontale.
+
+Il test ha anche riprodotto un difetto di build 10: in orizzontale il pulsante
+Fonti diventava selezionato ma non mostrava il pannello, perché il contenuto
+inline è disabilitato nel layout esteso. Build 11 usa la sheet Fonti già esistente
+quando il player è esteso; nel layout compatto mantiene il pannello inline.
+La correzione è esplicita nello script di importazione, senza cambiare la
+geometria del player. Verificata in Device Hub la comparsa della sheet con
+titolo, Chiudi, stato iniziale e Cerca significato. Nessuna richiesta Gemini
+inviata durante questa prova.
 
 Prova fisica richiesta: avvio da traccia/album/playlist, seek, trasporto, coda con
 duplicati, significato, AirPlay e disposizione delle barre sul dispositivo Duo.

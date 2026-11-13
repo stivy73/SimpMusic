@@ -26,6 +26,11 @@ a=player.index('                if showLyrics && !expanded {\n                  
 b=player.index('\n              }.frame(width: column)',a)
 player=player[:a]+player[b:]
 player=player.replace('"Testo della canzone"','"Fonti e significato"').replace('navigationTitle("Testo")','navigationTitle("Fonti e significato")')
+# ArrangementView can collapse its secondary pane on a landscape iPhone.
+# Keep the original control and use its existing full-pane sheet in that layout.
+inline_action='                      toggleLyrics()\n                    }.accessibilityIdentifier("toggle-lyrics")'
+assert player.count(inline_action)==1
+player=player.replace(inline_action,'                      if expanded { expandedLyrics = true } else { toggleLyrics() }\n                    }.accessibilityIdentifier("toggle-lyrics")')
 # Remove the old app's debug harness; it is not the MusicKit test harness.
 player=re.sub(r'                #if DEBUG.*?                #endif\n','',player,flags=re.S)
 a=player.index('    Button {\n      #if DEBUG')

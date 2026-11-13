@@ -412,3 +412,24 @@ durante il test. Non si deduce un difetto dell’app dai drag senza esito nella
 superficie simulata. Nessun account o servizio musicale usato per queste prove.
 Audio MusicKit, libreria reale, coda con duplicati, narrazione, AirPlay e schermo
 fisico Duo rimangono prove distinte e non eseguite da questo collaudo sintetico.
+
+## Fonti in orizzontale — build 0.1.0 (11)
+
+Conclusi i due controlli UI rimasti dopo il nuovo sblocco. In verticale il pannello
+Fonti compare al posto della copertina; il player scorre e mostra i comandi
+inferiori. In orizzontale un drag verso l’alto dall’area del titolo porta i
+pulsanti Fonti e Coda dentro lo schermo. I precedenti drag senza cambiamenti
+non erano prova di un difetto dello scorrimento.
+
+Riprodotto invece un difetto del comando Fonti in orizzontale su build 10:
+diventava Attivo, ma nessun pannello visibile. Confrontato il codice importato:
+toggleLyrics cambia solo lo stato del pannello inline, escluso quando expanded
+è true; il contenuto secondario di ArrangementView non era visibile sul telefono.
+L’adattamento usa expandedLyrics, la sheet già presente, nel layout esteso;
+mantiene toggleLyrics nel layout compatto. Nessun cambiamento alla geometria.
+
+Build 11 compilata e installata nel solo simulatore. Verificata visivamente la
+sheet Fonti dopo la pressione in orizzontale, con titolo, Chiudi, testo iniziale
+e Cerca significato. Nessuna richiesta al servizio di interpretazione, nessun
+audio o account reale. Restano separati il test MusicKit sul telefono, i 14 brani
+della libreria, narrazione, AirPlay, duplicati della coda e display fisico Duo.

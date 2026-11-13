@@ -1,4 +1,7 @@
-NoteNarrate Music — 0.1.0 (10)
+NoteNarrate Music — 0.1.0 (11)
+
+Corretto Fonti e significato in orizzontale: il pulsante ora apre il pannello dedicato. In verticale mantiene la visualizzazione inline del player originale.
+Completata la prova visiva nel simulatore con dati sintetici: pannello Fonti, scorrimento dei comandi inferiori in orizzontale, mini player, riapertura, gesto dal bordo, play/pausa e tempi. La prova non verifica l’audio reale o l’account Apple Music.
 
 Player recuperato dal codice originale di NoteNarrate YouTube Music: mini player, apertura a schermo intero, gesto dal bordo per tornare, copertina e sfondo, barra temporale, controlli e barre verticali. Comandi collegati al player nativo Apple Music, con volume di sistema e AirPlay.
 Opzioni native per Preferiti Apple, libreria, condivisione e coda; identità delle occorrenze conservate. Fonti e significato mantengono l’interpretazione e il consenso già presenti nella variante Apple Music.

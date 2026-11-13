@@ -300,7 +300,7 @@ struct AdaptedYTPlayerScreen: View {
                 if !verticalBar {
                   HStack {
                     playerAction("Fonti e significato", icon: "quote.bubble", selected: showLyrics) {
-                      toggleLyrics()
+                      if expanded { expandedLyrics = true } else { toggleLyrics() }
                     }.accessibilityIdentifier("toggle-lyrics")
                     Spacer()
                     #if os(macOS)
