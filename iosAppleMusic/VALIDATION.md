@@ -705,5 +705,20 @@ Screenshot: /tmp/NoteNarrateMusic-Seal-player-final.png,
 Nessun test di riproduzione reale con account è simulato come prova risolutiva:
 il codice 6 e il ripristino audio restano da confermare sull'iPhone dell'utente.
 
-Preparata build 0.1.0 (14) per app, Watch ed estensione. Elaborazione Apple,
-assegnazione al gruppo e disponibilità TestFlight da verificare dopo l'upload.
+Consegnata build 0.1.0 (14) per app, Watch ed estensione. Commit sorgenti e
+versione cc342b39dfaf64a0a05a7c8045dab409dc95d8fe, sincronizzato nel fork personale
+stivy73/SimpMusic, ramo codex/apple-music, prima dell'upload. Firma dell'IPA
+verificata; tutti i target 0.1.0 (14), get-task-allow false; solo App Group
+Apple Music dedicato per app ed estensione. Fixture e URL locale di prova
+esclusi dall'eseguibile Release.
+
+IPA: iosAppleMusic/deliveries/0.1.0-14/NoteNarrateMusic.ipa.
+SHA256: b4ec863b3bbb0f3e716f167f87072258a10b0d358b20a3d35ac407cb3294d9ab.
+Upload altool riuscito; delivery e build ID aab0e96b-6657-4c05-b3a3-fb138f2f9af4.
+Riletti su Apple VALID / IN_BETA_TESTING, gruppo Stivy73 assegnato, interno e
+manuale, un tester e note italiane esatte. Conservata la richiesta specifica
+del titolare per questa variante: solo Stivy73. Nessuna modifica a ruoli,
+utenti, distribuzione automatica o app YouTube. INSTALLED del tester non prova
+l'installazione della build 14 o il funzionamento fisico di audio e copertine.
+Ricevute: verification/package-0.1.0-14.json e
+verification/testflight-0.1.0-14.json. Nessun invio pubblico App Store.

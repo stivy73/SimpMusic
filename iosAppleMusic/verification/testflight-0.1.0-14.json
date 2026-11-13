@@ -1,0 +1,27 @@
+{
+  "app": "6833455204",
+  "bundle": "com.stivy.notenarrate.applemusic",
+  "version": "0.1.0",
+  "build": "14",
+  "buildID": "aab0e96b-6657-4c05-b3a3-fb138f2f9af4",
+  "processingState": "VALID",
+  "internalBuildState": "IN_BETA_TESTING",
+  "groups": [
+    {
+      "id": "89aa3cf7-5e74-4914-b662-f76820933b2a",
+      "name": "Stivy73",
+      "internal": true
+    }
+  ],
+  "automaticDistribution": false,
+  "testerCount": 1,
+  "testerState": "INSTALLED",
+  "groupMembershipVerified": true,
+  "italianNotesVerified": true,
+  "sourceCommit": "cc342b39dfaf64a0a05a7c8045dab409dc95d8fe",
+  "ipaSHA256": "b4ec863b3bbb0f3e716f167f87072258a10b0d358b20a3d35ac407cb3294d9ab",
+  "tests": 118,
+  "physicalAudioVerification": "pending",
+  "physicalArtworkVerification": "pending",
+  "uiVerification": "live exact-ID Apple artwork recovery for Seal, high-resolution player, three retained queue covers and no bubble control; see VALIDATION.md"
+}

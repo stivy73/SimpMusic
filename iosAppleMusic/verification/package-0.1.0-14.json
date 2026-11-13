@@ -1,0 +1,32 @@
+{
+  "ipa": "/Users/stivy/.codex/worktrees/notenarrate-apple-music/SimpMusic/iosAppleMusic/deliveries/0.1.0-14/NoteNarrateMusic.ipa",
+  "sha256": "b4ec863b3bbb0f3e716f167f87072258a10b0d358b20a3d35ac407cb3294d9ab",
+  "targets": [
+    {
+      "bundle": "com.stivy.notenarrate.applemusic",
+      "version": "0.1.0",
+      "build": "14",
+      "groups": [
+        "group.com.stivy.notenarrate.applemusic"
+      ],
+      "getTaskAllow": false
+    },
+    {
+      "bundle": "com.stivy.notenarrate.applemusic.share",
+      "version": "0.1.0",
+      "build": "14",
+      "groups": [
+        "group.com.stivy.notenarrate.applemusic"
+      ],
+      "getTaskAllow": false
+    },
+    {
+      "bundle": "com.stivy.notenarrate.applemusic.watchapp",
+      "version": "0.1.0",
+      "build": "14",
+      "groups": [],
+      "getTaskAllow": false
+    }
+  ],
+  "sourceCommit": "cc342b39dfaf64a0a05a7c8045dab409dc95d8fe"
+}
