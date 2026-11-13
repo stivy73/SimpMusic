@@ -237,3 +237,14 @@ La libreria fisica deve confermare la presenza degli ID catalogo e la riproduzio
 Questa modifica risolve il percorso di lettura mancante, non dimostra che Apple
 restituisca tutti i brani dell’account o che l’album segnalato sia stato trovato.
 Riferimento: developer.apple.com/documentation/mediaplayer/mpmediaitem/playbackstoreid
+
+Build 6 consegnata su TestFlight: VALID / IN_BETA_TESTING,
+ID ad026131-de80-4739-a15b-895679edd06d, app separata 6833455204.
+Gruppo Stivy73 soltanto, manuale, un tester e appartenenza verificati.
+Note italiane caricate. Stato INSTALLED relativo all'app, non prova build 6.
+Archivio Release finale ed esportazione firmata riusciti; iPhone/Watch entrambi
+0.1.0 (6), bundle distinti dalla variante YouTube. Sorgenti 6546c71b sincronizzati.
+IPA: iosAppleMusic/deliveries/0.1.0-6/NoteNarrateMusic.ipa.
+SHA256: 44c4f06c641f6917637c98fbf6406e68b18423fed62b0fd79245ea812a2cedb5.
+Da verificare su iPhone: conteggi Identificativi brani iOS / Recupero brani iOS,
+comparsa e riproduzione dei brani; ricerca Heaven on Earth nella scheda Libreria.
