@@ -1,14 +1,14 @@
-NoteNarrate Music — 0.1.0 (5)
+NoteNarrate Music — 0.1.0 (6)
 
-Build diagnostica per confrontare gli album visibili in Musica con quelli accessibili a NoteNarrate. Il report della build 4 conferma 0 brani e 1 album restituiti dal servizio cloud; la causa della differenza resta da determinare sul dispositivo.
+Correzione per il caso della build 5: la libreria multimediale iOS rileva 14 brani ma MusicKit locale e cloud ne restituiscono zero.
 
-Il refresh cloud non riusa risposte in cache. La diagnostica confronta MusicKit locale, servizio cloud e libreria multimediale iOS (MPMediaQuery), riportando soltanto conteggi e stato di autorizzazione. Nessun titolo, URL multimediale o account nel nuovo report. Sono presenti anche i conteggi dell’elenco pubblicato.
+Quando l’elenco MusicKit è vuoto, NoteNarrate recupera i brani usando gli ID esatti del catalogo forniti dalla libreria iOS. Non cerca sostituti per titolo e non aggiunge elementi all’account. La riproduzione resta gestita da MusicKit, con gli stessi controlli, coda e narrazione.
 
-La schermata Libreria mostra il numero di album e playlist e distingue esplicitamente l’elenco vuoto.
+Il recupero mantiene l’ordine della libreria iOS, elimina ID ripetuti e rifiuta risultati non richiesti. ID mancanti e brani non restituiti dal catalogo vengono conteggiati esplicitamente. Errori di una pagina successiva non pubblicano una raccolta parziale.
 
-Da provare: aprire Libreria, aggiornare e condividere la diagnostica Apple Music da Impostazioni. Indicare se Sincronizza libreria è attivo nelle Impostazioni di Musica e un album mancante.
+Diagnostica: nuove righe Identificativi brani iOS e Recupero brani iOS, più Elenco pubblicato. Nessun ID, titolo, URL o token viene registrato nelle nuove righe.
 
-Ricerca album nella schermata Libreria: confronta MusicLibrarySearchRequest e il servizio cloud personale (fino a 25 risultati per sorgente), senza usare il catalogo come se fosse libreria. La diagnostica aggiunge il confronto per titolo con MPMediaQuery. Prova cercando Heaven on Earth.
+Album e playlist rimangono letti dall’account. Il report ricevuto rileva un album sia su iOS sia nel cloud. Per Heaven on Earth usare la ricerca nella scheda Libreria e condividere anche le righe Ricerca album.
 
-33 test superati. Non è ancora confermata la soluzione sul dispositivo.
+40 test superati. Resta da confermare il risultato sul dispositivo reale.
 Solo Stivy73. App separata da NoteNarrate YouTube Music.

@@ -59,7 +59,7 @@ final class MusicLibraryModel: ObservableObject {
     guard authorization == .authorized, !loading else { return }
     loading = true; defer { loading = false }
     var failures: [String] = []
-    await compareDeviceLibrary()
+    let deviceStoreIDs = await compareDeviceLibrary()
     // Show native data quickly, then prefer the complete account cloud library.
     var localSongs: [MusicKit.Song]?
     var localAlbums: [Album]?
@@ -104,6 +104,24 @@ final class MusicLibraryModel: ObservableObject {
       playlists = MusicCloudLibrary.combining(result.items,local:localPlaylists ?? [])
       record("Libreria cloud playlist: completata; elementi=\(result.items.count); pagine=\(result.pages)")
     } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Playlist cloud"); failures.append("Playlist cloud: " + accessMessage(error)) }
+    if songs.isEmpty, !deviceStoreIDs.isEmpty {
+      do {
+        let result = try await MediaCatalogBridge.resolve(deviceStoreIDs,id:{ (song:MusicKit.Song) in song.id.rawValue }) { [weak self] ids in
+          guard let self else { throw CancellationError() }
+          var request = MusicCatalogResourceRequest<MusicKit.Song>(matching:\.id,memberOf:ids.map { MusicItemID($0) })
+          request.limit = 100
+          let catalogRequest = request
+          return try await self.withTokenRecovery { try await self.collect(catalogRequest.response().items) }
+        }
+        try Task.checkCancellation()
+        songs = result.items
+        record("Recupero brani iOS: ID validi=\(result.requested); risolti=\(result.items.count); non disponibili=\(result.unresolved)")
+      } catch {
+        if Task.isCancelled { return }
+        recordFailure(error,stage:"Recupero brani iOS")
+        failures.append("Non è stato possibile recuperare i brani della libreria iOS. Riprova l’aggiornamento.")
+      }
+    }
     do {
       canPlayCatalog = try await withTokenRecovery { try await MusicSubscription.current.canPlayCatalogContent }
       subscriptionVerified = true; record("Abbonamento: verifica riuscita; catalogo=\(canPlayCatalog)")
@@ -116,21 +134,24 @@ final class MusicLibraryModel: ObservableObject {
   }
   // Independent, read-only view of the device media database. Counts only:
   // no album titles, account identifiers or media URLs enter shared diagnostics.
-  private func compareDeviceLibrary() async {
+  private func compareDeviceLibrary() async -> [String] {
     let report = await Task.detached(priority:.userInitiated) {
       let status = MPMediaLibrary.authorizationStatus()
       guard status == .authorized else {
-        return "Libreria multimediale iOS: autorizzazione=\(status.rawValue); lettura non eseguita"
+        return ("Libreria multimediale iOS: autorizzazione=\(status.rawValue); lettura non eseguita",[String]())
       }
       let tracks = MPMediaQuery.songs().items ?? []
       let albums = MPMediaQuery.albums().collections ?? []
       let playlists = MPMediaQuery.playlists().collections ?? []
       let cloud = tracks.lazy.filter { $0.isCloudItem }.count
-      return "Libreria multimediale iOS: brani=\(tracks.count); album=\(albums.count); playlist=\(playlists.count); brani cloud=\(cloud)"
+      return ("Libreria multimediale iOS: brani=\(tracks.count); album=\(albums.count); playlist=\(playlists.count); brani cloud=\(cloud)",tracks.map(\.playbackStoreID))
     }.value
-    guard !Task.isCancelled else { return }
-    mediaLibrarySummary = report
-    record(report)
+    guard !Task.isCancelled else { return [] }
+    mediaLibrarySummary = report.0
+    record(report.0)
+    let ids = MediaCatalogBridge.catalogIDs(report.1)
+    record("Identificativi brani iOS: con ID catalogo=\(ids.count); senza ID utilizzabile=\(report.1.filter { MediaCatalogBridge.catalogIDs([$0]).isEmpty }.count)")
+    return ids
   }
   nonisolated private static func isDeveloperTokenFailure(_ error: any Error) -> Bool {
     if let value = error as? MusicTokenRequestError, value == .developerTokenRequestFailed { return true }

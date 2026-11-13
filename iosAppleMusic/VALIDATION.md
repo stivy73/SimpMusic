@@ -213,3 +213,27 @@ Sorgenti 495a505f sincronizzati sul fork personale. Archivio Release firmato
 riuscito, iPhone/Watch entrambi versione 0.1.0 build 5 con identità separate YT.
 Resta da provare Heaven on Earth nella ricerca Libreria e condividere il report;
 la build è diagnostica, non prova la soluzione del problema sul dispositivo.
+
+## Recupero brani iOS — build 0.1.0 (6)
+
+Report reale build 5: MPMediaQuery 14 brani cloud, 1 album, 6 playlist;
+MusicKit locale 0 brani / 0 album / 6 playlist; cloud 0 brani / 1 album /
+6 playlist. Pubblicati 0 brani, 1 album, 6 playlist. Nessun tentativo di
+ricerca album nel report: Heaven on Earth resta da verificare separatamente.
+
+Il lettore MPMediaQuery restituisce ora anche gli ID playbackStoreID (solo in
+memoria) osservati sul dispositivo. Solo se l’elenco brani MusicKit è vuoto,
+risolve gli ID catalogo validi con MusicCatalogResourceRequest<Song> (100 per
+batch). Nessuna ricerca per titolo, nessuna mutazione MusicLibrary. Risultati
+non richiesti rifiutati, ID duplicati eliminati e ordine iOS ricostruito anche
+se Apple risponde in ordine diverso. Pubblicazione solo a batch completati.
+Risposte parziali valide riportano conteggi non disponibili; errori di batch
+non pubblicano risultati parziali. Nessun tentativo per ID zero/vuoti/privati.
+Controlli, Siri, Watch, CarPlay e narrazione conservano il player MusicKit.
+
+40 test superati; nuovi casi 14 brani, batch successivo fallito, ID estranei,
+risposte duplicate, mancanti, ID non utilizzabili e annullamento. Debug riuscita.
+La libreria fisica deve confermare la presenza degli ID catalogo e la riproduzione.
+Questa modifica risolve il percorso di lettura mancante, non dimostra che Apple
+restituisca tutti i brani dell’account o che l’album segnalato sia stato trovato.
+Riferimento: developer.apple.com/documentation/mediaplayer/mpmediaitem/playbackstoreid
