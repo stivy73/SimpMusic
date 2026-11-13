@@ -633,5 +633,22 @@ nessun account simulato come prova di riproduzione reale. Screenshot locali:
 /tmp/NoteNarrateMusic-artwork-queue-fixed.png.
 Resta da confermare sul telefono con la libreria dell'utente.
 
-Preparata build 0.1.0 (13) per app, Watch ed estensione; consegna e assegnazione
-TestFlight da verificare separatamente dopo l'upload.
+Consegnata build 0.1.0 (13) per app, Watch ed estensione. Sorgenti/versione:
+43a1c7513b91060c177923321d82e5d8ca09a8c0, verificati sul remoto personale
+stivy73/SimpMusic, ramo codex/apple-music. Archivio, export e verifica firma
+riusciti; get-task-allow false in tutti i target, App Group Apple Music
+esclusivo per app ed estensione. La fixture non è presente nell'eseguibile Release.
+
+IPA: iosAppleMusic/deliveries/0.1.0-13/NoteNarrateMusic.ipa.
+SHA256: ce0d94ce9860d9a0af56d10a692fee39a46a1db706f1f59ad5339af94d1151a5.
+Il launcher altool ha inizialmente fallito nel recuperare Defaults.properties;
+verificata l'assenza della build sul server, l'upload diretto tramite altool
+Apple è riuscito. Delivery e build ID: 8b4b03ef-0490-4efe-ae31-6a4736c4acfb.
+
+Riletti da App Store Connect VALID / IN_BETA_TESTING e gruppo Stivy73 assegnato,
+interno e manuale, con l'unico tester stivy73@gmail.com: mantenuta la scelta
+specifica del titolare per questa variante. Note italiane scritte e rilette.
+Lo stato INSTALLED è a livello tester/app e non certifica l'installazione della
+build 13 né la conferma fisica delle copertine. Nessun invio pubblico App Store.
+Ricevute: verification/package-0.1.0-13.json e
+verification/testflight-0.1.0-13.json.

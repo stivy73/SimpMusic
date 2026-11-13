@@ -1,0 +1,27 @@
+{
+  "app": "6833455204",
+  "bundle": "com.stivy.notenarrate.applemusic",
+  "version": "0.1.0",
+  "build": "13",
+  "buildID": "8b4b03ef-0490-4efe-ae31-6a4736c4acfb",
+  "processingState": "VALID",
+  "internalBuildState": "IN_BETA_TESTING",
+  "groups": [
+    {
+      "id": "89aa3cf7-5e74-4914-b662-f76820933b2a",
+      "name": "Stivy73",
+      "internal": true
+    }
+  ],
+  "automaticDistribution": false,
+  "testerCount": 1,
+  "testerState": "INSTALLED",
+  "groupMembershipVerified": true,
+  "italianNotesVerified": true,
+  "sourceCommit": "43a1c7513b91060c177923321d82e5d8ca09a8c0",
+  "ipaSHA256": "ce0d94ce9860d9a0af56d10a692fee39a46a1db706f1f59ad5339af94d1151a5",
+  "tests": 103,
+  "physicalAudioVerification": "pending",
+  "physicalArtworkVerification": "pending",
+  "uiVerification": "player cover and two queue covers rendered in MusicKit regression fixture; see VALIDATION.md"
+}

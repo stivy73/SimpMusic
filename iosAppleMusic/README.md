@@ -57,7 +57,7 @@ fornitore deve essere incorporata nell'app.
 ## Prima della distribuzione
 
 Non è ancora una release pronta per App Store. MusicKit è attivo sul nuovo App ID
-e la beta firmata 0.1.0 (12) è stata distribuita al solo Stivy73. Mancano verifica live della ricerca Google,
+e la beta firmata 0.1.0 (13) è stata distribuita al solo Stivy73. Mancano verifica live della ricerca Google,
 privacy/support URL e metadati pubblici. Occorrono prove reali con account Apple
 Music, gestione abbonamenti/accesso negato, AirPlay, Siri, Watch e CarPlay.
 Sono disponibili Home con caroselli e Altro, Esplora, Artisti e Preferiti,
