@@ -8,7 +8,7 @@ struct NoteNarrateMusicApp: App {
   @StateObject private var music = MusicAppState.shared.music
   @StateObject private var narration = MusicAppState.shared.narration
   var body: some Scene {
-    WindowGroup { MusicRoot().environmentObject(music).environmentObject(narration).environmentObject(MusicAppState.shared.playerPresentation).tint(.cyan).preferredColorScheme(.dark) }
+    WindowGroup { MusicRoot().modifier(ReceiveMusicShares()).environmentObject(music).environmentObject(narration).environmentObject(MusicAppState.shared.playlists).environmentObject(MusicAppState.shared.playerPresentation).tint(.cyan).preferredColorScheme(.dark) }
   }
 }
 struct MusicRoot: View {

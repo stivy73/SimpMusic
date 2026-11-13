@@ -63,5 +63,16 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.stivy.notenarrate.applemusic</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>notenarrate-music</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

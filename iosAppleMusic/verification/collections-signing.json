@@ -1,0 +1,44 @@
+{
+  "archive": "/tmp/NoteNarrateMusic-CollectionsReview.xcarchive",
+  "targets": [
+    {
+      "bundle": "com.stivy.notenarrate.applemusic",
+      "version": "0.1.0",
+      "build": "11",
+      "groups": [
+        "group.com.stivy.notenarrate.applemusic"
+      ],
+      "profileGroups": [
+        "group.com.stivy.notenarrate.applemusic"
+      ],
+      "profileName": "iOS Team Provisioning Profile: com.stivy.notenarrate.applemusic",
+      "profileUUID": "4bcaadfc-e049-40f9-b3a1-780c170b66f5",
+      "expires": "2027-11-13T14:42:36"
+    },
+    {
+      "bundle": "com.stivy.notenarrate.applemusic.share",
+      "version": "0.1.0",
+      "build": "11",
+      "groups": [
+        "group.com.stivy.notenarrate.applemusic"
+      ],
+      "profileGroups": [
+        "group.com.stivy.notenarrate.applemusic"
+      ],
+      "profileName": "iOS Team Provisioning Profile: com.stivy.notenarrate.applemusic.share",
+      "profileUUID": "7952eafc-040e-4a55-9f60-50cd1b45444f",
+      "expires": "2027-11-13T14:42:34"
+    },
+    {
+      "bundle": "com.stivy.notenarrate.applemusic.watchapp",
+      "version": "0.1.0",
+      "build": "11",
+      "groups": [],
+      "profileGroups": [],
+      "profileName": "iOS Team Provisioning Profile: *",
+      "profileUUID": "d0bebfc4-3c0d-4752-97bb-7fcc935ae512",
+      "expires": "2027-10-26T14:14:25"
+    }
+  ],
+  "testflightUploaded": false
+}

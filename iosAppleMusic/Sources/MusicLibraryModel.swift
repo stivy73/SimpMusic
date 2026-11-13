@@ -44,6 +44,9 @@ final class MusicLibraryModel: ObservableObject {
   private let recoveredAlbumKey = "musicRecoveredLibraryAlbumIDs"
   @Published var query = ""
   @Published var nowPlaying: MusicKit.Song?
+  @Published var activeCollectionID:String?
+  @Published var activeCollectionRowID:String?
+  var activeCollectionQueueEntryID:MusicKit.MusicPlayer.Queue.Entry.ID?
   @Published var queueSongs: [MusicKit.Song] = []
   @Published var showPlayer = false
   @Published var playbackFailure:String?
@@ -76,7 +79,7 @@ final class MusicLibraryModel: ObservableObject {
       return try? JSONDecoder().decode(type,from:bytes)
     }
     songs=[nowPlaying].compactMap{$0}
-    albums=[fixture(Album.self,id:"1001",kind:"albums",attributes:["name":"Album Beta","artistName":"Artista di prova","genreNames":[],"trackCount":2]),fixture(Album.self,id:"1002",kind:"albums",attributes:["name":"Album Alpha","artistName":"Altro artista","genreNames":[],"trackCount":2])].compactMap{$0}
+    albums=[fixture(Album.self,id:"100001",kind:"albums",attributes:["url":"https://music.apple.com/it/album/100001","name":"Album Beta","artistName":"Artista di prova","genreNames":[],"trackCount":2]),fixture(Album.self,id:"100002",kind:"albums",attributes:["url":"https://music.apple.com/it/album/100002","name":"Album Alpha","artistName":"Altro artista","genreNames":[],"trackCount":2])].compactMap{$0}
     playlists=[fixture(Playlist.self,id:"p.fixture",kind:"library-playlists",attributes:["name":"Playlist di prova","canEdit":true])].compactMap{$0}
     artists=[fixture(Artist.self,id:"1003",kind:"artists",attributes:["name":"Artista di prova"]),fixture(Artist.self,id:"1004",kind:"artists",attributes:["name":"Altro artista"])].compactMap{$0}
     #endif
@@ -497,22 +500,27 @@ final class MusicLibraryModel: ObservableObject {
   }
   func play(_ song: MusicKit.Song, in list: [MusicKit.Song]) async {
     guard !preparingPlayback else {record("Brano: preparazione già in corso");return}
+    activeCollectionID=nil;activeCollectionRowID=nil;activeCollectionQueueEntryID=nil
     let values = list.isEmpty ? [song] : list
     nowPlaying=song;duration=song.duration ?? 0;position=0
     record("Selezione brano: parametri=\(song.playParameters != nil); elementi=\(values.count)")
     await startPlayback(queue:ApplicationMusicPlayer.Queue(for:values,startingAt:song),origin:"Brano")
   }
   func play(album: Album) async {
+    guard !preparingPlayback else{return};activeCollectionID=AppleCollection.album(album).id
+    activeCollectionRowID=nil;activeCollectionQueueEntryID=nil
     record("Selezione album: parametri=\(album.playParameters != nil)")
     // Let MusicKit expand the album, retaining its playback context and lazy loading.
     await startPlayback(queue:ApplicationMusicPlayer.Queue(for:[album]),origin:"Album")
   }
   func play(playlist: Playlist) async {
+    guard !preparingPlayback else{return};activeCollectionID=AppleCollection.playlist(playlist).id
+    activeCollectionRowID=nil;activeCollectionQueueEntryID=nil
     record("Selezione playlist: parametri=\(playlist.playParameters != nil)")
     // Do not flatten library playlist tracks into detached Song values.
     await startPlayback(queue:ApplicationMusicPlayer.Queue(for:[playlist]),origin:"Playlist")
   }
-  private func startPlayback(queue: ApplicationMusicPlayer.Queue, origin: String) async {
+  func startPlayback(queue: ApplicationMusicPlayer.Queue, origin: String,shuffle:Bool?=nil) async {
     guard !preparingPlayback else { record("\(origin): preparazione già in corso"); return }
     preparingPlayback = true; defer { preparingPlayback = false }
     let intent=UUID();playbackIntent=intent;showPlayer=true;playbackFailure=nil
@@ -520,8 +528,10 @@ final class MusicLibraryModel: ObservableObject {
     do {
       error = nil
       try activateAudio()
+      beforePlayback?()
       player.stop()
       player.queue = queue
+      if let shuffle {player.state.shuffleMode=shuffle ? .songs:.off}
       stage = "Preparazione audio \(origin)"
       record("\(stage): avviata; coda nativa")
       try await player.prepareToPlay()
@@ -560,6 +570,10 @@ final class MusicLibraryModel: ObservableObject {
       if case .song(let song) = entry.item { return song }; return nil
     }
     playing = player.state.playbackStatus == .playing
+    if let entry=player.queue.currentEntry {
+      if let previous=activeCollectionQueueEntryID,previous != entry.id {activeCollectionRowID=nil}
+      activeCollectionQueueEntryID=entry.id
+    }
     if let entry = player.queue.currentEntry, case .song(let song) = entry.item {
       nowPlaying = song; duration = song.duration ?? 0
     }

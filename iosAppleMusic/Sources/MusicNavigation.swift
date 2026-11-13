@@ -84,7 +84,10 @@ struct MusicBrowseCell:View {
 struct SongNavigationActions:View {
   @EnvironmentObject var music:MusicLibraryModel
   let song:Song
+  @State private var addPlaylist=false
   var body:some View {
+    Button("Aggiungi a playlist",systemImage:"text.badge.plus"){addPlaylist=true}
+      .sheet(isPresented:$addPlaylist){AppleAddToPlaylistSheet(songs:[song])}
     NavigationLink {SongRelationshipsScreen(song:song,kind:.albums)} label:{Label("Vai all’album",systemImage:"square.stack")}
     NavigationLink {SongRelationshipsScreen(song:song,kind:.artists)} label:{Label("Vai all’artista",systemImage:"person")}
     Button("Riproduci dopo",systemImage:"text.line.first.and.arrowtriangle.forward"){Task{await music.enqueue(song,next:true)}}
@@ -130,6 +133,7 @@ struct LibraryBrowserScreen:View {
   @StateObject private var search=MusicSearchStore(personal:true)
   @AppStorage("library.selectedCategory") private var category=BrowseKind.albums
   @State private var searchAll=true
+  @State private var createPlaylist=false
   var body:some View {
     VStack(spacing:12) {
       ScrollView(.horizontal,showsIndicators:false) {HStack {
@@ -154,7 +158,8 @@ struct LibraryBrowserScreen:View {
         } else {PersonalResults(search:search,kind:category)}
       }
     }.navigationTitle("Libreria")
-      .toolbar {Button {Task{await music.refresh()}} label:{Label("Aggiorna libreria",systemImage:"arrow.clockwise")}.disabled(music.loading)}
+      .sheet(isPresented:$createPlaylist){AppleCreatePlaylistSheet()}
+      .toolbar {if category == .playlists {Button("Nuova playlist",systemImage:"plus"){createPlaylist=true}};NavigationLink {ReceivedMusicScreen()} label:{Label("Ricevuti",systemImage:"tray.and.arrow.down")};Button {Task{await music.refresh()}} label:{Label("Aggiorna libreria",systemImage:"arrow.clockwise")}.disabled(music.loading)}
       .searchable(text:$search.query,prompt:"Cerca nella tua libreria")
       .onChange(of:search.query){old,value in if old.isEmpty && !value.isEmpty {searchAll=true};if value.trimmingCharacters(in:.whitespacesAndNewlines) != search.submitted {search.invalidate()}}
       .task(id:search.query) {
@@ -185,7 +190,9 @@ struct PersonalResults:View {
   }
 }
 struct CatalogSearchScreen:View {
-  @StateObject private var search=MusicSearchStore(personal:false)
+  @StateObject private var search:MusicSearchStore
+  private let initialQuery:String
+  init(initialQuery:String="") {self.initialQuery=initialQuery;_search=StateObject(wrappedValue:MusicSearchStore(personal:false))}
   var body:some View {
     VStack {
       ScrollView(.horizontal,showsIndicators:false){HStack {
@@ -212,6 +219,7 @@ struct CatalogSearchScreen:View {
         }.padding(.vertical)}
       }
     }.navigationTitle("Cerca")
+      .task {if !initialQuery.isEmpty && search.submitted.isEmpty {search.submit(initialQuery)}}
       .searchable(text:$search.query,prompt:"Brani, album, artisti e playlist")
       .onSubmit(of:.search){search.submit()}
       .onChange(of:search.query){_,value in if value.trimmingCharacters(in:.whitespacesAndNewlines) != search.submitted {search.invalidate()}}

@@ -13,57 +13,11 @@ struct ArtistRows: View {
     ForEach(artists) { artist in NavigationLink { ArtistScreen(artist:artist) } label: { CoverRow(artwork:artist.artwork,title:artist.name,subtitle:"Artista") } }
   }
 }
-struct CollectionScreen: View {
-  @EnvironmentObject var music:MusicLibraryModel
-  let album:Album?
-  let playlist:Playlist?
-  @State private var tracks:[Track]=[]
-  @State private var entries:[Playlist.Entry]=[]
-  @State private var busy=true
-  @State private var failure:String?
-  init(album:Album) { self.album=album;playlist=nil }
-  init(playlist:Playlist) { self.playlist=playlist;album=nil }
-  private var title:String { album?.title ?? playlist?.name ?? "Raccolta" }
-  var body:some View {
-    List {
-      Section {
-        CoverRow(artwork:album?.artwork ?? playlist?.artwork,title:title,subtitle:album?.artistName ?? playlist?.curatorName ?? "Playlist")
-        Button("Riproduci tutto",systemImage:"play.fill") { Task { if let album {await music.play(album:album)} else if let playlist {await music.play(playlist:playlist)} } }
-        if let album { Button("Salva album nella libreria",systemImage:"plus") { Task { await music.saveAlbum(album) } } }
-        if let id=album?.id ?? playlist?.id {FavoriteControl(type:album == nil ? "playlists":"albums",id:id.rawValue)}
-        if let url=album?.url ?? playlist?.url { ShareLink(item:url);Link("Apri in Musica",destination:url) }
-      }
-      Section("Tracce · \(playlist == nil ? tracks.count:entries.count)") {
-        if busy { ProgressView("Caricamento tracce…") }
-        if let failure { Text(failure).foregroundStyle(.orange);Button("Riprova") { Task {await load()} } }
-        if let playlist {
-          ForEach(Array(entries.enumerated()),id:\.offset) { index,entry in
-            Button {Task{await music.playPlaylistEntry(playlist,entry:entry)}} label:{
-              HStack {Text("\(index+1)").monospacedDigit().foregroundStyle(.secondary);CoverRow(artwork:entry.artwork,title:entry.title,subtitle:entry.playParameters == nil ? "Non disponibile · " + entry.artistName:entry.artistName)}
-            }.disabled(entry.playParameters == nil)
-              .contextMenu {if case .song(let song)=entry.item {SongNavigationActions(song:song)}}
-          }
-        } else {
-          ForEach(Array(tracks.enumerated()),id:\.offset) { index,track in
-            Button {Task{await music.playCollectionTrack(album:album,track:track)}} label:{
-              HStack {Text("\(index+1)").monospacedDigit().foregroundStyle(.secondary);CoverRow(artwork:track.artwork,title:track.title,subtitle:track.artistName)}
-            }.disabled(track.playParameters == nil)
-              .contextMenu {if case .song(let song)=track {SongNavigationActions(song:song)}}
-          }
-        }
-        if !busy && failure == nil && tracks.isEmpty && entries.isEmpty { Text("Nessuna traccia disponibile per questa raccolta.") }
-      }
-    }.navigationTitle(title).task {await load()}.refreshable {await load()}
-  }
-  private func load() async {
-    busy=true;failure=nil;defer {busy=false}
-    do {
-      if let playlist {
-        entries=try await music.playlistEntries(playlist)
-      } else { tracks=try await music.collectionTracks(album:album,playlist:nil) }
-    }
-    catch {if !Task.isCancelled {failure=error.localizedDescription} }
-  }
+struct CollectionScreen:View {
+  let collection:AppleCollection
+  init(album:Album){collection = .album(album)}
+  init(playlist:Playlist){collection = .playlist(playlist)}
+  var body:some View {AppleCollectionScreen(collection:collection)}
 }
 struct ArtistScreen:View {
   @EnvironmentObject var music:MusicLibraryModel

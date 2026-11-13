@@ -507,3 +507,45 @@ attiva nelle compilazioni Release.
 Questo lotto conclude le cinque priorità concordate, non l'intero confronto:
 restano per i lotti successivi la gestione/modifica delle playlist, Home più
 ricca, dettagli delle raccolte e ulteriori azioni sui preferiti degli artisti.
+
+## Album, azioni raccolte, playlist e ricezione — sviluppo successivo a build 11
+
+Port riproducibile dei sorgenti YouTube Music fissati al commit 5a277798:
+AlbumScreen, RemotePlaylistView e flusso di ricezione/conversione dei link.
+Il dettaglio conserva copertina/gradiente, layout compatto/ampio, descrizione,
+anno, durata, righe numerate e opzioni per traccia. Album e playlist mantengono
+il contesto MusicKit nativo, anche selezionando una specifica occorrenza.
+Azioni disponibili: Play, shuffle, riproduci dopo, accoda, aggiungi a playlist,
+preferito confermato dal servizio, salva album, condividi e apri in Musica.
+
+Creazione e aggiunta di brani usano MusicLibrary. Rinomina, riordino e rimozione
+della singola occorrenza sono consentiti sulle playlist create da questa app,
+come richiesto dall'API Apple. Snapshot riletti prima delle modifiche; duplicati
+conservati, modifiche concorrenti rifiutate, riscritture incomplete bloccate.
+Nessun retry automatico delle scritture e inserimenti parziali dichiarati.
+Le altre modifiche, compresa l'eliminazione della playlist, aprono Musica.
+
+Nuova estensione NoteNarrate Music: riceve brani, album e playlist Apple Music
+e Spotify. App Group separato e inbox atomica, accessibile da Libreria > Ricevuti.
+Link Apple per ID, ricerca della playlist personale prima del catalogo; Spotify
+usa il resolver/matcher originale, mostrando corrispondenze mancanti, selezione
+manuale e copertura parziale. Nessun cambio al servizio di origine.
+
+88 test superati, zero errori: 16 casi importati per le condivisioni e 4 nuovi
+casi di policy playlist, oltre ai test esistenti. Verifiche dei due script di
+importazione fissata riuscite. Debug app/Watch/estensione e archivio Release
+iPhone riusciti. Firma dell'archivio valida; entitlement e profili app/estensione
+contengono solo group.com.stivy.notenarrate.applemusic. Registrazione e App Groups
+autorizzati dal titolare, profili rigenerati; ricevuta in
+verification/collections-signing.json.
+
+Nel simulatore iPhone 18 Pro / iOS 27.2 con dati sintetici: dettaglio album,
+opzioni raccolta, foglio Condividi, compositore della nuova estensione,
+riconoscimento Album Apple Music, salvataggio e successiva presenza in Ricevuti.
+Il passaggio estensione > gruppo > app è riuscito con build QA firmata ad hoc.
+Fixture esclusa dal Release. Non eseguiti ascolto reale, scritture MusicKit,
+ricezione di playlist private o confronto reale Spotify/Apple, display fisici.
+
+Versione/build rimasta 0.1.0 (11) per sviluppo. Archivio di verifica in
+/tmp/NoteNarrateMusic-CollectionsReview.xcarchive; nessun export, caricamento
+TestFlight o modifica a tester/gruppi in questo lotto. Dettagli in COLLECTION_PORT.md.

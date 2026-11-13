@@ -84,12 +84,15 @@ struct ApplePlayerOptions:View {
   @EnvironmentObject var model:ApplePlayerAdapter
   let song:PlayerSong
   let onClose:()->Void
+  @State private var addPlaylist=false
   var body:some View {
     NavigationStack {
       List {
         Text(song.title).font(.headline)
         FavoriteControl(type:"songs",id:song.id)
         if let native=model.music.nowPlaying {
+          Button("Aggiungi a playlist",systemImage:"text.badge.plus"){addPlaylist=true}
+            .sheet(isPresented:$addPlaylist){AppleAddToPlaylistSheet(songs:[native])}
           NavigationLink {SongRelationshipsScreen(song:native,kind:.albums)} label:{Label("Vai all’album",systemImage:"square.stack")}
           NavigationLink {SongRelationshipsScreen(song:native,kind:.artists)} label:{Label("Vai all’artista",systemImage:"person")}
 
