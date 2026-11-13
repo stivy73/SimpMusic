@@ -1,0 +1,17 @@
+{
+  "app": "6833455204",
+  "bundle": "com.stivy.notenarrate.applemusic",
+  "version": "0.1.0",
+  "build": "15",
+  "buildID": "b33eeafd-7c20-4943-8327-5847597fc66a",
+  "processingState": "VALID",
+  "internalBuildState": "READY_FOR_BETA_TESTING",
+  "groups": [],
+  "italianNotesVerified": true,
+  "groupAssignment": "PENDING_USER_CONFIRMATION",
+  "sourceCommit": "328ca8176e0249e36ce540b325ea92cf64cfc9f2",
+  "ipaSHA256": "b6cafc54afb35b75d12ae7d9d025275af700dddc5e0ec05caf9aabdd40ba140b",
+  "tests": 136,
+  "physicalLibraryVerification": "pending",
+  "assignmentReview": "Only Stivy73 exists for Apple Music. AGENTS requires Team interno and Tommaso/Girbreda. Explicit clarification requested before assigning."
+}

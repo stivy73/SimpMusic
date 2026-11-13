@@ -773,3 +773,23 @@ in TestFlight-0.1.0-15-it.txt. I 136 test della sincronizzazione sono riusciti
 e la configurazione Release è stata compilata senza fixture. Archivio firmato,
 export, upload, elaborazione Apple e assegnazione vengono verificati separatamente.
 Il test della libreria reale dell'utente resta necessario dopo l'installazione.
+
+Archivio ed export firmati riusciti per 0.1.0 (15). IPA verificata con
+codesign --verify --deep --strict e controlli di bundle, tre versioni/build,
+App Group dedicato, get-task-allow false e assenza delle fixture Debug.
+IPA: iosAppleMusic/deliveries/0.1.0-15/NoteNarrateMusic.ipa.
+SHA256: b6cafc54afb35b75d12ae7d9d025275af700dddc5e0ec05caf9aabdd40ba140b.
+Commit sorgente 328ca8176e0249e36ce540b325ea92cf64cfc9f2, verificato sul remoto
+personale stivy73/SimpMusic, branch codex/apple-music, prima dell'upload.
+
+Upload altool riuscito, delivery/build ID b33eeafd-7c20-4943-8327-5847597fc66a.
+Apple ha confermato VALID / READY_FOR_BETA_TESTING e le note italiane esatte.
+Nessun gruppo assegnato alla build 15. Nell'app Apple Music esiste soltanto
+Stivy73, interno e manuale, con il tester del titolare presente.
+La revisione automatica ha bloccato l'assegnazione al solo Stivy73 perché
+AGENTS.md richiede Team interno e verifica Tommaso/Girbreda. Chiesta conferma
+esplicita dell'eccezione per conservare la precedente scelta personale, oppure
+dell'estensione dei test. Assegnazione in attesa, nessun nuovo accesso o ruolo
+concesso e nessuna beta dichiarata installabile prima dell'assegnazione.
+Ricevute: verification/package-0.1.0-15.json e
+verification/testflight-0.1.0-15.json. Nessun invio pubblico App Store.
