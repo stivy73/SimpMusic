@@ -248,3 +248,29 @@ IPA: iosAppleMusic/deliveries/0.1.0-6/NoteNarrateMusic.ipa.
 SHA256: 44c4f06c641f6917637c98fbf6406e68b18423fed62b0fd79245ea812a2cedb5.
 Da verificare su iPhone: conteggi Identificativi brani iOS / Recupero brani iOS,
 comparsa e riproduzione dei brani; ricerca Heaven on Earth nella scheda Libreria.
+
+## Unificazione elenco e ricerca album — build 0.1.0 (7)
+
+L’utente conferma che Heaven on Earth compare nella ricerca personale. Il modello
+precedente pubblicava i risultati soltanto in libraryAlbumMatches, senza integrarli
+in albums. Corretto: stessa funzione per ricerca manuale e recupero automatico,
+merge per ID con l’elenco principale e conservazione dei tipi Album MusicKit.
+
+Persistono soltanto ID l.* restituiti dalla ricerca personale, in UserDefaults.
+Al successivo refresh gli ID sono verificati con GET /v1/me/library/albums?ids=...
+(100 per batch), senza mostrare metadata salvati e senza copiare album dal catalogo.
+ID non validi, non richiesti e risposte non autorizzate sono rifiutati. Risorse
+non restituite dall’account non diventano righe. Fallimento di batch non pubblica
+una raccolta parziale. Nessuna mutazione della libreria musicale dell’utente.
+
+MPMediaQuery fornisce anche i titoli album (solo memoria), deduplicati. I titoli
+assenti vengono cercati nella libreria personale, massimo 25 per aggiornamento;
+conteggio residuo mostrato per proseguire. Nessun titolo è incorporato nel codice
+dell’app o nei nuovi log. Ricerca cloud su tutte le pagine, vincolando host,
+endpoint, term e types=library-albums; la ricerca nativa legge i batch da 25.
+
+48 test passati; inclusi caso Heaven on Earth integrato nell’elenco e deduplica,
+ricerca multipagina e fallimento successivo, rifiuto next di host/term/tipo diversi,
+ripristino ID con account attuale, ID invalidi, risorse inattese ed errori HTTP.
+Debug riuscita. Resta necessaria la prova fisica: album nell’elenco dopo pulizia
+della ricerca, aggiornamento e riavvio, e riproduzione dello stesso Album.

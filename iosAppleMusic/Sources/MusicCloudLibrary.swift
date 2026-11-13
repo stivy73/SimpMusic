@@ -50,6 +50,64 @@ struct MusicCloudLibrary: Sendable {
     }
     return Result(items:items,pages:pages)
   }
+  func searchAlbums<Item: Decodable & Identifiable & Sendable>(
+    _ type: Item.Type, term: String
+  ) async throws -> Result<Item> where Item.ID: Hashable {
+    let initial = MusicCloudProbe.albumSearchRequest(term:term)
+    var url = initial.url!
+    var visited = Set<URL>(), seen = Set<Item.ID>()
+    var values: [Item] = []; var pages = 0
+    while true {
+      try Task.checkCancellation()
+      guard pages < 1000, visited.insert(url).inserted else { throw LoadError.repeatedPage }
+      var request = URLRequest(url:url,cachePolicy:.reloadIgnoringLocalCacheData)
+      request.timeoutInterval = 20; request.setValue("no-cache",forHTTPHeaderField:"Cache-Control")
+      let response = try await fetch(request)
+      try Task.checkCancellation()
+      let page = try MusicCloudProbe.albumSearchPage(type,data:response.data,status:response.status)
+      for item in page.data where seen.insert(item.id).inserted { values.append(item) }
+      pages += 1
+      guard let next = page.next, !next.isEmpty else { break }
+      url = try Self.nextURL(next,relativeTo:url,expectedPath:"/v1/me/library/search")
+      let query = URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
+      guard query.filter({$0.name == "term"}).map(\.value) == [term],
+        query.filter({$0.name == "types"}).map(\.value) == ["library-albums"] else { throw LoadError.invalidNext }
+    }
+    return Result(items:values,pages:pages)
+  }
+  /// IDs are only those already returned by a personal-library search. Revalidate
+  /// them with the current account before restoring any row after an app restart.
+  func albumsByID<Item: Decodable & Identifiable & Sendable>(
+    _ type: Item.Type, ids: [String], id: @Sendable (Item) -> String
+  ) async throws -> [Item] where Item.ID: Hashable {
+    let requested = Self.libraryAlbumIDs(ids)
+    var values: [Item] = []
+    for offset in stride(from:0,to:requested.count,by:100) {
+      try Task.checkCancellation()
+      let batch = Array(requested.dropFirst(offset).prefix(100))
+      var url = URLComponents(string:"https://api.music.apple.com/v1/me/library/albums")!
+      url.queryItems = [.init(name:"ids",value:batch.joined(separator:","))]
+      var request = URLRequest(url:url.url!,cachePolicy:.reloadIgnoringLocalCacheData)
+      request.timeoutInterval = 20; request.setValue("no-cache",forHTTPHeaderField:"Cache-Control")
+      let response = try await fetch(request)
+      try Task.checkCancellation()
+      guard response.status == 200 else { throw LoadError.http(response.status) }
+      guard response.data.count <= 5 * 1024 * 1024,
+        let root = try JSONSerialization.jsonObject(with:response.data) as? [String:Any],
+        root["data"] is [[String:Any]], root["errors"] == nil else { throw LoadError.invalidPage }
+      let page = try JSONDecoder().decode(Page<Item>.self,from:response.data)
+      guard page.next == nil || page.next == "", page.data.allSatisfy({Set(batch).contains(id($0))}) else { throw LoadError.invalidPage }
+      values = Self.combining(values,local:page.data)
+    }
+    return values
+  }
+  static func libraryAlbumIDs(_ ids:[String]) -> [String] {
+    var seen = Set<String>()
+    return ids.filter {
+      $0.hasPrefix("l.") && $0.count > 2 && $0.count <= 128 &&
+      $0.utf8.allSatisfy { (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) || [45,46,95].contains($0) } && seen.insert($0).inserted
+    }
+  }
   static func combining<Item: Identifiable>(_ cloud: [Item], local: [Item]) -> [Item] where Item.ID: Hashable {
     var ids = Set<Item.ID>()
     // Cloud metadata wins for a shared ID. Keep device-only songs and smart playlists.

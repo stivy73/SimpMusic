@@ -1,14 +1,12 @@
-NoteNarrate Music — 0.1.0 (6)
+NoteNarrate Music — 0.1.0 (7)
 
-Correzione per il caso della build 5: la libreria multimediale iOS rileva 14 brani ma MusicKit locale e cloud ne restituiscono zero.
+Corregge la separazione tra risultati della ricerca personale ed elenco Album: gli album trovati ora entrano anche nell’elenco principale, senza duplicare gli ID.
 
-Quando l’elenco MusicKit è vuoto, NoteNarrate recupera i brani usando gli ID esatti del catalogo forniti dalla libreria iOS. Non cerca sostituti per titolo e non aggiunge elementi all’account. La riproduzione resta gestita da MusicKit, con gli stessi controlli, coda e narrazione.
+L’app conserva soltanto gli ID degli album recuperati e li verifica nuovamente con la libreria dell’account Apple attuale al successivo avvio o aggiornamento. Non visualizza copie di album salvate fuori dalla verifica Apple e non usa risultati del catalogo pubblico come se fossero elementi della libreria.
 
-Il recupero mantiene l’ordine della libreria iOS, elimina ID ripetuti e rifiuta risultati non richiesti. ID mancanti e brani non restituiti dal catalogo vengono conteggiati esplicitamente. Errori di una pagina successiva non pubblicano una raccolta parziale.
+Il recupero automatico confronta i titoli degli album rilevati su iOS con l’elenco e cerca quelli mancanti nella libreria personale, fino a 25 ricerche per aggiornamento. Se ne restano altri, la schermata indica di aggiornare nuovamente. La ricerca personale legge tutte le pagine disponibili.
 
-Diagnostica: nuove righe Identificativi brani iOS e Recupero brani iOS, più Elenco pubblicato. Nessun ID, titolo, URL o token viene registrato nelle nuove righe.
+Da provare: aggiornare Libreria e verificare Heaven on Earth. Se occorre cercarlo una volta, poi cancellare il testo della ricerca, aggiornare e riaprire l’app: deve restare nell’elenco principale dopo la verifica Apple.
 
-Album e playlist rimangono letti dall’account. Il report ricevuto rileva un album sia su iOS sia nel cloud. Per Heaven on Earth usare la ricerca nella scheda Libreria e condividere anche le righe Ricerca album.
-
-40 test superati. Resta da confermare il risultato sul dispositivo reale.
+48 test superati. Da confermare sul dispositivo. Restano i recuperi dei brani della build 6.
 Solo Stivy73. App separata da NoteNarrate YouTube Music.

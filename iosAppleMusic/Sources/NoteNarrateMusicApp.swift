@@ -49,7 +49,7 @@ struct MusicRoot: View {
               ForEach(music.libraryAlbumMatches) { album in
                 Button { Task { await music.play(album:album) } } label: { CoverRow(artwork:album.artwork,title:album.title,subtitle:album.artistName) }
               }
-              Text("Fino a 25 risultati per sorgente. Questa ricerca riguarda la tua libreria, non il catalogo Apple Music.").font(.caption).foregroundStyle(.secondary)
+              Text("Gli album trovati sono inclusi anche nell’elenco principale della tua libreria.").font(.caption).foregroundStyle(.secondary)
             }
           }
           Section("Album · \(music.albums.count)") {
@@ -64,6 +64,7 @@ struct MusicRoot: View {
             }
           }
           Section {
+            if music.remainingAlbumLookups > 0 { Text("Altri \(music.remainingAlbumLookups) album da verificare. Aggiorna la libreria per proseguire il recupero.").font(.caption) }
             Text("Brani: \(music.songs.count) · Album: \(music.albums.count) · Playlist: \(music.playlists.count)").font(.caption).foregroundStyle(.secondary)
             Text("Se mancano elementi visibili in Musica, condividi la diagnostica Apple Music dalle Impostazioni. Il rinnovo del collegamento non aggiunge elementi alla libreria.").font(.caption).foregroundStyle(.secondary)
           }
