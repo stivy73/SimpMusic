@@ -433,3 +433,20 @@ sheet Fonti dopo la pressione in orizzontale, con titolo, Chiudi, testo iniziale
 e Cerca significato. Nessuna richiesta al servizio di interpretazione, nessun
 audio o account reale. Restano separati il test MusicKit sul telefono, i 14 brani
 della libreria, narrazione, AirPlay, duplicati della coda e display fisico Duo.
+
+59 test di contratto superati; verifica del port fissato riuscita. Compilazione
+Debug con fixture e archivio Release firmato riusciti. IPA esportato e firma di
+distribuzione verificata; iPhone e Watch entrambi 0.1.0 (11), dati sintetici
+assenti dal Release. Sorgenti 1e3ea214178e2b91b5780fc0f08db3d80ee194f1
+sincronizzati nel fork personale.
+IPA: iosAppleMusic/deliveries/0.1.0-11/NoteNarrateMusic.ipa.
+SHA256: a2ff3baa40f8d07941e5ce24c567f1ec3733347f2de0cf121ce026a541cdb40d.
+
+Build 11 consegnata: VALID / IN_BETA_TESTING,
+ID 570dac8b-f86a-442f-acb9-069fd269f22c, app separata 6833455204.
+Solo gruppo Stivy73, interno e manuale, con un tester e appartenenza verificati.
+Note italiane aggiornate tramite PATCH della localizzazione già esistente e
+verificate per lettura. INSTALLED si riferisce all’app del tester, non dimostra
+l’installazione o l’ascolto con build 11. Nessuna modifica a utenti, ruoli,
+distribuzione automatica o variante YouTube. I controlli UI previsti sono
+conclusi con dati sintetici; il collaudo audio sull’iPhone resta da eseguire.
