@@ -1,10 +1,11 @@
-NoteNarrate Music — 0.1.0 (8)
+NoteNarrate Music — 0.1.0 (9)
 
-Gli album della tua libreria ora compaiono anche nella Home, sopra i brani.
-Home, Libreria → Album e risultati della ricerca usano lo stesso componente per copertina, titolo, artista e riproduzione. Home e Libreria mostrano lo stesso elenco music.albums, compresi gli album recuperati dalla ricerca personale.
+Punto 1: libreria e navigazione.
+Album e playlist aprono una pagina con copertina, tracce numerate, Riproduci tutto e selezione della singola traccia. Le playlist conservano l’identità delle occorrenze, anche con duplicati; gli elementi indisponibili restano visibili.
+Ricerca nel catalogo di brani, album, artisti e playlist (25 risultati per categoria). Gli artisti aprono brani principali e album. La ricerca personale nella Libreria resta separata.
+Home con ascolti recenti e consigli Apple Music, caricati indipendentemente dalla libreria.
+Preferiti nativi Apple: aggiunta da brani/player, album, playlist e artisti; vista Preferiti nella Libreria. Stella piena solo dopo lettura esplicita inFavorites=true. Un 202 significa richiesta accettata, non stato confermato. Se Apple non espone lo stato, l’app lo dichiara senza inventarlo. La rimozione si effettua in Musica, come previsto dalle API pubbliche Apple.
+Salvataggio album nella libreria separato dall’aggiunta ai Preferiti.
 
-Nessun caricamento separato per la Home: quando l’elenco viene aggiornato, entrambe le schermate riflettono gli stessi album. Rimangono il recupero album della build 7 e quello dei brani della build 6.
-
-Da provare: verificare Heaven on Earth in Home e avviarlo dalla copertina, quindi confrontare l’elenco con Libreria → Album.
-
-Solo Stivy73. App separata da NoteNarrate YouTube Music.
+53 test contratti superati; compilazione Debug riuscita. Prova reale da fare: raccolte grandi e duplicate, selezione traccia, preferiti in Musica, recenti/consigli del proprio account.
+Solo Stivy73. App separata dalla variante YouTube Music.

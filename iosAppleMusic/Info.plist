@@ -26,7 +26,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppleMusicUsageDescription</key>
-	<string>NoteNarrate accede a brani, album e playlist per riprodurre la tua musica con Apple Music.</string>
+	<string>NoteNarrate accede alla libreria Apple Music, ai Preferiti, agli ascolti recenti e ai consigli per mostrarti e riprodurre la tua musica e gestire le tue scelte.</string>
 	<key>LicensedLyricsEndpoint</key>
 	<string>$(LICENSED_LYRICS_ENDPOINT)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

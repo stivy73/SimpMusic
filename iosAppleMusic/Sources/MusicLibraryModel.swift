@@ -16,6 +16,22 @@ final class MusicLibraryModel: ObservableObject {
   @Published var albums: [Album] = []
   @Published var playlists: [Playlist] = []
   @Published var results: [MusicKit.Song] = []
+  @Published var searchAlbums:[Album]=[]
+  @Published var searchArtists:[Artist]=[]
+  @Published var searchPlaylists:[Playlist]=[]
+  @Published var searchingCatalog=false
+  @Published var recentSongs:[MusicKit.Song]=[]
+  @Published var recommendations:[MusicPersonalRecommendation]=[]
+  @Published var discoveryError:String?
+  @Published var loadingDiscovery=false
+  @Published var sendingFavorite=false
+  @Published var favoriteStates:[String:Bool]=[:]
+  @Published var favoriteSongs:[MusicKit.Song]=[]
+  @Published var favoriteAlbums:[Album]=[]
+  @Published var favoritePlaylists:[Playlist]=[]
+  @Published var favoritesFailure:String?
+  @Published var loadingFavorites=false
+  @Published var notice:String?
   @Published var error: String?
   @Published var loading = false
   @Published var mediaLibrarySummary = ""
@@ -321,14 +337,111 @@ final class MusicLibraryModel: ObservableObject {
     guard authorization == .authorized else { return }
     let revision = UUID(); searchRevision = revision
     let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !term.isEmpty else { results = []; return }
+    guard !term.isEmpty else { results=[];searchAlbums=[];searchArtists=[];searchPlaylists=[];searchingCatalog=false;return }
+    searchingCatalog=true
+    defer {if searchRevision == revision {searchingCatalog=false}}
     do {
-      var request = MusicCatalogSearchRequest(term: term, types: [MusicKit.Song.self]); request.limit = 25
+      var request = MusicCatalogSearchRequest(term: term, types: [MusicKit.Song.self,Album.self,Artist.self,Playlist.self]); request.limit = 25
       let searchRequest = request
       let response = try await withTokenRecovery { try await searchRequest.response() }
       guard searchRevision == revision else { return }
-      results = Array(response.songs); error = nil; record("Ricerca catalogo: riuscita")
+      results = Array(response.songs); searchAlbums=Array(response.albums);searchArtists=Array(response.artists);searchPlaylists=Array(response.playlists);error = nil; record("Ricerca catalogo: riuscita")
     } catch { if searchRevision == revision { recordFailure(error,stage:"Ricerca catalogo"); self.error = accessMessage(error) } }
+  }
+  func refreshHome() async {
+    async let library:Void=refresh()
+    async let discovery:Void=refreshDiscovery()
+    _ = await (library,discovery)
+  }
+  func refreshDiscovery() async {
+    guard MusicAuthorization.currentStatus == .authorized,!loadingDiscovery else{return}
+    loadingDiscovery=true;defer{loadingDiscovery=false}
+    var failures:[String]=[]
+    do { var request=MusicRecentlyPlayedRequest<MusicKit.Song>();request.limit=20
+      let response=try await request.response();try Task.checkCancellation();recentSongs=Array(response.items)
+    } catch {if Task.isCancelled {return};recordFailure(error,stage:"Recenti");failures.append("Recenti non disponibili.")}
+    do {var request=MusicPersonalRecommendationsRequest();request.limit=5
+      let response=try await request.response();try Task.checkCancellation();recommendations=Array(response.recommendations)
+    } catch {if Task.isCancelled {return};recordFailure(error,stage:"Consigli");failures.append("Consigli personali non disponibili.")}
+    discoveryError=failures.isEmpty ? nil:failures.joined(separator:" ")
+  }
+  func collectionTracks(album:Album?,playlist:Playlist?) async throws -> [Track] {
+    if let album {let detail=try await album.with([.tracks]);return try await collect(detail.tracks ?? [])}
+    if let playlist {let detail=try await playlist.with([.tracks]);return try await collect(detail.tracks ?? [])}
+    return []
+  }
+  func playCollectionTrack(album:Album?,track:Track) async {
+    if let album {await startPlayback(queue:.init(album:album,startingAt:track),origin:"Traccia album")}
+
+  }
+  func playlistEntries(_ playlist:Playlist) async throws -> [Playlist.Entry] {
+    let detail=try await playlist.with([.entries]);return try await collect(detail.entries ?? [])
+  }
+  func playPlaylistEntry(_ playlist:Playlist,entry:Playlist.Entry) async {
+    await startPlayback(queue:.init(playlist:playlist,startingAt:entry),origin:"Traccia playlist")
+  }
+  func saveAlbum(_ album:Album) async {
+    do {try await MusicLibrary.shared.add(album);await refresh();notice="Richiesta di salvataggio inviata ad Apple Music."}
+    catch {self.error=accessMessage(error)}
+  }
+  func refreshFavorites() async {
+    guard !loadingFavorites else {return};loadingFavorites=true;defer{loadingFavorites=false}
+    let reader=MusicCloudLibrary(fetch:{request in
+      var request=request
+      var parts=URLComponents(url:request.url!,resolvingAgainstBaseURL:false)!
+      parts.queryItems=(parts.queryItems ?? []).filter{$0.name != "extend"} + [.init(name:"extend",value:"inFavorites")]
+      request.url=parts.url
+      let response=try await MusicDataRequest(urlRequest:request).response()
+      return .init(data:try MusicFavoriteRequest.favoritePage(response.data,status:response.urlResponse.statusCode),status:200)
+    })
+    var failures:[String]=[]
+    do {favoriteSongs=try await reader.load(MusicKit.Song.self,resource:.songs).items}
+    catch {if Task.isCancelled{return};failures.append("Brani preferiti non verificabili.")}
+    do {favoriteAlbums=try await reader.load(Album.self,resource:.albums).items}
+    catch {if Task.isCancelled{return};failures.append("Album preferiti non verificabili.")}
+    do {favoritePlaylists=try await reader.load(Playlist.self,resource:.playlists).items}
+    catch {if Task.isCancelled{return};failures.append("Playlist preferite non verificabili.")}
+    favoritesFailure=failures.isEmpty ? nil:failures.joined(separator:" ") + " Riprova o verifica nell’app Musica."
+  }
+  func artistDetails(_ artist:Artist) async throws -> (albums:[Album],songs:[MusicKit.Song]) {
+    let detail=try await artist.with([.albums,.topSongs])
+    return (try await collect(detail.albums ?? []),try await collect(detail.topSongs ?? []))
+  }
+  func invalidateCatalogSearch() {
+    searchRevision=UUID();searchingCatalog=false
+    results=[];searchAlbums=[];searchArtists=[];searchPlaylists=[]
+  }
+  func favoriteStatus(type:String,id:String) async -> Bool? {
+    guard ["songs","albums","artists","playlists"].contains(type),!id.isEmpty,
+      id.utf8.allSatisfy({(48...57).contains($0)||(65...90).contains($0)||(97...122).contains($0)||[45,46,95].contains($0)}) else {return nil}
+    let key=type+":"+id
+    do {
+      let scope:String
+      if id.hasPrefix("i.") || id.hasPrefix("l.") || id.hasPrefix("p.") {scope="me/library"}
+      else {scope="catalog/" + (try await MusicDataRequest.currentCountryCode)}
+      var request=URLRequest(url:URL(string:"https://api.music.apple.com/v1/\(scope)/\(type)/\(id)")!,cachePolicy:.reloadIgnoringLocalCacheData)
+      request.timeoutInterval=15
+      let response=try await MusicDataRequest(urlRequest:request).response()
+      let state=try MusicFavoriteRequest.state(from:response.data,status:response.urlResponse.statusCode)
+      favoriteStates[key]=state;return state
+    } catch {favoriteStates[key]=nil;return nil}
+  }
+  func requestFavorite(type:String,id:String) async {
+    guard !sendingFavorite else {return};sendingFavorite=true;defer{sendingFavorite=false}
+    do {
+      var catalogID=id
+      if id.hasPrefix("i.") || id.hasPrefix("l.") || id.hasPrefix("p.") {
+        guard ["songs","albums","playlists"].contains(type) else {throw MusicPortError.emptyCollection}
+        let url=URL(string:"https://api.music.apple.com/v1/me/library/\(type)/\(id)/catalog")!
+        let response=try await MusicDataRequest(urlRequest:URLRequest(url:url)).response()
+        catalogID=try MusicFavoriteRequest.catalogID(from:response.data,status:response.urlResponse.statusCode)
+      }
+      let request=try MusicFavoriteRequest.request(type:type,id:catalogID)
+      let response=try await MusicDataRequest(urlRequest:request).response()
+      guard response.urlResponse.statusCode == 202 else {throw MusicFavoriteRequest.Failure.invalidResponse}
+      let confirmed=await favoriteStatus(type:type,id:id)
+      notice=confirmed == true ? "Preferito confermato da Apple Music. Per rimuoverlo usa l’app Musica.":"Apple ha accettato la richiesta, ma lo stato non è ancora confermato. Verifica nell’app Musica prima di riprovare."
+    } catch {recordFailure(error,stage:"Preferiti");self.error=accessMessage(error)}
   }
   private func activateAudio() throws {
     beforePlayback?()

@@ -313,3 +313,28 @@ IPA: iosAppleMusic/deliveries/0.1.0-8/NoteNarrateMusic.ipa.
 SHA256: e6f3f46c292c1079d7f45179b35f5853c4cb768dbde5860c69ecaa7a0e944203.
 Conferma fisica richiesta: Heaven on Earth in Home nella sezione Album della
 libreria e avvio della riproduzione dallo stesso elemento già visibile in Libreria.
+
+## Allineamento punto 1 — build 0.1.0 (9)
+
+Dettaglio album/playlist e artista, ricerca catalogo su quattro tipi, Home con
+recenti e consigli. Raccolte caricate con MusicKit, paginazione tracce/entries e
+selezione nativa Queue(album:startingAt:) / Queue(playlist:startingAt:).
+Occorrenze playlist conservate, elementi indisponibili visibili; nessuna coda
+ricostruita per titolo o primo ID duplicato. Ricerca invalida risposte superate;
+limite 25 per categoria esplicito. Discovery carica indipendentemente dalla libreria.
+
+Aggiunta Favoriti via POST /v1/me/favorites?ids[type]=...; ID di libreria risolti
+tramite relazione catalog ufficiale, senza matching testuale. 202 trattato come
+accettazione. GET personale/catalogo verifica inFavorites: solo booleano esplicito
+può riempire la stella. Stato omesso/errore non equivale a falso né a successo.
+Elenco Preferiti legge le collezioni personali paginate e filtra solo attributi
+espliciti; pagina non verificabile genera errore, non una raccolta vuota fittizia.
+Rimozione soltanto in Musica: Apple Support 111118 documenta il limite per terzi.
+Nessuna API privata, nessuna scrittura reale durante i test, nessun preferito locale.
+
+53 test contratti passati, inclusi risorse ammesse, ID privati/URL injection,
+booleani, 202 senza verifica, mapping assente/ambiguo/403 e paginazione del filtro.
+Debug riuscita. Necessari collaudo iPhone con account e verifica manuale di scritture,
+playlist con duplicati, raccolte grandi, discovery vuota/rete e artista.
+Riferimenti: https://support.apple.com/111118
+https://developer.apple.com/documentation/applemusicapi/add-resource-to-favorites

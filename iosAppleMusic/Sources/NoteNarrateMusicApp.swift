@@ -29,23 +29,41 @@ struct MusicRoot: View {
           } else {
             List {
               if music.subscriptionVerified && !music.canPlayCatalog { Text("Per ascoltare il catalogo, attiva un abbonamento nell'app Musica.").foregroundStyle(.secondary) }
+              if music.loadingDiscovery {ProgressView("Aggiornamento recenti e consigli…")}
+              if let failure=music.discoveryError {Text(failure).font(.caption).foregroundStyle(.secondary)}
+              if !music.recentSongs.isEmpty {Section("Ascoltati di recente") {SongRows(songs:music.recentSongs)}}
+              ForEach(music.recommendations) { recommendation in
+                if !recommendation.albums.isEmpty || !recommendation.playlists.isEmpty {Section(recommendation.title ?? "Consigliati per te") {
+                  AlbumRows(albums:Array(recommendation.albums))
+                  PlaylistRows(playlists:Array(recommendation.playlists))
+                }}
+              }
               Section("Album della libreria · \(music.albums.count)") {
                 if music.albums.isEmpty && !music.loading { Text("Nessun album nella libreria.").foregroundStyle(.secondary) }
                 AlbumRows(albums:music.albums)
               }
               Section("Brani della libreria") { SongRows(songs: music.songs) }
             }.overlay { if music.loading { ProgressView() } }
-              .refreshable { await music.refresh() }
+              .refreshable { await music.refreshHome() }
           }
         }.navigationTitle("NoteNarrate")
       }.tag(0).tabItem { Label("Home",systemImage:"house") }
       NavigationStack {
-        List { SongRows(songs: music.results) }.navigationTitle("Cerca")
-          .searchable(text:$music.query,prompt:"Brano o artista su Apple Music")
+        List {
+          if music.searchingCatalog {ProgressView("Ricerca…")}
+          Section("Brani") {SongRows(songs:music.results)}
+          Section("Album") {AlbumRows(albums:music.searchAlbums)}
+          Section("Artisti") {ArtistRows(artists:music.searchArtists)}
+          Section("Playlist") {PlaylistRows(playlists:music.searchPlaylists)}
+          if !music.query.isEmpty {Text("Fino a 25 risultati per categoria. Affina la ricerca per trovare altre corrispondenze.").font(.caption).foregroundStyle(.secondary)}
+        }.navigationTitle("Cerca")
+          .searchable(text:$music.query,prompt:"Brani, album, artisti e playlist")
           .onSubmit(of:.search) { Task { await music.search() } }
+          .onChange(of:music.query) {_,_ in music.invalidateCatalogSearch()}
       }.tag(1).tabItem { Label("Cerca",systemImage:"magnifyingglass") }
       NavigationStack {
         List {
+          NavigationLink {FavoriteLibraryScreen()} label:{Label("Preferiti Apple Music",systemImage:"star")}
           if !music.libraryAlbumQuery.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
             Section("Risultati nella tua libreria · \(music.libraryAlbumMatches.count)") {
               if music.searchingLibraryAlbums { ProgressView("Ricerca nella libreria…") }
@@ -59,9 +77,7 @@ struct MusicRoot: View {
             AlbumRows(albums:music.albums)
           }
           Section("Playlist · \(music.playlists.count)") {
-            ForEach(music.playlists) { playlist in
-              Button { Task { await music.play(playlist:playlist) } } label: { CoverRow(artwork:playlist.artwork,title:playlist.name,subtitle:playlist.curatorName ?? "Playlist") }
-            }
+            PlaylistRows(playlists:music.playlists)
           }
           Section {
             if music.remainingAlbumLookups > 0 { Text("Altri \(music.remainingAlbumLookups) album da verificare. Aggiorna la libreria per proseguire il recupero.").font(.caption) }
@@ -87,8 +103,9 @@ struct MusicRoot: View {
       }
     }
     .sheet(isPresented:$player) { MusicPlayerScreen() }
-    .task { await music.refresh() }
+    .task { await music.refreshHome() }
     .onChange(of:music.nowPlaying?.id) { _,_ in narration.clearInterpretation() }
+    .alert("Apple Music",isPresented:Binding(get:{music.notice != nil},set:{if !$0 {music.notice=nil}})) {Button("OK"){music.notice=nil}} message:{Text(music.notice ?? "")}
     .alert("Apple Music",isPresented:Binding(get:{music.error != nil},set:{if !$0 { music.error=nil }})) { Button("OK") { music.error=nil } } message: { Text(music.error ?? "") }
   }
 }
@@ -115,7 +132,7 @@ struct AlbumRows: View {
   let albums: [Album]
   var body: some View {
     ForEach(albums) { album in
-      Button { Task { await music.play(album:album) } } label: {
+      NavigationLink { CollectionScreen(album:album) } label: {
         CoverRow(artwork:album.artwork,title:album.title,subtitle:album.artistName)
       }
     }
@@ -130,6 +147,7 @@ struct SongRows: View {
         .contextMenu {
           Button("Riproduci successivo",systemImage:"text.line.first.and.arrowtriangle.forward") { Task { await music.enqueue(song,next:true) } }
           Button("Aggiungi alla coda",systemImage:"text.append") { Task { await music.enqueue(song,next:false) } }
+          Button("Aggiungi ai Preferiti Apple Music",systemImage:"star") {Task {await music.requestFavorite(type:"songs",id:song.id.rawValue)}}.disabled(music.sendingFavorite)
           Button("Aggiungi alla libreria",systemImage:"plus") { Task { await music.add(song) } }
           if let url=song.url { ShareLink(item:url) }
         }
@@ -160,6 +178,7 @@ struct MusicPlayerScreen: View {
               Button { Task { await music.next() } } label: { Image(systemName:"forward.end.fill") }
             }.font(.title).buttonStyle(.plain).disabled(music.preparingPlayback)
             HStack {
+              FavoriteControl(type:"songs",id:song.id.rawValue)
               Button("Significato",systemImage:"lightbulb") { meaning=true }
               Spacer();RoutePicker().frame(width:44,height:44).accessibilityLabel("AirPlay")
               if let url=song.url { ShareLink(item:url) }
