@@ -384,3 +384,18 @@ Il test visivo con dati sintetici è separato dal Release tramite
 DEBUG && PLAYER_LAYOUT_FIXTURE. Il Mac bloccato impedisce per ora il controllo
 visivo in Device Hub; lo sblocco è stato richiesto. La compilazione non equivale
 al collaudo sul dispositivo, né risolve da sola il report paused di build 9.
+
+Build 10 consegnata: VALID / IN_BETA_TESTING,
+ID 2b7b9877-6d88-4322-af21-955e3986e274, app separata 6833455204.
+Solo Stivy73 assegnato, manuale; un tester e appartenenza al gruppo verificati.
+Note italiane aggiornate e verificate per lettura: la localizzazione it creata
+da Apple esisteva già con whatsNew nullo e richiedeva PATCH, non una nuova POST.
+Stato INSTALLED riferito all’app, non all’installazione/prova della build 10.
+Archivio ed export firmati, firme archivio e IPA verificate; iPhone e Watch
+entrambi 0.1.0 (10). Dati sintetici del test assenti dal binario Release.
+Sorgenti 50c91bd147db4561b9e5ca5afa9b867357d903c3 sincronizzati nel fork personale.
+IPA: iosAppleMusic/deliveries/0.1.0-10/NoteNarrateMusic.ipa.
+SHA256: 7e6485f14c29cec8a6c0fb221a7ab8833a9e82546898aac3034578e2c72fbe34.
+Il sorgente StivyApp.swift nel checkout YouTube coincide con l’hash importato.
+Il controllo visivo resta sospeso per Mac bloccato; non viene dichiarato un
+collaudo di interfaccia o una riproduzione MusicKit sul dispositivo.
