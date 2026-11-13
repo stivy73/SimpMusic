@@ -2,7 +2,7 @@ import Foundation
 
 /// Reads one page only; does not alter, import or persist the user's library.
 enum MusicCloudProbe {
-  enum Resource: String, CaseIterable, Sendable { case songs, albums, playlists }
+  enum Resource: String, CaseIterable, Sendable { case songs, albums, playlists, artists }
   struct Result: Equatable, Sendable {
     let firstPageCount: Int
     let hasMore: Bool

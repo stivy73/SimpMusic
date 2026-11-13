@@ -15,6 +15,7 @@ final class NarrationModel: ObservableObject {
   @Published var isReading = false
   @Published var error: String?
   @Published var useGeminiVoice = false
+  var beforeReading: (() -> Void)?
   private var revision = UUID()
   private var task: Task<Void, Never>?
   private var pcm: PCMStreamPlayer?
@@ -31,9 +32,11 @@ final class NarrationModel: ObservableObject {
       do {
         let result = try await SongWebMeaning().explain(title: title, artist: artist, model: model, key: key)
         try Task.checkCancellation()
+        guard self.revision == requestRevision else { return }
         self.searchEvidence = result.evidence
         self.attribution = result.evidence == nil ? nil : "Fonti · Google Search"
         self.text = result.text
+        self.read()
       } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
   }
@@ -42,7 +45,7 @@ final class NarrationModel: ObservableObject {
   }
   func read() {
     guard !text.isEmpty else { return }
-    stop(); busy = true; isReading=true
+    stop(); beforeReading?(); busy = true; isReading=true
     let requestRevision = revision
     let text = text; let key = key
     task = Task { [weak self] in

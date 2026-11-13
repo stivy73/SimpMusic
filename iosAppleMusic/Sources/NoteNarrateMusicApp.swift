@@ -52,48 +52,8 @@ struct MusicRoot: View {
           }
         }.navigationTitle("NoteNarrate")
       }.tag(0).tabItem { Label("Home",systemImage:"house") }
-      NavigationStack {
-        List {
-          if music.searchingCatalog {ProgressView("Ricerca…")}
-          Section("Brani") {SongRows(songs:music.results)}
-          Section("Album") {AlbumRows(albums:music.searchAlbums)}
-          Section("Artisti") {ArtistRows(artists:music.searchArtists)}
-          Section("Playlist") {PlaylistRows(playlists:music.searchPlaylists)}
-          if !music.query.isEmpty {Text("Fino a 25 risultati per categoria. Affina la ricerca per trovare altre corrispondenze.").font(.caption).foregroundStyle(.secondary)}
-        }.navigationTitle("Cerca")
-          .searchable(text:$music.query,prompt:"Brani, album, artisti e playlist")
-          .onSubmit(of:.search) { Task { await music.search() } }
-          .onChange(of:music.query) {_,_ in music.invalidateCatalogSearch()}
-      }.tag(1).tabItem { Label("Cerca",systemImage:"magnifyingglass") }
-      NavigationStack {
-        List {
-          NavigationLink {FavoriteLibraryScreen()} label:{Label("Preferiti Apple Music",systemImage:"star")}
-          if !music.libraryAlbumQuery.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
-            Section("Risultati nella tua libreria · \(music.libraryAlbumMatches.count)") {
-              if music.searchingLibraryAlbums { ProgressView("Ricerca nella libreria…") }
-              else if music.libraryAlbumMatches.isEmpty { Text("Nessun album restituito per questa ricerca.").foregroundStyle(.secondary) }
-              AlbumRows(albums:music.libraryAlbumMatches)
-              Text("Gli album trovati sono inclusi anche nell’elenco principale della tua libreria.").font(.caption).foregroundStyle(.secondary)
-            }
-          }
-          Section("Album · \(music.albums.count)") {
-            if music.albums.isEmpty { Text("Nessun album restituito da Apple Music.").foregroundStyle(.secondary) }
-            AlbumRows(albums:music.albums)
-          }
-          Section("Playlist · \(music.playlists.count)") {
-            PlaylistRows(playlists:music.playlists)
-          }
-          Section {
-            if music.remainingAlbumLookups > 0 { Text("Altri \(music.remainingAlbumLookups) album da verificare. Aggiorna la libreria per proseguire il recupero.").font(.caption) }
-            Text("Brani: \(music.songs.count) · Album: \(music.albums.count) · Playlist: \(music.playlists.count)").font(.caption).foregroundStyle(.secondary)
-            Text("Se mancano elementi visibili in Musica, condividi la diagnostica Apple Music dalle Impostazioni. Il rinnovo del collegamento non aggiunge elementi alla libreria.").font(.caption).foregroundStyle(.secondary)
-          }
-        }.navigationTitle("Libreria").refreshable { await music.refresh() }
-          .searchable(text:$music.libraryAlbumQuery,prompt:"Cerca un album nella tua libreria")
-          .task(id:music.libraryAlbumQuery) {
-            do { try await Task.sleep(for:.milliseconds(400)); try Task.checkCancellation(); await music.searchLibraryAlbums() } catch {}
-          }
-      }.tag(2).tabItem { Label("Libreria",systemImage:"square.stack") }
+      NavigationStack {CatalogSearchScreen()}.tag(1).tabItem{Label("Cerca",systemImage:"magnifyingglass")}
+      NavigationStack {LibraryBrowserScreen()}.tag(2).tabItem{Label("Libreria",systemImage:"square.stack")}
       NavigationStack { MusicSettings(onSaved:{selectedTab=0}) }.tag(3).tabItem { Label("Impostazioni",systemImage:"gearshape") }
     }
     .modifier(SystemMiniPlayerAccessory())
@@ -220,13 +180,7 @@ struct SongRows: View {
   var body: some View {
     ForEach(songs) { song in
       Button { Task { await music.play(song,in:songs) } } label: { CoverRow(artwork:song.artwork,title:song.title,subtitle:song.artistName) }
-        .contextMenu {
-          Button("Riproduci successivo",systemImage:"text.line.first.and.arrowtriangle.forward") { Task { await music.enqueue(song,next:true) } }
-          Button("Aggiungi alla coda",systemImage:"text.append") { Task { await music.enqueue(song,next:false) } }
-          Button("Aggiungi ai Preferiti Apple Music",systemImage:"star") {Task {await music.requestFavorite(type:"songs",id:song.id.rawValue)}}.disabled(music.sendingFavorite)
-          Button("Aggiungi alla libreria",systemImage:"plus") { Task { await music.add(song) } }
-          if let url=song.url { ShareLink(item:url) }
-        }
+        .contextMenu {SongNavigationActions(song:song)}
     }
   }
 }
@@ -235,35 +189,41 @@ struct MeaningScreen: View {
   @EnvironmentObject var narration: NarrationModel
   @Environment(\.dismiss) private var dismiss
   @State private var consent=false
+  @AppStorage("songMeaningGoogleConsent.v1") private var consentAccepted=false
   var body: some View {
     NavigationStack {
       Form {
-        Section("Significato e fonti") {
-          Text("Titolo e artista vengono inviati a Gemini, che cerca spiegazioni, interviste e dichiarazioni con Google Search. I testi delle canzoni non vengono cercati né recuperati. Le interpretazioni possono contenere errori.")
-          if let attribution=narration.attribution { Text(attribution).font(.caption) }
-          if let url=narration.sourceURL { Link("Fonte del testo",destination:url) }
-        }
-        Button("Cerca significato") { consent=true }.disabled(narration.busy)
-        if narration.busy { ProgressView("Ricerca delle fonti…") }
+        Button("Cerca significato") { requestMeaning() }.disabled(narration.busy)
+        if narration.busy { ProgressView(narration.isReading ? "Lettura in corso…" : "Preparazione del significato…") }
         if let error=narration.error { Text(error).foregroundStyle(.orange) }
         if !narration.text.isEmpty {
           Section("Interpretazione AI") {
             Text(narration.text).textSelection(.enabled)
-            if let evidence = narration.searchEvidence { SongSearchSourcesView(evidence:evidence) }
             Button("Leggi interpretazione",systemImage:"speaker.wave.2") { music.pause();narration.read() }
           }
         }
         Button("Interrompi",role:.destructive) { narration.stop() }
       }.navigationTitle("Significato")
+        .task(id:music.nowPlaying?.id) {
+          if narration.text.isEmpty && !narration.busy { requestMeaning() }
+        }
         .toolbar { Button("Chiudi") { narration.stop();dismiss() } }
         .alert("Cercare il significato con Google?",isPresented:$consent) {
           Button("Cerca e interpreta") {
-            guard let song=music.nowPlaying else { return }
-            narration.explain(id:song.id.rawValue,title:song.title,artist:song.artistName)
+            consentAccepted=true
+            startMeaning()
           }
           Button("Annulla",role:.cancel) {}
         } message: { Text("Titolo e artista saranno inviati a Gemini e Google Search per cercare fonti sul significato della canzone. Non viene inviato l’audio. La risposta AI può contenere errori. La lettura Gemini, se attiva, invia anche l’interpretazione a Google.") }
     }
+  }
+  private func requestMeaning() {
+    guard music.nowPlaying != nil, !narration.busy else { return }
+    if consentAccepted { startMeaning() } else { consent=true }
+  }
+  private func startMeaning() {
+    guard let song=music.nowPlaying, !narration.busy else { return }
+    narration.explain(id:song.id.rawValue,title:song.title,artist:song.artistName)
   }
 }
 struct MusicSettings: View {

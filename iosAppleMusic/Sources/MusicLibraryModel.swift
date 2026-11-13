@@ -15,6 +15,7 @@ final class MusicLibraryModel: ObservableObject {
   @Published var songs: [MusicKit.Song] = []
   @Published var albums: [Album] = []
   @Published var playlists: [Playlist] = []
+  @Published var artists:[Artist]=[]
   @Published var results: [MusicKit.Song] = []
   @Published var searchAlbums:[Album]=[]
   @Published var searchArtists:[Artist]=[]
@@ -68,6 +69,17 @@ final class MusicLibraryModel: ObservableObject {
     let data=Data(#"{"id":"123456789","type":"songs","attributes":{"name":"Brano di prova","artistName":"NoteNarrate · test interfaccia","albumName":"Album di prova","durationInMillis":261000,"playParams":{"id":"123456789","kind":"song"}}}"#.utf8)
     nowPlaying=try? JSONDecoder().decode(MusicKit.Song.self,from:data)
     duration=261;position=42;authorization = .authorized;showPlayer=true
+    #if BROWSE_LAYOUT_FIXTURE
+    showPlayer=false
+    func fixture<T:Decodable>(_ type:T.Type,id:String,kind:String,attributes:[String:Any])->T? {
+      guard let bytes=try? JSONSerialization.data(withJSONObject:["id":id,"type":kind,"attributes":attributes]) else{return nil}
+      return try? JSONDecoder().decode(type,from:bytes)
+    }
+    songs=[nowPlaying].compactMap{$0}
+    albums=[fixture(Album.self,id:"1001",kind:"albums",attributes:["name":"Album Beta","artistName":"Artista di prova","genreNames":[],"trackCount":2]),fixture(Album.self,id:"1002",kind:"albums",attributes:["name":"Album Alpha","artistName":"Altro artista","genreNames":[],"trackCount":2])].compactMap{$0}
+    playlists=[fixture(Playlist.self,id:"p.fixture",kind:"library-playlists",attributes:["name":"Playlist di prova","canEdit":true])].compactMap{$0}
+    artists=[fixture(Artist.self,id:"1003",kind:"artists",attributes:["name":"Artista di prova"]),fixture(Artist.self,id:"1004",kind:"artists",attributes:["name":"Altro artista"])].compactMap{$0}
+    #endif
     return
     #endif
     timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect().sink { [weak self] _ in
@@ -119,6 +131,10 @@ final class MusicLibraryModel: ObservableObject {
       if !values.isEmpty || playlists.isEmpty { playlists = values }
       record("Libreria locale playlist: \(values.count)")
     } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Playlist locali") }
+    do {
+      var request=MusicLibraryRequest<Artist>();request.limit=100
+      artists=try await collect(request.response().items)
+    } catch {if Task.isCancelled {return};recordFailure(error,stage:"Artisti locali")}
     let cloud = MusicCloudLibrary(fetch:{ [weak self] request in
       guard let self else { throw CancellationError() }
       return try await self.withTokenRecovery {
@@ -126,6 +142,11 @@ final class MusicLibraryModel: ObservableObject {
         return MusicCloudLibrary.Response(data:response.data,status:response.urlResponse.statusCode)
       }
     })
+    do {
+      let result=try await cloud.load(Artist.self,resource:.artists)
+      artists=MusicCloudLibrary.combining(result.items,local:artists)
+      record("Libreria cloud artisti: completata; elementi=\(result.items.count)")
+    } catch {if Task.isCancelled {return};recordFailure(error,stage:"Artisti cloud");failures.append("Artisti cloud: "+accessMessage(error))}
     do {
       let result = try await cloud.load(MusicKit.Song.self,resource:.songs)
       songs = MusicCloudLibrary.combining(result.items,local:localSongs ?? [])
@@ -211,7 +232,7 @@ final class MusicLibraryModel: ObservableObject {
     record("Identificativi brani iOS: con ID catalogo=\(ids.count); senza ID utilizzabile=\(report.1.filter { MediaCatalogBridge.catalogIDs([$0]).isEmpty }.count)")
     return (ids,Array(Set(report.2)).filter { !$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty }.sorted())
   }
-  nonisolated private static func isDeveloperTokenFailure(_ error: any Error) -> Bool {
+  nonisolated static func isDeveloperTokenFailure(_ error: any Error) -> Bool {
     if let value = error as? MusicTokenRequestError, value == .developerTokenRequestFailed { return true }
     if let nested = (error as NSError).userInfo[NSUnderlyingErrorKey] as? MusicTokenRequestError {
       return nested == .developerTokenRequestFailed
@@ -296,7 +317,7 @@ final class MusicLibraryModel: ObservableObject {
     }
     return values
   }
-  private func rememberLibraryAlbums(_ values:[Album]) {
+  func rememberLibraryAlbums(_ values:[Album]) {
     albums = MusicCloudLibrary.combining(albums,local:values)
     let saved = UserDefaults.standard.stringArray(forKey:recoveredAlbumKey) ?? []
     let ids = MusicCloudLibrary.libraryAlbumIDs(saved + values.map { $0.id.rawValue })
@@ -425,6 +446,10 @@ final class MusicLibraryModel: ObservableObject {
     favoritesFailure=failures.isEmpty ? nil:failures.joined(separator:" ") + " Riprova o verifica nell’app Musica."
   }
   func artistDetails(_ artist:Artist) async throws -> (albums:[Album],songs:[MusicKit.Song]) {
+    if artist.id.rawValue.hasPrefix("r.") {
+      let detail=try await artist.with([.albums])
+      return (try await collect(detail.albums ?? []),[])
+    }
     let detail=try await artist.with([.albums,.topSongs])
     return (try await collect(detail.albums ?? []),try await collect(detail.topSongs ?? []))
   }
@@ -438,7 +463,7 @@ final class MusicLibraryModel: ObservableObject {
     let key=type+":"+id
     do {
       let scope:String
-      if id.hasPrefix("i.") || id.hasPrefix("l.") || id.hasPrefix("p.") {scope="me/library"}
+      if id.hasPrefix("i.") || id.hasPrefix("l.") || id.hasPrefix("p.") || id.hasPrefix("r.") {scope="me/library"}
       else {scope="catalog/" + (try await MusicDataRequest.currentCountryCode)}
       var request=URLRequest(url:URL(string:"https://api.music.apple.com/v1/\(scope)/\(type)/\(id)")!,cachePolicy:.reloadIgnoringLocalCacheData)
       request.timeoutInterval=15
@@ -451,8 +476,8 @@ final class MusicLibraryModel: ObservableObject {
     guard !sendingFavorite else {return};sendingFavorite=true;defer{sendingFavorite=false}
     do {
       var catalogID=id
-      if id.hasPrefix("i.") || id.hasPrefix("l.") || id.hasPrefix("p.") {
-        guard ["songs","albums","playlists"].contains(type) else {throw MusicPortError.emptyCollection}
+      if id.hasPrefix("i.") || id.hasPrefix("l.") || id.hasPrefix("p.") || id.hasPrefix("r.") {
+        guard ["songs","albums","artists","playlists"].contains(type) else {throw MusicPortError.emptyCollection}
         let url=URL(string:"https://api.music.apple.com/v1/me/library/\(type)/\(id)/catalog")!
         let response=try await MusicDataRequest(urlRequest:URLRequest(url:url)).response()
         catalogID=try MusicFavoriteRequest.catalogID(from:response.data,status:response.urlResponse.statusCode)

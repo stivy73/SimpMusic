@@ -53,25 +53,35 @@ struct MusicCloudLibrary: Sendable {
   func searchAlbums<Item: Decodable & Identifiable & Sendable>(
     _ type: Item.Type, term: String
   ) async throws -> Result<Item> where Item.ID: Hashable {
-    let initial = MusicCloudProbe.albumSearchRequest(term:term)
-    var url = initial.url!
-    var visited = Set<URL>(), seen = Set<Item.ID>()
-    var values: [Item] = []; var pages = 0
+    try await search(type,resource:.albums,term:term)
+  }
+  func search<Item:Decodable & Identifiable & Sendable>(
+    _ type:Item.Type,resource:MusicCloudProbe.Resource,term:String
+  ) async throws -> Result<Item> where Item.ID:Hashable {
+    var components=URLComponents(string:"https://api.music.apple.com/v1/me/library/search")!
+    let resourceType="library-"+resource.rawValue
+    components.queryItems=[.init(name:"term",value:term),.init(name:"types",value:resourceType),.init(name:"limit",value:"25")]
+    var url=components.url!
+    var visited=Set<URL>(),seen=Set<Item.ID>();var values:[Item]=[];var pages=0
     while true {
       try Task.checkCancellation()
-      guard pages < 1000, visited.insert(url).inserted else { throw LoadError.repeatedPage }
-      var request = URLRequest(url:url,cachePolicy:.reloadIgnoringLocalCacheData)
-      request.timeoutInterval = 20; request.setValue("no-cache",forHTTPHeaderField:"Cache-Control")
-      let response = try await fetch(request)
-      try Task.checkCancellation()
-      let page = try MusicCloudProbe.albumSearchPage(type,data:response.data,status:response.status)
-      for item in page.data where seen.insert(item.id).inserted { values.append(item) }
-      pages += 1
-      guard let next = page.next, !next.isEmpty else { break }
-      url = try Self.nextURL(next,relativeTo:url,expectedPath:"/v1/me/library/search")
-      let query = URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
-      guard query.filter({$0.name == "term"}).map(\.value) == [term],
-        query.filter({$0.name == "types"}).map(\.value) == ["library-albums"] else { throw LoadError.invalidNext }
+      guard pages<1000,visited.insert(url).inserted else {throw LoadError.repeatedPage}
+      var request=URLRequest(url:url,cachePolicy:.reloadIgnoringLocalCacheData);request.timeoutInterval=20
+      let response=try await fetch(request);try Task.checkCancellation()
+      guard response.status==200 else {throw LoadError.http(response.status)}
+      guard response.data.count<=5*1024*1024,
+        let root=try JSONSerialization.jsonObject(with:response.data) as? [String:Any],root["errors"]==nil,
+        let results=root["results"] as? [String:Any] else {throw LoadError.invalidPage}
+      let payload:Any
+      if let result=results[resourceType] {payload=result}
+      else {guard results.isEmpty else {throw LoadError.invalidPage};payload=["data":[]]}
+      let page=try JSONDecoder().decode(Page<Item>.self,from:JSONSerialization.data(withJSONObject:payload))
+      for item in page.data where seen.insert(item.id).inserted {values.append(item)}
+      pages+=1
+      guard let next=page.next,!next.isEmpty else {break}
+      url=try Self.nextURL(next,relativeTo:url,expectedPath:"/v1/me/library/search")
+      let query=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems ?? []
+      guard query.filter({$0.name=="term"}).map(\.value)==[term],query.filter({$0.name=="types"}).map(\.value)==[resourceType] else {throw LoadError.invalidNext}
     }
     return Result(items:values,pages:pages)
   }

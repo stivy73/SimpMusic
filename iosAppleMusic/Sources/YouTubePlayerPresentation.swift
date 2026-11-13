@@ -155,7 +155,7 @@ struct AdaptedYTPlayerScreen: View {
       .sheet(isPresented: $showQueue) { ApplePlayerQueueScreen() }
       .sheet(isPresented: $expandedLyrics) {
         NavigationStack {
-          PlayerInfoContent().environmentObject(model).padding().navigationTitle("Fonti e significato").toolbar {
+          PlayerInfoContent().environmentObject(model).padding().navigationTitle("Significato").toolbar {
             Button("Chiudi") { expandedLyrics = false }
           }
         }
@@ -228,7 +228,7 @@ struct AdaptedYTPlayerScreen: View {
               model.loadLyrics()
               expandedLyrics = true
             } label: {
-              Label("Fonti e significato", systemImage: "quote.bubble")
+              Label("Significato", systemImage: "quote.bubble")
             }.accessibilityIdentifier("toggle-lyrics")
             meaningButton
             Button { showQueue = true } label: {
@@ -299,7 +299,7 @@ struct AdaptedYTPlayerScreen: View {
                 AdaptedYTPlayerControls(player: player, reading: model.reading || model.busyMeaning)
                 if !verticalBar {
                   HStack {
-                    playerAction("Fonti e significato", icon: "quote.bubble", selected: showLyrics) {
+                    playerAction("Significato", icon: "quote.bubble", selected: showLyrics) {
                       if expanded { expandedLyrics = true } else { toggleLyrics() }
                     }.accessibilityIdentifier("toggle-lyrics")
                     Spacer()

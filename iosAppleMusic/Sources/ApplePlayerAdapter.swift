@@ -70,12 +70,11 @@ struct PlayerInfoContent:View {
     ScrollView {
       VStack(alignment:.leading,spacing:22) {
         if model.narration.text.isEmpty {
-          Text("Fonti e significato").font(.title2.bold())
-          Text("Cerca il significato per visualizzare l’interpretazione e le fonti.").foregroundStyle(.secondary)
+          Text("Significato").font(.title2.bold())
+          Text("Cerca il significato per ascoltare l’interpretazione.").foregroundStyle(.secondary)
           Button("Cerca significato",systemImage:"lightbulb") {model.explain()}
         } else {
           Text(model.narration.text).font(.title3).lineSpacing(6).textSelection(.enabled)
-          if let evidence=model.narration.searchEvidence {SongSearchSourcesView(evidence:evidence)}
         }
       }.padding(24)
     }
@@ -91,6 +90,9 @@ struct ApplePlayerOptions:View {
         Text(song.title).font(.headline)
         FavoriteControl(type:"songs",id:song.id)
         if let native=model.music.nowPlaying {
+          NavigationLink {SongRelationshipsScreen(song:native,kind:.albums)} label:{Label("Vai all’album",systemImage:"square.stack")}
+          NavigationLink {SongRelationshipsScreen(song:native,kind:.artists)} label:{Label("Vai all’artista",systemImage:"person")}
+
           Button("Riproduci dopo",systemImage:"text.line.first.and.arrowtriangle.forward") {Task{await model.music.enqueue(native,next:true)}}
           Button("Aggiungi alla coda",systemImage:"text.append") {Task{await model.music.enqueue(native,next:false)}}
           Button("Aggiungi alla libreria",systemImage:"plus") {Task{await model.music.add(native)}}

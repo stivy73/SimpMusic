@@ -450,3 +450,60 @@ verificate per lettura. INSTALLED si riferisce all’app del tester, non dimostr
 l’installazione o l’ascolto con build 11. Nessuna modifica a utenti, ruoli,
 distribuzione automatica o variante YouTube. I controlli UI previsti sono
 conclusi con dati sintetici; il collaudo audio sull’iPhone resta da eseguire.
+
+## Significato immediato e lettura automatica — sviluppo successivo a build 11
+
+Rimosso il riquadro informativo statico e l’elenco delle fonti dalle viste del
+significato; la ricerca resta basata su Google Search. Consenso memorizzato con
+AppStorage solo dopo accettazione: apertura della vista avvia la ricerca sul
+brano attuale; alle aperture successive il popup non viene ripetuto. Annullare
+non concede il consenso. Il testo pronto avvia automaticamente read(), con pausa
+della musica tramite beforeReading. Il controllo della revisione scarta risposte
+superate dopo interruzione o cambio brano. Restano Interrompi e rilettura manuale.
+Compilazione iOS Simulator riuscita; nessuna richiesta Gemini o prova vocale reale
+eseguita per questa modifica. Modifica non ancora consegnata su TestFlight.
+
+## Libreria e navigazione — cinque priorità, sviluppo successivo a build 11
+
+Implementate le cinque priorità del confronto con la variante YouTube Music:
+
+1. Libreria con categorie Brani, Album, Playlist e Artisti, scelta memorizzata,
+   conteggi, aggiornamento e accesso ai Preferiti. Gli artisti arrivano dalle
+   richieste ufficiali native e cloud; gli errori non vengono trattati come vuoti.
+2. Ricerca personale di tutte e quattro le categorie: risultati locali più
+   ricerca MusicKit e cloud personale multipagina, con deduplicazione per ID.
+   Vista Tutti con anteprime e accesso alla categoria completa. Gli album trovati
+   mantengono il recupero già usato per Heaven on Earth. Un fallimento di una
+   sorgente viene segnalato, senza presentare i risultati come completi.
+3. Elenco/griglia, ordine originale/titolo/artista, inverso e indice alfabetico;
+   preferenze separate per raccolta. L'ordinamento è di presentazione, senza
+   riscrivere playlist o coda sul servizio.
+4. Vai all'album / Vai all'artista tramite relazioni MusicKit nei menu dei brani
+   di libreria, ricerca, raccolte e player. Nessuna associazione per somiglianza
+   del titolo; collegamento non restituito, errore e riprova sono stati esplicitati.
+5. Ricerca catalogo con filtri, anteprime, Mostra tutti, cronologia locale
+   cancellabile e altre pagine indipendenti per categoria. I cursori mantengono
+   risultati e riprova dopo errore; le risposte di ricerche superate sono scartate.
+
+68 test superati (9 nuovi): preferenze, ordinamento stabile, indice, cronologia,
+risposta superata, pagina fallita e riprova, reset durante paginazione, ricerca
+personale per categoria e rifiuto di pagine con host/term/tipo differenti.
+Compilazioni Debug con fixture e Release per iOS Simulator riuscite; nessun
+nuovo archivio firmato o caricamento TestFlight per questa modifica.
+
+Collaudo Device Hub nel solo simulatore iPhone 18 Pro / iOS 27.2 con dati
+sintetici DEBUG && PLAYER_LAYOUT_FIXTURE && BROWSE_LAYOUT_FIXTURE: avvio,
+Home con album, Libreria, categorie Brani/Album/Playlist/Artisti, selezione
+Griglia e riapertura menu con selezione conservata, ordinamento Titolo da
+Album Beta/Album Alpha a Album Alpha/Album Beta. Nessun account reale usato.
+Verificati nel player i comandi Vai all'album e Vai all'artista; Vai all'album
+apre la schermata Album, con errore Permission denied e Riprova nel simulatore
+privo di autorizzazione MusicKit. Il tentativo di riprodurre il brano sintetico
+ha restituito codice 6: non è una prova audio né una regressione sull'account.
+Ricerca Apple Music reale, paginazione MusicKit, relazioni album/artista su
+account, audio e narrazione restano da collaudare su iPhone. La fixture non è
+attiva nelle compilazioni Release.
+
+Questo lotto conclude le cinque priorità concordate, non l'intero confronto:
+restano per i lotti successivi la gestione/modifica delle playlist, Home più
+ricca, dettagli delle raccolte e ulteriori azioni sui preferiti degli artisti.

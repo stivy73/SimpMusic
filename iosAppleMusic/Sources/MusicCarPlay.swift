@@ -12,6 +12,7 @@ import Combine
   private init() {
     watch=MusicWatchBridge(music:music,narration:narration)
     music.beforePlayback={ [weak narration] in narration?.stop() }
+    narration.beforeReading={ [weak music] in music?.pause() }
     currentTrack=music.$nowPlaying.map { $0?.id }.removeDuplicates().sink { [weak narration] _ in
       narration?.clearInterpretation()
     }

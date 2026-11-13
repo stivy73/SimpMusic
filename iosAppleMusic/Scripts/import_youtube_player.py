@@ -25,7 +25,7 @@ player=player[:a]+player[b:]
 a=player.index('                if showLyrics && !expanded {\n                  HStack {')
 b=player.index('\n              }.frame(width: column)',a)
 player=player[:a]+player[b:]
-player=player.replace('"Testo della canzone"','"Fonti e significato"').replace('navigationTitle("Testo")','navigationTitle("Fonti e significato")')
+player=player.replace('"Testo della canzone"','"Significato"').replace('navigationTitle("Testo")','navigationTitle("Significato")')
 # ArrangementView can collapse its secondary pane on a landscape iPhone.
 # Keep the original control and use its existing full-pane sheet in that layout.
 inline_action='                      toggleLyrics()\n                    }.accessibilityIdentifier("toggle-lyrics")'

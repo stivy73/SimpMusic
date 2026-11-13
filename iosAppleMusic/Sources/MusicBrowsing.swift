@@ -41,12 +41,14 @@ struct CollectionScreen: View {
             Button {Task{await music.playPlaylistEntry(playlist,entry:entry)}} label:{
               HStack {Text("\(index+1)").monospacedDigit().foregroundStyle(.secondary);CoverRow(artwork:entry.artwork,title:entry.title,subtitle:entry.playParameters == nil ? "Non disponibile · " + entry.artistName:entry.artistName)}
             }.disabled(entry.playParameters == nil)
+              .contextMenu {if case .song(let song)=entry.item {SongNavigationActions(song:song)}}
           }
         } else {
           ForEach(Array(tracks.enumerated()),id:\.offset) { index,track in
             Button {Task{await music.playCollectionTrack(album:album,track:track)}} label:{
               HStack {Text("\(index+1)").monospacedDigit().foregroundStyle(.secondary);CoverRow(artwork:track.artwork,title:track.title,subtitle:track.artistName)}
             }.disabled(track.playParameters == nil)
+              .contextMenu {if case .song(let song)=track {SongNavigationActions(song:song)}}
           }
         }
         if !busy && failure == nil && tracks.isEmpty && entries.isEmpty { Text("Nessuna traccia disponibile per questa raccolta.") }
