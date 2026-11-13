@@ -1,0 +1,7 @@
+Copertine del player e della coda
+
+Le copertine Apple Music già disponibili vengono conservate quando la coda nativa restituisce metadati ridotti. Le immagini mancanti vengono recuperate in background per l’esatto identificativo del brano, senza ritardare l’avvio audio.
+
+Corretti anche gli URL immagine Apple che mantengono i segnaposto di ritaglio e formato. Player e coda condividono il recupero, evitando richieste duplicate.
+
+Da verificare: riproduci un brano da album, playlist e ricerca, poi controlla la copertina nel player e nella coda, anche cambiando traccia.

@@ -594,3 +594,44 @@ o l'ascolto della nuova build 12. Il collaudo con dati reali su iPhone resta ape
 
 Ricevute: verification/package-0.1.0-12.json e
 verification/testflight-0.1.0-12.json. Nessun invio pubblico App Store.
+
+## Copertine player e coda — 13 novembre 2026
+
+Riprodotto con oggetti MusicKit reali il passaggio da Song completo con artwork
+a Song/Queue.Entry ridotti senza artwork, usando i metadati pubblici Apple di
+Heaven Is a Place on Earth (Belinda Carlisle, catalogo 1821941447). Il timer
+sostituiva il brano completo; il player e la coda consultavano soltanto il
+campo opzionale della versione ridotta.
+
+PlaybackArtwork conserva gli URL per ID media, condivisi tra player e coda.
+Il recupero asincrono usa lo stesso ID nel catalogo o nella libreria; per i
+caricamenti personali consulta prima la risorsa proprietaria. Nessuna ricerca
+per titolo, sostituzione di traccia o attesa delle immagini prima dell'audio.
+La copertina dell'album viene associata solo ai suoi brani restituiti da Apple;
+non vengono usati collage di playlist. Massimo tre letture concorrenti,
+richieste condivise, pausa di 30 secondi dopo fallimenti e reset al ripristino
+del collegamento.
+
+Il test visivo ha inoltre riprodotto un URL Artwork.url(width:height:) che
+manteneva %7Bc%7D e %7Bf%7D. Risolti in bb e jpg esclusivamente nel percorso
+degli URL HTTPS mzstatic.com; preservati URL concreti, query e altri host.
+CDN Apple verificato: HTTP 200, image/jpeg, 199463 byte per la copertina del
+brano segnalato. Nessun URL o token di account nella diagnostica aggiunta.
+
+103 test riusciti, inclusi conservazione metadati, condivisione delle richieste,
+precedenza ai dati nativi, limite di concorrenza, ripristino, identità media e
+URL immagine. Compilazioni Debug e archivio Release riusciti. I tre import
+della presentazione YouTube e git diff --check sono verificati.
+
+Collaudo visivo in Device Hub / iPhone 18 Pro, iOS 27.2, con fixture esclusa
+dalla Release (DEBUG PLAYER_LAYOUT_FIXTURE ARTWORK_LAYOUT_FIXTURE): player
+con copertina grande visibile, coda con due copertine visibili. Entrambi i
+brani nativi sono privi di artwork; solo il primo viene preinserito nella
+cache, il secondo passa dal recupero asincrono per ID. Immagini del CDN Apple,
+nessun account simulato come prova di riproduzione reale. Screenshot locali:
+/tmp/NoteNarrateMusic-artwork-player-fixed.png e
+/tmp/NoteNarrateMusic-artwork-queue-fixed.png.
+Resta da confermare sul telefono con la libreria dell'utente.
+
+Preparata build 0.1.0 (13) per app, Watch ed estensione; consegna e assegnazione
+TestFlight da verificare separatamente dopo l'upload.

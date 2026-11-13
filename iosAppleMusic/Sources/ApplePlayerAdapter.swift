@@ -25,7 +25,11 @@ enum PlayerRepeatMode {
     music.objectWillChange.sink {[weak self] _ in self?.objectWillChange.send()}.store(in:&subscriptions)
     narration.objectWillChange.sink {[weak self] _ in self?.objectWillChange.send()}.store(in:&subscriptions)
   }
-  var current:PlayerSong? {music.nowPlaying.map{.init(id:$0.id.rawValue,title:$0.title,artist:$0.artistName,artwork:$0.artwork?.url(width:900,height:900))}}
+  var current:PlayerSong? {music.nowPlaying.map{.init(id:$0.id.rawValue,title:$0.title,artist:$0.artistName,artwork:music.artworkURL($0))}}
+  func loadCurrentArtwork() async {
+    guard let song=music.nowPlaying else{return}
+    music.rememberArtwork([song]);await music.artwork.load(id:song.id.rawValue)
+  }
   var showPlayer:Bool {get{music.showPlayer} set{music.showPlayer=newValue}}
   var player:ApplePlayerAdapter {self}
   var isPassenger:Bool {false}
@@ -111,18 +115,21 @@ struct ApplePlayerQueueScreen:View {
   var body:some View {
     NavigationStack {
       List {
-        Text("\(model.music.player.queue.entries.count) elementi").font(.caption).foregroundStyle(.secondary)
-        ForEach(Array(model.music.player.queue.entries),id:\.id) {entry in
+        Text("\(model.music.playbackQueueEntries.count) elementi").font(.caption).foregroundStyle(.secondary)
+        ForEach(model.music.playbackQueueEntries,id:\.id) {entry in
           Button {
+            if model.music.isPlayerFixture {dismiss();return}
             model.music.player.queue.currentEntry=entry
             Task{await model.music.resume()};dismiss()
           } label:{
             HStack {
-              YTPlayerArtwork(url:entry.artwork?.url(width:120,height:120)).frame(width:44,height:44).clipShape(RoundedRectangle(cornerRadius:6))
+              YTPlayerArtwork(url:model.music.artworkURL(entry)).frame(width:44,height:44).clipShape(RoundedRectangle(cornerRadius:6))
+                .accessibilityIdentifier("queue-artwork-"+entry.id)
               VStack(alignment:.leading) {Text(entry.title);Text(entry.subtitle ?? "").font(.caption).foregroundStyle(.secondary)}
               Spacer();if entry.id==model.music.player.queue.currentEntry?.id {Image(systemName:"waveform")}
             }
           }.accessibilityValue(entry.id==model.music.player.queue.currentEntry?.id ? "Brano corrente":"In coda")
+            .task(id:model.music.artworkID(entry)){await model.music.loadArtwork(entry)}
         }
       }.navigationTitle("Coda").accessibilityIdentifier("playback-queue").toolbar {Button("Chiudi"){dismiss()}}
     }

@@ -284,6 +284,7 @@ struct AdaptedYTPlayerScreen: View {
                       .accessibilityAddTraits(.isImage)
                       .accessibilityLabel("Copertina di \(song.title)")
                       .accessibilityIdentifier("player-artwork")
+                      .task(id: song.id) { await model.loadCurrentArtwork() }
                   }
                 }
               }

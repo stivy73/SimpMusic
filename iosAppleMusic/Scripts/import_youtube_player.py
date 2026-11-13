@@ -37,6 +37,8 @@ a=player.index('    Button {\n      #if DEBUG')
 b=player.index('    } label: {',a)
 player=player[:a]+'    Button { model.explain() } label: {'+player[b+len('    } label: {'):]
 mini=mini.replace('private struct DuoNavigationBars','struct DuoNavigationBars').replace('private struct SystemMiniPlayerAccessory','struct SystemMiniPlayerAccessory').replace('private struct LegacyMiniPlayerInset','struct LegacyMiniPlayerInset')
+# MusicKit queue items can be lightweight; hydrate artwork independently of audio.
+player=player.replace('.accessibilityIdentifier("player-artwork")','.accessibilityIdentifier("player-artwork")\n                      .task(id: song.id) { await model.loadCurrentArtwork() }')
 controls=re.sub(r'      #if DEBUG && os\(iOS\).*?      #endif\n','',controls,flags=re.S)
 controls=controls.replace('Label("YouTube",','Label("Apple Music",')
 controls=controls.replace('Slider(value: Binding(get: { player.volume }, set: { player.setVolume($0) }), in: 0...100)\n          .accessibilityLabel("Volume del player")','NativeMusicVolume().frame(height: 28).accessibilityLabel("Volume")')

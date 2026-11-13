@@ -56,6 +56,9 @@ final class MusicLibraryModel: ObservableObject {
   @Published var playing = false
   @Published var position = 0.0
   @Published var duration = 0.0
+  let artwork=PlaybackArtwork(fetch:MusicArtworkResolver.resolve)
+  var artworkFixtureQueue:[MusicKit.MusicPlayer.Queue.Entry]=[]
+  private var artworkChanges:AnyCancellable?
   var beforePlayback: (() -> Void)?
   let player = ApplicationMusicPlayer.shared
   private var accessEvents: [String] = []
@@ -69,6 +72,7 @@ final class MusicLibraryModel: ObservableObject {
     #endif
   }
   init() {
+    artworkChanges=artwork.objectWillChange.sink{[weak self] in self?.objectWillChange.send()}
     #if DEBUG && PLAYER_LAYOUT_FIXTURE
     let data=Data(#"{"id":"123456789","type":"songs","attributes":{"name":"Brano di prova","artistName":"NoteNarrate · test interfaccia","albumName":"Album di prova","durationInMillis":261000,"playParams":{"id":"123456789","kind":"song"}}}"#.utf8)
     nowPlaying=try? JSONDecoder().decode(MusicKit.Song.self,from:data)
@@ -87,17 +91,17 @@ final class MusicLibraryModel: ObservableObject {
     songs+=(1...5).compactMap{fixture(Song.self,id:String(123456789+$0),kind:"songs",attributes:["name":"Ascolto recente \($0)","artistName":"Artista di prova","albumName":"Album di prova","durationInMillis":200000,"playParams":["id":String(123456789+$0),"kind":"song"]])}
     recentSongs=songs;favoriteSongs=songs;favoriteAlbums=albums;favoritePlaylists=playlists;favoriteArtists=artists
     #endif
+    #if ARTWORK_LAYOUT_FIXTURE
+    MusicArtworkFixture.configure(self)
+    #endif
     return
     #endif
     timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect().sink { [weak self] _ in
       MainActor.assumeIsolated {
         guard let self else { return }
-        self.playing = self.player.state.playbackStatus == .playing
+        self.syncPlaybackState()
         if self.playing { self.playbackFailure=nil }
         self.position = max(0, self.player.playbackTime)
-        if let entry = self.player.queue.currentEntry, case .song(let song) = entry.item {
-          self.nowPlaying = song; self.duration = song.duration ?? 0
-        }
       }
     }
   }
@@ -257,6 +261,7 @@ final class MusicLibraryModel: ObservableObject {
   }
   func restoreAccess() async {
     guard !checkingAccess else { return }
+    artwork.reset()
     checkingAccess = true; defer { checkingAccess = false }
     record("Ripristino richiesto; autorizzazione=\(authorization)")
     if MusicAuthorization.currentStatus != .authorized { await connect(); return }
@@ -509,6 +514,7 @@ final class MusicLibraryModel: ObservableObject {
     guard !preparingPlayback else {record("Brano: preparazione già in corso");return}
     activeCollectionID=nil;activeCollectionRowID=nil;activeCollectionQueueEntryID=nil
     let values = list.isEmpty ? [song] : list
+    rememberArtwork(values)
     nowPlaying=song;duration=song.duration ?? 0;position=0
     record("Selezione brano: parametri=\(song.playParameters != nil); elementi=\(values.count)")
     await startPlayback(queue:ApplicationMusicPlayer.Queue(for:values,startingAt:song),origin:"Brano")
@@ -582,7 +588,11 @@ final class MusicLibraryModel: ObservableObject {
       activeCollectionQueueEntryID=entry.id
     }
     if let entry = player.queue.currentEntry, case .song(let song) = entry.item {
+      let changed=nowPlaying?.id != song.id
+      rememberArtwork([song])
+      artwork.remember(id:song.id.rawValue,url:entry.artwork?.url(width:900,height:900))
       nowPlaying = song; duration = song.duration ?? 0
+      if changed || artwork.status[song.id.rawValue]==nil {Task{await artwork.load(id:song.id.rawValue)}}
     }
   }
   private func playbackMessage(_ error: any Error) -> String {
@@ -618,6 +628,7 @@ final class MusicLibraryModel: ObservableObject {
   }
   func enqueue(_ song: MusicKit.Song, next: Bool) async {
     do {
+      rememberArtwork([song])
       try await player.queue.insert(song, position: next ? .afterCurrentEntry : .tail)
       queueSongs.append(song)
     } catch { self.error = error.localizedDescription }

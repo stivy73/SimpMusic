@@ -225,8 +225,8 @@ struct MusicSettings: View {
           .disabled(music.checkingCloudLibrary || music.loading)
         if music.checkingCloudLibrary { ProgressView("Verifica libreria cloud…") }
         DisclosureGroup("Diagnostica Apple Music") {
-          Text(music.accessReport).font(.caption.monospaced()).textSelection(.enabled)
-          ShareLink("Condividi diagnostica",item:music.accessReport)
+          Text(music.accessReport+"\n"+music.artworkReport).font(.caption.monospaced()).textSelection(.enabled)
+          ShareLink("Condividi diagnostica",item:music.accessReport+"\n"+music.artworkReport)
         }
       }
       Section("Gemini") {

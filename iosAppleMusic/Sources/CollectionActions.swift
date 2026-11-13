@@ -58,12 +58,21 @@ extension MusicLibraryModel {
     case .album(let album):
       let detail=try await MusicRead.perform{try await album.with([.tracks])}
       let values=try await MusicRead.all(detail.tracks ?? [])
+      for track in values {
+        artwork.remember(id:track.id.rawValue,url:track.artwork?.url(width:900,height:900))
+        // An album's cover is valid only for tracks returned by that exact album.
+        artwork.remember(id:track.id.rawValue,url:detail.artwork?.url(width:900,height:900),replace:false)
+      }
       return .init(identity:AppleCollection.album(detail).identity,year:detail.releaseDate.map{String(Calendar.current.component(.year,from:$0))},
         description:detail.editorialNotes?.standard ?? detail.editorialNotes?.short ?? "Nessuna descrizione",
         songs:values.enumerated().map{.init(id:"track-\($0.offset)",track:$0.element,entry:nil)})
     case .playlist(let playlist):
       let detail=try await MusicRead.perform{try await playlist.with([.entries])}
       let values=try await MusicRead.all(detail.entries ?? [])
+      for entry in values {if let item=entry.item {let id:String
+        switch item {case .song(let v):id=v.id.rawValue;rememberArtwork([v]);case .musicVideo(let v):id=v.id.rawValue;@unknown default:continue}
+        artwork.remember(id:id,url:entry.artwork?.url(width:900,height:900))
+      }}
       return .init(identity:AppleCollection.playlist(detail).identity,year:nil,description:detail.standardDescription ?? detail.shortDescription ?? "Nessuna descrizione",
         songs:values.map{.init(id:"\($0.position):\($0.id.rawValue)",track:nil,entry:$0)})
     }
