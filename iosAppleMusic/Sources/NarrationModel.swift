@@ -12,6 +12,7 @@ final class NarrationModel: ObservableObject {
   @Published var attribution: String?
   @Published var text = ""
   @Published var busy = false
+  @Published var isReading = false
   @Published var error: String?
   @Published var useGeminiVoice = false
   private var revision = UUID()
@@ -41,11 +42,11 @@ final class NarrationModel: ObservableObject {
   }
   func read() {
     guard !text.isEmpty else { return }
-    stop(); busy = true
+    stop(); busy = true; isReading=true
     let requestRevision = revision
     let text = text; let key = key
     task = Task { [weak self] in
-      guard let self else { return }; defer { if self.revision == requestRevision { self.busy = false } }
+      guard let self else { return }; defer { if self.revision == requestRevision { self.busy = false;self.isReading=false } }
       do {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playback, mode: .spokenAudio); try session.setActive(true)
@@ -63,7 +64,7 @@ final class NarrationModel: ObservableObject {
       } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
   }
-  func stop() { revision = UUID(); task?.cancel(); task = nil; pcm?.stop(); pcm = nil; speaker.stopSpeaking(at: .immediate); busy = false }
+  func stop() { revision = UUID(); task?.cancel(); task = nil; pcm?.stop(); pcm = nil; speaker.stopSpeaking(at: .immediate); busy = false;isReading=false }
 }
 enum SecretStore {
   static let service = "com.stivy.notenarrate.applemusic.gemini"

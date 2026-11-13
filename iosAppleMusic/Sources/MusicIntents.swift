@@ -12,7 +12,7 @@ struct PauseMusicIntent: AudioPlaybackIntent {
   static let title: LocalizedStringResource = "Pausa musica"
   static let openAppWhenRun = false
   @MainActor func perform() async throws -> some IntentResult {
-    MusicAppState.shared.music.player.pause();MusicAppState.shared.narration.stop();return .result()
+    MusicAppState.shared.music.pause();MusicAppState.shared.narration.stop();return .result()
   }
 }
 struct NextMusicIntent: AudioPlaybackIntent {

@@ -6,6 +6,7 @@ import Combine
   static let shared = MusicAppState()
   let music = MusicLibraryModel()
   let narration = NarrationModel()
+  lazy var playerPresentation=ApplePlayerAdapter(music:music,narration:narration)
   private var currentTrack:AnyCancellable?
   private var watch:MusicWatchBridge!
   private init() {

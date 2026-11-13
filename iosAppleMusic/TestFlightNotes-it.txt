@@ -1,11 +1,9 @@
-NoteNarrate Music — 0.1.0 (9)
+NoteNarrate Music — 0.1.0 (10)
 
-Punto 1: libreria e navigazione.
-Album e playlist aprono una pagina con copertina, tracce numerate, Riproduci tutto e selezione della singola traccia. Le playlist conservano l’identità delle occorrenze, anche con duplicati; gli elementi indisponibili restano visibili.
-Ricerca nel catalogo di brani, album, artisti e playlist (25 risultati per categoria). Gli artisti aprono brani principali e album. La ricerca personale nella Libreria resta separata.
-Home con ascolti recenti e consigli Apple Music, caricati indipendentemente dalla libreria.
-Preferiti nativi Apple: aggiunta da brani/player, album, playlist e artisti; vista Preferiti nella Libreria. Stella piena solo dopo lettura esplicita inFavorites=true. Un 202 significa richiesta accettata, non stato confermato. Se Apple non espone lo stato, l’app lo dichiara senza inventarlo. La rimozione si effettua in Musica, come previsto dalle API pubbliche Apple.
-Salvataggio album nella libreria separato dall’aggiunta ai Preferiti.
+Player recuperato dal codice originale di NoteNarrate YouTube Music: mini player, apertura a schermo intero, gesto dal bordo per tornare, copertina e sfondo, barra temporale, controlli e barre verticali. Comandi collegati al player nativo Apple Music, con volume di sistema e AirPlay.
+Opzioni native per Preferiti Apple, libreria, condivisione e coda; identità delle occorrenze conservate. Fonti e significato mantengono l’interpretazione e il consenso già presenti nella variante Apple Music.
+Diagnostica audio più precisa: il ritorno di play() non viene considerato conferma di riproduzione. Se MusicKit resta in pausa, compare Riprova; una pausa esplicita annulla l’attesa.
+Recupero brani iOS tramite richiesta catalogo esplicita, con storefront, HTTP e conteggi nella diagnostica. Da verificare sul dispositivo il recupero dei 14 brani del report precedente e l’effettivo avvio dell’audio.
 
-53 test contratti superati; compilazione Debug riuscita. Prova reale da fare: raccolte grandi e duplicate, selezione traccia, preferiti in Musica, recenti/consigli del proprio account.
+59 test di contratto superati; compilazione Debug e archivio Release firmato riusciti. Da collaudare su iPhone: mini player, ritorno, seek, trasporto, coda, narrazione e AirPlay.
 Solo Stivy73. App separata dalla variante YouTube Music.

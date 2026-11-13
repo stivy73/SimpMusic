@@ -44,6 +44,9 @@ final class MusicLibraryModel: ObservableObject {
   @Published var query = ""
   @Published var nowPlaying: MusicKit.Song?
   @Published var queueSongs: [MusicKit.Song] = []
+  @Published var showPlayer = false
+  @Published var playbackFailure:String?
+  private var playbackIntent=UUID()
   @Published var preparingPlayback = false
   @Published var playing = false
   @Published var position = 0.0
@@ -53,11 +56,25 @@ final class MusicLibraryModel: ObservableObject {
   private var accessEvents: [String] = []
   private var searchRevision = UUID()
   private var timer: AnyCancellable?
+  var isPlayerFixture:Bool {
+    #if DEBUG && PLAYER_LAYOUT_FIXTURE
+      true
+    #else
+      false
+    #endif
+  }
   init() {
+    #if DEBUG && PLAYER_LAYOUT_FIXTURE
+    let data=Data(#"{"id":"123456789","type":"songs","attributes":{"name":"Brano di prova","artistName":"NoteNarrate · test interfaccia","albumName":"Album di prova","durationInMillis":261000,"playParams":{"id":"123456789","kind":"song"}}}"#.utf8)
+    nowPlaying=try? JSONDecoder().decode(MusicKit.Song.self,from:data)
+    duration=261;position=42;authorization = .authorized;showPlayer=true
+    return
+    #endif
     timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect().sink { [weak self] _ in
       MainActor.assumeIsolated {
         guard let self else { return }
         self.playing = self.player.state.playbackStatus == .playing
+        if self.playing { self.playbackFailure=nil }
         self.position = max(0, self.player.playbackTime)
         if let entry = self.player.queue.currentEntry, case .song(let song) = entry.item {
           self.nowPlaying = song; self.duration = song.duration ?? 0
@@ -73,6 +90,7 @@ final class MusicLibraryModel: ObservableObject {
     await refresh()
   }
   func refresh() async {
+    if isPlayerFixture {return}
     authorization = MusicAuthorization.currentStatus
     guard authorization == .authorized, !loading else { return }
     loading = true; defer { loading = false }
@@ -146,14 +164,16 @@ final class MusicLibraryModel: ObservableObject {
       do {
         let result = try await MediaCatalogBridge.resolve(deviceStoreIDs,id:{ (song:MusicKit.Song) in song.id.rawValue }) { [weak self] ids in
           guard let self else { throw CancellationError() }
-          var request = MusicCatalogResourceRequest<MusicKit.Song>(matching:\.id,memberOf:ids.map { MusicItemID($0) })
-          request.limit = 100
-          let catalogRequest = request
-          return try await self.withTokenRecovery { try await self.collect(catalogRequest.response().items) }
+          let storefront=try await MusicDataRequest.currentCountryCode
+          let request=try MediaCatalogRequest.request(ids:ids,storefront:storefront)
+          let response=try await MusicDataRequest(urlRequest:request).response()
+          let values=try MediaCatalogRequest.items(MusicKit.Song.self,data:response.data,status:response.urlResponse.statusCode)
+          await self.record("Catalogo esplicito: storefront=\(storefront); HTTP \(response.urlResponse.statusCode); richiesti=\(ids.count); restituiti=\(values.count)")
+          return values
         }
         try Task.checkCancellation()
         songs = result.items
-        record("Recupero brani iOS: ID validi=\(result.requested); risolti=\(result.items.count); non disponibili=\(result.unresolved)")
+        record("Recupero brani iOS: ID validi=\(result.requested); risolti=\(result.items.count); non restituiti=\(result.unresolved)")
       } catch {
         if Task.isCancelled { return }
         recordFailure(error,stage:"Recupero brani iOS")
@@ -354,6 +374,7 @@ final class MusicLibraryModel: ObservableObject {
     _ = await (library,discovery)
   }
   func refreshDiscovery() async {
+    if isPlayerFixture {return}
     guard MusicAuthorization.currentStatus == .authorized,!loadingDiscovery else{return}
     loadingDiscovery=true;defer{loadingDiscovery=false}
     var failures:[String]=[]
@@ -450,7 +471,9 @@ final class MusicLibraryModel: ObservableObject {
     try session.setActive(true)
   }
   func play(_ song: MusicKit.Song, in list: [MusicKit.Song]) async {
+    guard !preparingPlayback else {record("Brano: preparazione già in corso");return}
     let values = list.isEmpty ? [song] : list
+    nowPlaying=song;duration=song.duration ?? 0;position=0
     record("Selezione brano: parametri=\(song.playParameters != nil); elementi=\(values.count)")
     await startPlayback(queue:ApplicationMusicPlayer.Queue(for:values,startingAt:song),origin:"Brano")
   }
@@ -467,6 +490,7 @@ final class MusicLibraryModel: ObservableObject {
   private func startPlayback(queue: ApplicationMusicPlayer.Queue, origin: String) async {
     guard !preparingPlayback else { record("\(origin): preparazione già in corso"); return }
     preparingPlayback = true; defer { preparingPlayback = false }
+    let intent=UUID();playbackIntent=intent;showPlayer=true;playbackFailure=nil
     var stage = "Sessione audio"
     do {
       error = nil
@@ -477,17 +501,35 @@ final class MusicLibraryModel: ObservableObject {
       record("\(stage): avviata; coda nativa")
       try await player.prepareToPlay()
       try Task.checkCancellation()
+      guard intent==playbackIntent else {record("\(stage): richiesta interrotta dall’utente");return}
       record("\(stage): riuscita")
       stage = "Avvio audio \(origin)"
       try await player.play()
-      syncPlaybackState()
-      record("\(stage): riuscito; stato=\(player.state.playbackStatus)")
+      guard intent==playbackIntent else {player.pause();record("\(stage): richiesta interrotta dall’utente");return}
+      guard try await observeStart(intent:intent,stage:stage) else {return}
     } catch {
+      guard intent==playbackIntent else {record("\(stage): richiesta interrotta dall’utente");return}
       recordFailure(error,stage:stage)
       if Task.isCancelled { player.stop(); return }
-      self.error = playbackMessage(error)
+      playbackFailure=playbackMessage(error)
     }
   }
+  // play() returning is not proof that audio started. Observe the native state;
+  // an explicit pause cancels the pending intent instead of being reported as an error.
+  private func observeStart(intent:UUID,stage:String) async throws -> Bool {
+    let observed=try await PlaybackStartObservation.wait(current:{intent==self.playbackIntent},playing:{
+      self.syncPlaybackState();return self.player.state.playbackStatus == .playing
+    })
+    switch observed {
+    case .playing:record("\(stage): riproduzione osservata; elementi=\(player.queue.entries.count)");return true
+    case .cancelled:record("\(stage): richiesta interrotta dall’utente");return false
+    case .unconfirmed:break
+    }
+    record("\(stage): avvio non confermato; stato=\(player.state.playbackStatus); preparato=\(player.isPreparedToPlay); elementi=\(player.queue.entries.count)")
+    playbackFailure="Apple Music è rimasta in pausa dopo la richiesta. Premi Riprova; se persiste condividi la diagnostica."
+    return false
+  }
+  func pause() {if isPlayerFixture {playing=false;return};playbackIntent=UUID();player.pause();syncPlaybackState()}
   private func syncPlaybackState() {
     queueSongs = player.queue.entries.compactMap { entry in
       if case .song(let song) = entry.item { return song }; return nil
@@ -505,17 +547,22 @@ final class MusicLibraryModel: ObservableObject {
     return accessMessage(error)
   }
   func toggle() async {
-    if playing { player.pause() }
+    if playing { pause() }
     else { await resume() }
   }
   func resume() async {
+    if isPlayerFixture {playing=true;return}
     guard !preparingPlayback else { return }
     preparingPlayback = true; defer { preparingPlayback = false }
+    let intent=UUID();playbackIntent=intent;playbackFailure=nil
     do {
       try activateAudio()
       if !player.isPreparedToPlay { try await player.prepareToPlay() }
-      try await player.play(); syncPlaybackState(); record("Ripresa audio: riuscita")
-    } catch { recordFailure(error,stage:"Ripresa audio"); self.error = playbackMessage(error) }
+      guard intent==playbackIntent else {return}
+      try await player.play()
+      guard intent==playbackIntent else {player.pause();return}
+      _ = try await observeStart(intent:intent,stage:"Ripresa audio")
+    } catch {if intent==playbackIntent && !Task.isCancelled {recordFailure(error,stage:"Ripresa audio");playbackFailure=playbackMessage(error)}}
   }
   func next() async { do { try await player.skipToNextEntry() } catch { recordFailure(error,stage:"Brano successivo"); self.error = playbackMessage(error) } }
   func previous() async { do { try await player.skipToPreviousEntry() } catch { recordFailure(error,stage:"Brano precedente"); self.error = playbackMessage(error) } }

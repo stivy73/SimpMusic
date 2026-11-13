@@ -351,3 +351,36 @@ Collaudo richiesto: Heaven on Earth/traccia intermedia, playlist con duplicati,
 ricerca quattro categorie, recenti e consigli, Preferiti confrontati con Musica.
 Risorse personali senza equivalente catalogo possono non consentire aggiunta
 ai Preferiti dall’app: l’errore resta esplicito e si usa Musica, senza API private.
+
+## Player originale YouTube adattato a MusicKit — build 0.1.0 (10)
+
+Il report utente di build 9 mostra prepareToPlay riuscito e play ritornato con
+stato paused, oltre a 14 ID iOS risolti in zero Song. Il player semplificato della
+variante Apple Music è stato rimosso. La presentazione proviene direttamente da
+StivyApp.swift del commit YT 5a277798: copertina, mini player nativo, overlay
+conservato, gesto dal bordo, layout compatto/esteso, toolbar verticali, scrubber,
+controlli e animazioni. Provenienza e differenze verificabili con lo script di
+importazione e documentate in PLAYER_PORT.md.
+
+L’adapter usa esclusivamente ApplicationMusicPlayer per la musica. Coda con ID
+di occorrenza nativi, preferiti/libreria Apple, MPVolumeView e AirPlay. Il pannello
+Fonti e significato mantiene il percorso Google Search già presente e il consenso;
+nessuna importazione del motore audio YT, recupero testi o relay Chromecast.
+
+Controllo del vero stato playing dopo il comando, fino a circa 3 s, messaggio
+Riprova se non confermato. Una pausa da iPhone/Siri/Watch invalida l’intento;
+non può essere annullata da un comando play ancora in attesa. Se il player parte
+successivamente, l’avviso si elimina. Nessuna prova di riproduzione reale nel test.
+
+Il fallback dei brani iOS usa GET ufficiale /v1/catalog/{storefront}/songs?ids=,
+con MusicDataRequest, validazione HTTP/schema e conteggi diagnostici. "Non
+restituiti" sostituisce "non disponibili": zero risultati non ne prova il motivo.
+Il recupero dei 14 Song deve essere verificato con l’account del dispositivo.
+
+59 test superati, inclusi avvio ritardato, play senza playing, pausa esplicita,
+richiesta dei 14 ID/storefront e rifiuto di risposte invalide/HTTP 403. Verifica
+del port fissato riuscita. Compilazione Debug e archivio Release firmato riusciti.
+Il test visivo con dati sintetici è separato dal Release tramite
+DEBUG && PLAYER_LAYOUT_FIXTURE. Il Mac bloccato impedisce per ora il controllo
+visivo in Device Hub; lo sblocco è stato richiesto. La compilazione non equivale
+al collaudo sul dispositivo, né risolve da sola il report paused di build 9.

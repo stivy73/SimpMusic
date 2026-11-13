@@ -16,7 +16,7 @@ import Combine
       switch command.action {
       case .refresh:break
       case .play: Task { await self.music.resume() }
-      case .pause:self.music.player.pause();self.narration.stop()
+      case .pause:self.music.pause();self.narration.stop()
       case .next:Task { await self.music.next() }
       case .previous:Task { await self.music.previous() }
       case .stopExplanation:self.narration.stop()

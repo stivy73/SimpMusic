@@ -8,15 +8,19 @@ struct NoteNarrateMusicApp: App {
   @StateObject private var music = MusicAppState.shared.music
   @StateObject private var narration = MusicAppState.shared.narration
   var body: some Scene {
-    WindowGroup { MusicRoot().environmentObject(music).environmentObject(narration).tint(.cyan).preferredColorScheme(.dark) }
+    WindowGroup { MusicRoot().environmentObject(music).environmentObject(narration).environmentObject(MusicAppState.shared.playerPresentation).tint(.cyan).preferredColorScheme(.dark) }
   }
 }
 struct MusicRoot: View {
   @EnvironmentObject var music: MusicLibraryModel
-  @State private var player = false
+  @EnvironmentObject var presentation:ApplePlayerAdapter
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.layoutDirection) private var layoutDirection
+  @GestureState private var playerBackDrag:CGFloat=0
+  private var model:ApplePlayerAdapter {presentation}
   @State private var selectedTab = 0
   @EnvironmentObject var narration: NarrationModel
-  var body: some View {
+  private var navigation: some View {
     TabView(selection:$selectedTab) {
       NavigationStack {
         Group {
@@ -92,22 +96,94 @@ struct MusicRoot: View {
       }.tag(2).tabItem { Label("Libreria",systemImage:"square.stack") }
       NavigationStack { MusicSettings(onSaved:{selectedTab=0}) }.tag(3).tabItem { Label("Impostazioni",systemImage:"gearshape") }
     }
-    .safeAreaInset(edge:.bottom) {
-      if let song = music.nowPlaying {
-        HStack {
-          Button { player=true } label: { CoverRow(artwork:song.artwork,title:song.title,subtitle:song.artistName) }.buttonStyle(.plain)
-          Spacer()
-          Button { Task { await music.toggle() } } label: { Image(systemName: music.playing ? "pause.fill":"play.fill").padding() }
-            .accessibilityLabel(music.playing ? "Pausa":"Riproduci").disabled(music.preparingPlayback)
-        }.padding(.horizontal).padding(.vertical,8).background(.regularMaterial)
-      }
-    }
-    .sheet(isPresented:$player) { MusicPlayerScreen() }
+    .modifier(SystemMiniPlayerAccessory())
+    .modifier(LegacyMiniPlayerInset())
+    .modifier(DuoNavigationBars())
     .task { await music.refreshHome() }
     .onChange(of:music.nowPlaying?.id) { _,_ in narration.clearInterpretation() }
     .alert("Apple Music",isPresented:Binding(get:{music.notice != nil},set:{if !$0 {music.notice=nil}})) {Button("OK"){music.notice=nil}} message:{Text(music.notice ?? "")}
     .alert("Apple Music",isPresented:Binding(get:{music.error != nil},set:{if !$0 { music.error=nil }})) { Button("OK") { music.error=nil } } message: { Text(music.error ?? "") }
   }
+  var body: some View {
+    GeometryReader { geometry in
+      ZStack(alignment: .top) {
+        navigation.allowsHitTesting(!model.showPlayer).accessibilityHidden(model.showPlayer)
+        if model.current != nil {
+          // Retain the original presentation while MusicKit owns the media session.
+          AdaptedYTPlayerScreen(player: model.player, onLibrary: { selectedTab = 2 })
+            .environmentObject(model).background(.black)
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            // Native vertical bars draw in the display's safe-area region on Duo.
+            // Clipping the navigation container here also clips those controls.
+            .scaleEffect(model.showPlayer || reduceMotion ? 1 : 0.94, anchor: .bottom)
+            .offset(x: layoutDirection == .rightToLeft ? -playerBackDrag : playerBackDrag)
+            .offset(
+              y: model.showPlayer || reduceMotion
+                ? 0
+                : geometry.size.height
+            )
+            .opacity(model.showPlayer ? 1 : 0)
+            .animation(
+              reduceMotion
+                ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.92),
+              value: model.showPlayer
+            )
+            .animation(
+              reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.9),
+              value: playerBackDrag
+            )
+            .allowsHitTesting(model.showPlayer).accessibilityHidden(!model.showPlayer)
+            .overlay(alignment: .leading) {
+              #if os(iOS)
+                if model.showPlayer {
+                  Color.clear.frame(width: 20).contentShape(Rectangle())
+                    .gesture(playerBackSwipe(width: geometry.size.width))
+                    .accessibilityHidden(true)
+                }
+              #endif
+            }
+            .coordinateSpace(name: "player-back-swipe")
+            .accessibilityAction(.escape) { model.minimizePlayer() }
+        }
+      }
+    }
+  }
+  private func playerBackSwipe(width: CGFloat) -> some Gesture {
+    DragGesture(minimumDistance: 14, coordinateSpace: .named("player-back-swipe"))
+      .updating($playerBackDrag) { value, drag, transaction in
+        guard model.showPlayer, let distance = playerBackDistance(value, width: width) else {
+          return
+        }
+        transaction.animation = nil
+        drag = min(distance, width * 0.8)
+      }
+      .onEnded { value in
+        guard model.showPlayer, let distance = playerBackDistance(value, width: width) else {
+          return
+        }
+        let direction: CGFloat = layoutDirection == .rightToLeft ? -1 : 1
+        let projected = value.predictedEndTranslation.width * direction
+        if distance >= min(100, width * 0.25)
+          || (distance >= 32 && projected >= width * 0.5)
+        {
+          model.minimizePlayer()
+        }
+      }
+  }
+
+  private func playerBackDistance(_ value: DragGesture.Value, width: CGFloat) -> CGFloat? {
+    let rtl = layoutDirection == .rightToLeft
+    let start = rtl ? width - value.startLocation.x : value.startLocation.x
+    let distance = value.translation.width * (rtl ? -1 : 1)
+    // The content's controls start at least 20 pt in, so their horizontal drags
+    // remain independent. Vertical lyric scrolling never triggers a dismissal.
+    guard start >= 0, start < 20, distance > 0,
+      distance > abs(value.translation.height) * 1.5
+    else { return nil }
+    return distance
+  }
+
+
 }
 struct CoverRow: View {
   let artwork: Artwork?
@@ -154,45 +230,6 @@ struct SongRows: View {
     }
   }
 }
-struct MusicPlayerScreen: View {
-  @EnvironmentObject var music: MusicLibraryModel
-  @EnvironmentObject var narration: NarrationModel
-  @Environment(\.dismiss) private var dismiss
-  @State private var meaning=false
-  var body: some View {
-    NavigationStack {
-      ScrollView {
-        if let song=music.nowPlaying {
-          VStack(spacing:24) {
-            Cover(artwork:song.artwork).frame(maxWidth:380).clipShape(RoundedRectangle(cornerRadius:20))
-            Text(song.title).font(.title.bold());Text(song.artistName).foregroundStyle(.secondary)
-            Slider(value:Binding(get:{min(music.duration,max(0,music.position))},set:{music.player.playbackTime=$0}),in:0...max(1,music.duration))
-            HStack {
-              Text(Duration.seconds(music.position).formatted(.time(pattern:.minuteSecond)))
-              Spacer();Text(Duration.seconds(music.duration).formatted(.time(pattern:.minuteSecond)))
-            }.font(.caption.monospacedDigit())
-            if music.preparingPlayback { ProgressView("Preparazione Apple Music…") }
-            HStack(spacing:48) {
-              Button { Task { await music.previous() } } label: { Image(systemName:"backward.end.fill") }
-              Button { Task { await music.toggle() } } label: { Image(systemName:music.playing ? "pause.fill":"play.fill").font(.system(size:48)) }
-              Button { Task { await music.next() } } label: { Image(systemName:"forward.end.fill") }
-            }.font(.title).buttonStyle(.plain).disabled(music.preparingPlayback)
-            HStack {
-              FavoriteControl(type:"songs",id:song.id.rawValue)
-              Button("Significato",systemImage:"lightbulb") { meaning=true }
-              Spacer();RoutePicker().frame(width:44,height:44).accessibilityLabel("AirPlay")
-              if let url=song.url { ShareLink(item:url) }
-            }
-            if !music.queueSongs.isEmpty {
-              VStack(alignment:.leading) { Text("Coda").font(.headline);SongRows(songs:music.queueSongs) }
-            }
-          }.padding(24)
-        }
-      }.toolbar { ToolbarItem(placement:.topBarLeading) { Button("Chiudi",systemImage:"chevron.down") { dismiss() } } }
-        .sheet(isPresented:$meaning) { MeaningScreen() }
-    }
-  }
-}
 struct MeaningScreen: View {
   @EnvironmentObject var music: MusicLibraryModel
   @EnvironmentObject var narration: NarrationModel
@@ -213,7 +250,7 @@ struct MeaningScreen: View {
           Section("Interpretazione AI") {
             Text(narration.text).textSelection(.enabled)
             if let evidence = narration.searchEvidence { SongSearchSourcesView(evidence:evidence) }
-            Button("Leggi interpretazione",systemImage:"speaker.wave.2") { music.player.pause();narration.read() }
+            Button("Leggi interpretazione",systemImage:"speaker.wave.2") { music.pause();narration.read() }
           }
         }
         Button("Interrompi",role:.destructive) { narration.stop() }
