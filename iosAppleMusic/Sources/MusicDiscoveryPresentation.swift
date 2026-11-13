@@ -57,9 +57,13 @@ struct MusicHomeScreen:View {
       LazyVStack(alignment:.leading,spacing:28) {
         if music.subscriptionVerified && !music.canPlayCatalog {Text("Per ascoltare il catalogo, attiva un abbonamento nell’app Musica.").foregroundStyle(.secondary).padding(.horizontal,20)}
         if music.loadingDiscovery || music.loading {ProgressView("Aggiornamento libreria e consigli…").frame(maxWidth:.infinity)}
+        if music.libraryStates.values.contains(where: { $0.needsRetry }) {
+          NavigationLink {LibraryBrowserScreen()} label:{Label("Completa la sincronizzazione della libreria",systemImage:"exclamationmark.arrow.triangle.2.circlepath")}
+            .padding(.horizontal,20)
+        }
         if let error=music.discoveryError {Text(error).foregroundStyle(.orange).padding(.horizontal,20);Button("Riprova"){Task{await music.refreshDiscovery()}}.padding(.horizontal,20)}
         AppleDiscoveryShelves(shelves:shelves)
-        if shelves.isEmpty && !music.loading && !music.loadingDiscovery {ContentUnavailableView("Nessun contenuto disponibile",systemImage:"music.note",description:Text("Aggiorna la Home o aggiungi musica alla libreria Apple Music."))}
+        if shelves.isEmpty && !music.loading && !music.loadingDiscovery && !music.libraryStates.values.contains(where: { $0.needsRetry }) {ContentUnavailableView("Nessun contenuto disponibile",systemImage:"music.note",description:Text("Aggiorna la Home o aggiungi musica alla libreria Apple Music."))}
         AppleDiscoveryCategories(sections:AppleCategorySection.explore)
       }.padding(.vertical,12)
     }.accessibilityIdentifier("home-scroll").refreshable{await music.refreshHome()}

@@ -722,3 +722,54 @@ utenti, distribuzione automatica o app YouTube. INSTALLED del tester non prova
 l'installazione della build 14 o il funzionamento fisico di audio e copertine.
 Ricevute: verification/package-0.1.0-14.json e
 verification/testflight-0.1.0-14.json. Nessun invio pubblico App Store.
+
+## Completezza e sincronizzazione libreria — sviluppo dopo build 14
+
+Il report reale mostrava 14 brani nella base multimediale iOS, ma nessuno
+nell'elenco MusicKit/cloud né nella risoluzione dei 14 ID di catalogo. Il vecchio
+recupero partiva soltanto con elenco vuoto e considerava riuscita una lettura
+senza brani anche in presenza di questa discrepanza.
+
+Il recupero confronta ora i riferimenti del dispositivo anche con un elenco
+iniziale parziale. Prima del catalogo esatto legge le tracce degli album
+personali e cerca nella libreria personale, mantenendo ID e playParams Apple.
+Le risposte degli album vengono paginate interamente e validate come risorse
+library-songs; non vengono aggiunte versioni alternative cercate nel catalogo.
+Il confronto dei metadati conserva titolo/versione, artista, album, numero
+traccia/disco e durata quando disponibili. Nessun titolo o metadato privato
+viene aggiunto alla diagnostica condivisibile.
+
+Ogni categoria ha stato indipendente: aggiornamento, completa, parziale,
+non disponibile. Un errore o un recupero incompleto conserva l'ultimo elenco
+disponibile in memoria; soltanto letture complete rimuovono vecchie righe.
+Il pulsante Riprova opera sulla sola categoria e può essere usato mentre altre
+sono ancora in lettura. Cancellazioni e tentativi precedenti non terminano un
+nuovo tentativo. La Home e CarPlay segnalano le letture incomplete.
+Aggiornamento su ritorno in primo piano e MPMediaLibraryDidChange, con debounce
+e recupero di una notifica arrivata durante un aggiornamento già in corso.
+Le notifiche vengono osservate solo dopo l'autorizzazione Apple Music.
+
+Verifiche: 136 test riusciti, inclusi recupero di 14 brani da album personale
+con catalogo vuoto, elenco iniziale parziale, import senza ID catalogo,
+rimozioni, errori di paginazione, identità delle versioni, conservazione degli
+ID/playParams MusicKit, cancellazioni e nuovi tentativi indipendenti.
+Build Debug Simulator e build Release iPhone/Watch/estensione riuscite.
+Collaudo visivo Device Hub / iPhone 18 Pro iOS 27.2: in verticale e orizzontale
+avviso di libreria parziale leggibile; playlist precedente visibile con errore;
+categoria Artisti vuota distinta dall'errore. Dati della fixture solo DEBUG,
+non un test autenticato della libreria reale.
+
+La risoluzione dei 14 brani e le modifiche eseguite in Musica restano da
+confermare con l'account dell'utente su iPhone. Non è stata caricata una nuova
+build TestFlight in questo intervento; versione/build di distribuzione invariati.
+
+Riferimenti: https://developer.apple.com/documentation/applemusicapi/get-a-library-album
+e https://developer.apple.com/documentation/foundation/nsnotification/name-swift.struct/mpmedialibrarydidchange
+
+## Preparazione beta 0.1.0 (15)
+
+Versione app, Watch ed estensione allineata a 0.1.0 (15); note italiane
+in TestFlight-0.1.0-15-it.txt. I 136 test della sincronizzazione sono riusciti
+e la configurazione Release è stata compilata senza fixture. Archivio firmato,
+export, upload, elaborazione Apple e assegnazione vengono verificati separatamente.
+Il test della libreria reale dell'utente resta necessario dopo l'installazione.

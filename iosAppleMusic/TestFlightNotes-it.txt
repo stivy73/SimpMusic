@@ -1,12 +1,7 @@
-NoteNarrate Music — 0.1.0 (11)
+Completezza e sincronizzazione della libreria
 
-Corretto Fonti e significato in orizzontale: il pulsante ora apre il pannello dedicato. In verticale mantiene la visualizzazione inline del player originale.
-Completata la prova visiva nel simulatore con dati sintetici: pannello Fonti, scorrimento dei comandi inferiori in orizzontale, mini player, riapertura, gesto dal bordo, play/pausa e tempi. La prova non verifica l’audio reale o l’account Apple Music.
+Migliorato il recupero dei brani presenti in Musica ma assenti dall’elenco: verifica delle tracce degli album personali e ricerca nella libreria, anche quando l’elenco iniziale è parziale o il catalogo non restituisce gli identificativi.
 
-Player recuperato dal codice originale di NoteNarrate YouTube Music: mini player, apertura a schermo intero, gesto dal bordo per tornare, copertina e sfondo, barra temporale, controlli e barre verticali. Comandi collegati al player nativo Apple Music, con volume di sistema e AirPlay.
-Opzioni native per Preferiti Apple, libreria, condivisione e coda; identità delle occorrenze conservate. Fonti e significato mantengono l’interpretazione e il consenso già presenti nella variante Apple Music.
-Diagnostica audio più precisa: il ritorno di play() non viene considerato conferma di riproduzione. Se MusicKit resta in pausa, compare Riprova; una pausa esplicita annulla l’attesa.
-Recupero brani iOS tramite richiesta catalogo esplicita, con storefront, HTTP e conteggi nella diagnostica. Da verificare sul dispositivo il recupero dei 14 brani del report precedente e l’effettivo avvio dell’audio.
+Brani, album, playlist e artisti hanno ora stato e pulsante Riprova indipendenti. Un errore mantiene i dati disponibili; le raccolte vuote sono distinte dalle letture incomplete. Aggiunto aggiornamento al rientro nell’app e dopo modifiche alla libreria in Musica.
 
-59 test di contratto superati; compilazione Debug e archivio Release firmato riusciti. Da collaudare su iPhone: mini player, ritorno, seek, trasporto, coda, narrazione e AirPlay.
-Solo Stivy73. App separata dalla variante YouTube Music.
+Da verificare sul tuo iPhone: apri Libreria → Brani e controlla i 14 brani rilevati da iOS. Prova anche ad aggiungere o rimuovere un elemento in Musica e torna in NoteNarrate. Se l’elenco resta parziale, condividi la diagnostica da Impostazioni → Collegamento Apple Music.

@@ -35,6 +35,10 @@ final class MusicLibraryModel: ObservableObject {
   @Published var loadingFavorites=false
   @Published var notice:String?
   @Published var error: String?
+  @Published var libraryStates: [BrowseKind: LibrarySectionState] = [:]
+  var librarySyncActivity = LibrarySyncActivity()
+  private var libraryChanges: AnyCancellable?
+  private var pendingLibraryRefresh = false
   @Published var loading = false
   @Published var mediaLibrarySummary = ""
   @Published var libraryAlbumQuery = ""
@@ -42,7 +46,7 @@ final class MusicLibraryModel: ObservableObject {
   @Published var searchingLibraryAlbums = false
   private var albumSearchRevision = UUID()
   @Published var remainingAlbumLookups = 0
-  private let recoveredAlbumKey = "musicRecoveredLibraryAlbumIDs"
+  let recoveredAlbumKey = "musicRecoveredLibraryAlbumIDs"
   @Published var query = ""
   @Published var nowPlaying: MusicKit.Song?
   @Published var activeCollectionID:String?
@@ -95,16 +99,39 @@ final class MusicLibraryModel: ObservableObject {
     #if ARTWORK_LAYOUT_FIXTURE
     MusicArtworkFixture.configure(self)
     #endif
+    #if LIBRARY_SYNC_LAYOUT_FIXTURE
+    songs=[];artists=[]
+    libraryStates[.songs] = .init(phase:.partial,updatedAt:Date(),message:"14 brani rilevati da iOS non sono ancora disponibili nell’elenco. La libreria è parziale; puoi riprovare questa categoria.",unresolved:14)
+    libraryStates[.albums] = .init(phase:.ready,updatedAt:Date())
+    libraryStates[.playlists] = .init(phase:.failed,message:"Libreria iCloud: connessione non disponibile. Riprova per completare l’aggiornamento.")
+    libraryStates[.artists] = .init(phase:.ready,updatedAt:Date())
+    #endif
     return
     #endif
     timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect().sink { [weak self] _ in
       MainActor.assumeIsolated {
         guard let self else { return }
+        if self.pendingLibraryRefresh && !self.loading {
+          self.pendingLibraryRefresh = false
+          Task { await self.refresh() }
+        }
         self.syncPlaybackState()
         if self.playing { self.playbackFailure=nil }
         if !self.player.queue.entries.isEmpty {self.position = max(0, self.player.playbackTime)}
       }
     }
+  }
+  func observeLibraryChanges() {
+    guard libraryChanges == nil, MusicAuthorization.currentStatus == .authorized, !isPlayerFixture else { return }
+    MPMediaLibrary.default().beginGeneratingLibraryChangeNotifications()
+    libraryChanges = NotificationCenter.default.publisher(for: .MPMediaLibraryDidChange)
+      .debounce(for: .seconds(1), scheduler: RunLoop.main).sink { [weak self] _ in
+        Task { @MainActor in
+          guard let self else { return }
+          if self.loading { self.pendingLibraryRefresh = true }
+          else { await self.refresh() }
+        }
+      }
   }
   func connect() async {
     authorization = await MusicAuthorization.request()
@@ -113,137 +140,6 @@ final class MusicLibraryModel: ObservableObject {
     }
     await refreshHome()
   }
-  func refresh() async {
-    if isPlayerFixture {return}
-    authorization = MusicAuthorization.currentStatus
-    guard authorization == .authorized, !loading else { return }
-    loading = true; defer { loading = false }
-    var failures: [String] = []
-    let device = await compareDeviceLibrary()
-    let deviceStoreIDs = device.ids
-    // Show native data quickly, then prefer the complete account cloud library.
-    var localSongs: [MusicKit.Song]?
-    var localAlbums: [Album]?
-    var localPlaylists: [Playlist]?
-    do {
-      var request = MusicLibraryRequest<MusicKit.Song>(); request.limit = 100; request.includeOnlyDownloadedContent = false
-      let values = try await collect(request.response().items); localSongs = values
-      if !values.isEmpty || songs.isEmpty { songs = values }
-      record("Libreria locale brani: \(values.count)")
-    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Brani locali") }
-    do {
-      var request = MusicLibraryRequest<Album>(); request.limit = 100; request.includeOnlyDownloadedContent = false
-      let values = try await collect(request.response().items); localAlbums = values
-      if !values.isEmpty || albums.isEmpty { albums = values }
-      record("Libreria locale album: \(values.count)")
-    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Album locali") }
-    do {
-      var request = MusicLibraryRequest<Playlist>(); request.limit = 100; request.includeOnlyDownloadedContent = false
-      let values = try await collect(request.response().items); localPlaylists = values
-      if !values.isEmpty || playlists.isEmpty { playlists = values }
-      record("Libreria locale playlist: \(values.count)")
-    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Playlist locali") }
-    do {
-      var request=MusicLibraryRequest<Artist>();request.limit=100
-      artists=try await collect(request.response().items)
-    } catch {if Task.isCancelled {return};recordFailure(error,stage:"Artisti locali")}
-    let cloud = MusicCloudLibrary(fetch:{ [weak self] request in
-      guard let self else { throw CancellationError() }
-      return try await self.withTokenRecovery {
-        let response = try await MusicDataRequest(urlRequest:request).response()
-        return MusicCloudLibrary.Response(data:response.data,status:response.urlResponse.statusCode)
-      }
-    })
-    do {
-      let result=try await cloud.load(Artist.self,resource:.artists)
-      artists=MusicCloudLibrary.combining(result.items,local:artists)
-      record("Libreria cloud artisti: completata; elementi=\(result.items.count)")
-    } catch {if Task.isCancelled {return};recordFailure(error,stage:"Artisti cloud");failures.append("Artisti cloud: "+accessMessage(error))}
-    do {
-      let result = try await cloud.load(MusicKit.Song.self,resource:.songs)
-      songs = MusicCloudLibrary.combining(result.items,local:localSongs ?? [])
-      record("Libreria cloud brani: completata; elementi=\(result.items.count); pagine=\(result.pages)")
-    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Brani cloud"); failures.append("Brani cloud: " + accessMessage(error)) }
-    do {
-      let result = try await cloud.load(Album.self,resource:.albums)
-      albums = MusicCloudLibrary.combining(result.items,local:localAlbums ?? [])
-      record("Libreria cloud album: completata; elementi=\(result.items.count); pagine=\(result.pages)")
-    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Album cloud"); failures.append("Album cloud: " + accessMessage(error)) }
-    do {
-      let result = try await cloud.load(Playlist.self,resource:.playlists)
-      playlists = MusicCloudLibrary.combining(result.items,local:localPlaylists ?? [])
-      record("Libreria cloud playlist: completata; elementi=\(result.items.count); pagine=\(result.pages)")
-    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Playlist cloud"); failures.append("Playlist cloud: " + accessMessage(error)) }
-    do {
-      let saved = UserDefaults.standard.stringArray(forKey:recoveredAlbumKey) ?? []
-      let restored = try await cloud.albumsByID(Album.self,ids:saved,id:{$0.id.rawValue})
-      albums = MusicCloudLibrary.combining(albums,local:restored)
-      record("Album recuperati: riferimenti=\(saved.count); verificati=\(restored.count)")
-    } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Verifica album recuperati") }
-    let listed = Set(albums.map { $0.title.folding(options:[.caseInsensitive,.diacriticInsensitive],locale:.current) })
-    let missing = device.albumTitles.filter { !listed.contains($0.folding(options:[.caseInsensitive,.diacriticInsensitive],locale:.current)) }
-    remainingAlbumLookups = max(0,missing.count - 25)
-    var attempted = 0
-    for title in missing.prefix(25) {
-      do {
-        let found = try await findLibraryAlbums(title)
-        try Task.checkCancellation()
-        rememberLibraryAlbums(found)
-        attempted += 1
-      } catch { if Task.isCancelled { return }; recordFailure(error,stage:"Recupero album iOS") }
-    }
-    record("Recupero album iOS: ricerche completate=\(attempted); altre ricerche=\(remainingAlbumLookups); elenco=\(albums.count)")
-    if songs.isEmpty, !deviceStoreIDs.isEmpty {
-      do {
-        let result = try await MediaCatalogBridge.resolve(deviceStoreIDs,id:{ (song:MusicKit.Song) in song.id.rawValue }) { [weak self] ids in
-          guard let self else { throw CancellationError() }
-          let storefront=try await MusicDataRequest.currentCountryCode
-          let request=try MediaCatalogRequest.request(ids:ids,storefront:storefront)
-          let response=try await MusicDataRequest(urlRequest:request).response()
-          let values=try MediaCatalogRequest.items(MusicKit.Song.self,data:response.data,status:response.urlResponse.statusCode)
-          await self.record("Catalogo esplicito: storefront=\(storefront); HTTP \(response.urlResponse.statusCode); richiesti=\(ids.count); restituiti=\(values.count)")
-          return values
-        }
-        try Task.checkCancellation()
-        songs = result.items
-        record("Recupero brani iOS: ID validi=\(result.requested); risolti=\(result.items.count); non restituiti=\(result.unresolved)")
-      } catch {
-        if Task.isCancelled { return }
-        recordFailure(error,stage:"Recupero brani iOS")
-        failures.append("Non è stato possibile recuperare i brani della libreria iOS. Riprova l’aggiornamento.")
-      }
-    }
-    do {
-      canPlayCatalog = try await withTokenRecovery { try await MusicSubscription.current.canPlayCatalogContent }
-      subscriptionVerified = true; record("Abbonamento: verifica riuscita; catalogo=\(canPlayCatalog)")
-    } catch {
-      subscriptionVerified = false; recordFailure(error, stage:"Abbonamento")
-      failures.append(accessMessage(error))
-    }
-    record("Elenco pubblicato: brani=\(songs.count); album=\(albums.count); playlist=\(playlists.count)")
-    error = failures.isEmpty ? nil : Array(Set(failures)).sorted().joined(separator:"\n\n")
-  }
-  // Independent, read-only view of the device media database. Counts only:
-  // no album titles, account identifiers or media URLs enter shared diagnostics.
-  private func compareDeviceLibrary() async -> (ids:[String],albumTitles:[String]) {
-    let report = await Task.detached(priority:.userInitiated) {
-      let status = MPMediaLibrary.authorizationStatus()
-      guard status == .authorized else {
-        return ("Libreria multimediale iOS: autorizzazione=\(status.rawValue); lettura non eseguita",[String](),[String]())
-      }
-      let tracks = MPMediaQuery.songs().items ?? []
-      let albums = MPMediaQuery.albums().collections ?? []
-      let playlists = MPMediaQuery.playlists().collections ?? []
-      let cloud = tracks.lazy.filter { $0.isCloudItem }.count
-      return ("Libreria multimediale iOS: brani=\(tracks.count); album=\(albums.count); playlist=\(playlists.count); brani cloud=\(cloud)",tracks.map(\.playbackStoreID),albums.compactMap { $0.representativeItem?.albumTitle })
-    }.value
-    guard !Task.isCancelled else { return ([],[]) }
-    mediaLibrarySummary = report.0
-    record(report.0)
-    let ids = MediaCatalogBridge.catalogIDs(report.1)
-    record("Identificativi brani iOS: con ID catalogo=\(ids.count); senza ID utilizzabile=\(report.1.filter { MediaCatalogBridge.catalogIDs([$0]).isEmpty }.count)")
-    return (ids,Array(Set(report.2)).filter { !$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty }.sorted())
-  }
   nonisolated static func isDeveloperTokenFailure(_ error: any Error) -> Bool {
     if let value = error as? MusicTokenRequestError, value == .developerTokenRequestFailed { return true }
     if let nested = (error as NSError).userInfo[NSUnderlyingErrorKey] as? MusicTokenRequestError {
@@ -251,7 +147,7 @@ final class MusicLibraryModel: ObservableObject {
     }
     return false
   }
-  private func withTokenRecovery<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
+  func withTokenRecovery<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
     let recovery = MusicAccessRecovery(isDeveloperTokenFailure:Self.isDeveloperTokenFailure,
       renewDeveloperToken:{ [weak self] in
         await self?.record("Token sviluppatore: nuovo tentativo senza cache")
@@ -287,7 +183,7 @@ final class MusicLibraryModel: ObservableObject {
       } catch { recordFailure(error,stage:stage) }
     }
   }
-  private func accessMessage(_ error: any Error) -> String {
+  func accessMessage(_ error: any Error) -> String {
     if Self.isDeveloperTokenFailure(error) {
       return "Apple non riesce a generare il token sviluppatore per NoteNarrate Music. Questa verifica non indica che il tuo abbonamento sia assente. Prova Ripristina collegamento in Impostazioni; se persiste, condividi la diagnostica Apple Music."
     }
@@ -302,7 +198,7 @@ final class MusicLibraryModel: ObservableObject {
     }
     return error.localizedDescription
   }
-  private func recordFailure(_ error: any Error, stage: String) {
+  func recordFailure(_ error: any Error, stage: String) {
     if let response = error as? MusicDataRequest.Error {
       record("\(stage): HTTP \(response.status); codice Apple=\(response.code)")
     }
@@ -316,17 +212,22 @@ final class MusicLibraryModel: ObservableObject {
       record("\(stage): causa dominio=\(nestedDomain), codice=\(nested.code)")
     }
   }
-  private func record(_ event: String) {
+  func record(_ event: String) {
     accessEvents.append(event); accessEvents = Array(accessEvents.suffix(35))
     let bundle = Bundle.main
-    accessReport = "NoteNarrate Music \(bundle.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "?") (\(bundle.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?"))\nBundle: \(bundle.bundleIdentifier ?? "?")\niOS: \(UIDevice.current.systemVersion)\nAutorizzazione: \(MusicAuthorization.currentStatus)\n" + accessEvents.joined(separator:"\n")
+    let sync = BrowseKind.allCases.map { kind in
+      let state = libraryState(kind)
+      return "Libreria \(kind.rawValue): \(state.phase); mancanti=\(state.unresolved)"
+    }.joined(separator:"\n")
+    accessReport = "NoteNarrate Music \(bundle.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "?") (\(bundle.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?"))\nBundle: \(bundle.bundleIdentifier ?? "?")\niOS: \(UIDevice.current.systemVersion)\nAutorizzazione: \(MusicAuthorization.currentStatus)\n" + sync + "\n" + accessEvents.joined(separator:"\n")
   }
-  private func collect<T: MusicItem & Decodable>(_ initial: MusicItemCollection<T>, batchSize:Int = 100) async throws -> [T] {
-    var values = Array(initial); var page = initial
+  func collect<T: MusicItem & Decodable>(_ initial: MusicItemCollection<T>, batchSize:Int = 100) async throws -> [T] {
+    var values = Array(initial); var page = initial; var pages = 1
     while page.hasNextBatch {
       try Task.checkCancellation()
-      guard let next = try await page.nextBatch(limit:batchSize) else { break }
-      values.append(contentsOf:next); page=next
+      guard pages < 1000 else { throw MusicCloudLibrary.LoadError.excessivePages }
+      guard let next = try await page.nextBatch(limit:batchSize) else { throw MusicCloudLibrary.LoadError.invalidPage }
+      values.append(contentsOf:next); page=next; pages += 1
     }
     return values
   }
@@ -336,7 +237,7 @@ final class MusicLibraryModel: ObservableObject {
     let ids = MusicCloudLibrary.libraryAlbumIDs(saved + values.map { $0.id.rawValue })
     UserDefaults.standard.set(ids,forKey:recoveredAlbumKey)
   }
-  private func findLibraryAlbums(_ term:String) async throws -> [Album] {
+  func findLibraryAlbums(_ term:String) async throws -> [Album] {
     var native: [Album] = []; var cloud: [Album] = []; var succeeded = false
     var lastError: (any Error)?
     do {

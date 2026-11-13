@@ -144,10 +144,14 @@ struct LibraryBrowserScreen:View {
         NavigationLink {FavoriteLibraryScreen()} label:{Label("Preferiti",systemImage:"star")}.buttonStyle(.bordered)
       }.padding(.horizontal)}
       if search.query.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
-        if music.loading {ProgressView("Aggiornamento libreria…")}
-        if music.remainingAlbumLookups>0 {Text("Altri \(music.remainingAlbumLookups) album da verificare. Aggiorna per continuare.").font(.caption)}
-        MusicCollectionBrowser(items:items,key:"library."+category.rawValue).id(category)
-        if items.isEmpty && !music.loading {Text("Nessun elemento restituito nella categoria \(category.title.lowercased()).").foregroundStyle(.secondary).padding()}
+        LibrarySynchronizationStatus(category:category,count:items.count)
+        if items.isEmpty && music.libraryState(category).phase == .ready {
+          ContentUnavailableView("Nessun elemento salvato",systemImage:"square.stack",
+            description:Text("La categoria \(category.title.lowercased()) della tua libreria Apple Music è vuota."))
+        } else {
+          MusicCollectionBrowser(items:items,key:"library."+category.rawValue).id(category)
+            .refreshable {await music.refresh(category:category)}
+        }
       } else {
         if searchAll {
           ScrollView {VStack(alignment:.leading,spacing:24) {
@@ -176,6 +180,34 @@ struct LibraryBrowserScreen:View {
   }
   private var items:[MusicBrowseItem] {
     switch category {case .songs:music.songs.map(MusicBrowseItem.song);case .albums:music.albums.map(MusicBrowseItem.album);case .artists:music.artists.map(MusicBrowseItem.artist);case .playlists:music.playlists.map(MusicBrowseItem.playlist)}
+  }
+}
+struct LibrarySynchronizationStatus:View {
+  @EnvironmentObject var music:MusicLibraryModel
+  let category:BrowseKind
+  let count:Int
+  private var state:LibrarySectionState {music.libraryState(category)}
+  var body:some View {
+    VStack(alignment:.leading,spacing:8) {
+      if state.phase == .updating {
+        ProgressView("Aggiornamento \(category.title.lowercased())…")
+        if count>0 {Text("Mostro l’elenco disponibile mentre verifico gli aggiornamenti.").font(.caption).foregroundStyle(.secondary)}
+      } else if state.needsRetry {
+        Label(state.phase == .partial ? "Sincronizzazione parziale":"Sincronizzazione non disponibile",systemImage:"exclamationmark.triangle")
+          .font(.headline).foregroundStyle(.orange)
+        if let message=state.message {Text(message).font(.callout).fixedSize(horizontal:false,vertical:true)}
+        if count>0 && state.phase == .failed {Text("È conservato l’ultimo elenco disponibile.").font(.caption).foregroundStyle(.secondary)}
+        if count>0 && state.phase == .partial {Text("Mostro i dati disponibili; la verifica dell’elenco non è ancora completa.").font(.caption).foregroundStyle(.secondary)}
+        Button("Riprova \(category.title.lowercased())"){Task{await music.refresh(category:category)}}
+          .accessibilityIdentifier("library-retry-"+category.rawValue)
+      } else if state.phase == .idle {
+        Button("Carica \(category.title.lowercased())"){Task{await music.refresh(category:category)}}
+      }
+      if let date=state.updatedAt,state.phase != .updating {
+        HStack(spacing:4){Text("Ultimo aggiornamento:");Text(date,style:.time)}.font(.caption).foregroundStyle(.secondary)
+      }
+    }.frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal)
+      .accessibilityElement(children:.contain).accessibilityIdentifier("library-sync-"+category.rawValue)
   }
 }
 struct PersonalResults:View {

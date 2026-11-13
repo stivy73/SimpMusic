@@ -1,0 +1,7 @@
+Completezza e sincronizzazione della libreria
+
+Migliorato il recupero dei brani presenti in Musica ma assenti dall’elenco: verifica delle tracce degli album personali e ricerca nella libreria, anche quando l’elenco iniziale è parziale o il catalogo non restituisce gli identificativi.
+
+Brani, album, playlist e artisti hanno ora stato e pulsante Riprova indipendenti. Un errore mantiene i dati disponibili; le raccolte vuote sono distinte dalle letture incomplete. Aggiunto aggiornamento al rientro nell’app e dopo modifiche alla libreria in Musica.
+
+Da verificare sul tuo iPhone: apri Libreria → Brani e controlla i 14 brani rilevati da iOS. Prova anche ad aggiungere o rimuovere un elemento in Musica e torna in NoteNarrate. Se l’elenco resta parziale, condividi la diagnostica da Impostazioni → Collegamento Apple Music.

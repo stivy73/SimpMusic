@@ -12,13 +12,18 @@ struct NoteNarrateMusicApp: App {
   }
 }
 struct MusicRoot: View {
+  @Environment(\.scenePhase) private var scenePhase
   @EnvironmentObject var music: MusicLibraryModel
   @EnvironmentObject var presentation:ApplePlayerAdapter
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.layoutDirection) private var layoutDirection
   @GestureState private var playerBackDrag:CGFloat=0
   private var model:ApplePlayerAdapter {presentation}
+  #if DEBUG && LIBRARY_SYNC_LAYOUT_FIXTURE
+  @State private var selectedTab = 2
+  #else
   @State private var selectedTab = 0
+  #endif
   @EnvironmentObject var narration: NarrationModel
   private var navigation: some View {
     TabView(selection:$selectedTab) {
@@ -43,6 +48,9 @@ struct MusicRoot: View {
     .modifier(LegacyMiniPlayerInset())
     .modifier(DuoNavigationBars())
     .task { await music.refreshHome() }
+    .onChange(of:scenePhase) {_,phase in
+      if phase == .active {Task{await music.refresh()}}
+    }
     .onChange(of:music.nowPlaying?.id) { _,_ in narration.clearInterpretation() }
     .alert("Apple Music",isPresented:Binding(get:{music.notice != nil},set:{if !$0 {music.notice=nil}})) {Button("OK"){music.notice=nil}} message:{Text(music.notice ?? "")}
     .alert("Apple Music",isPresented:Binding(get:{music.error != nil},set:{if !$0 { music.error=nil }})) { Button("OK") { music.error=nil } } message: { Text(music.error ?? "") }

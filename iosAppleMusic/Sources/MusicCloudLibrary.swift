@@ -23,7 +23,19 @@ struct MusicCloudLibrary: Sendable {
   func load<Item: Decodable & Identifiable & Sendable>(
     _ type: Item.Type, resource: MusicCloudProbe.Resource
   ) async throws -> Result<Item> where Item.ID: Hashable {
-    let path = "/v1/me/library/\(resource.rawValue)"
+    try await load(type, path: "/v1/me/library/\(resource.rawValue)")
+  }
+  /// Read the owned album's tracks, retaining library IDs and playback context.
+  /// Catalog album tracks and playlist contents do not prove library membership.
+  func albumTracks<Item: Decodable & Identifiable & Sendable>(
+    _ type: Item.Type, albumID: String
+  ) async throws -> Result<Item> where Item.ID: Hashable {
+    guard Self.libraryAlbumIDs([albumID]) == [albumID] else { throw LoadError.invalidPage }
+    return try await load(type, path: "/v1/me/library/albums/\(albumID)/tracks", libraryTracks: true)
+  }
+  private func load<Item: Decodable & Identifiable & Sendable>(
+    _ type: Item.Type, path: String, libraryTracks: Bool = false
+  ) async throws -> Result<Item> where Item.ID: Hashable {
     var url = URL(string:"https://api.music.apple.com\(path)?limit=100")!
     var visited = Set<URL>()
     var ids = Set<Item.ID>()
@@ -42,7 +54,15 @@ struct MusicCloudLibrary: Sendable {
       guard response.data.count <= 5 * 1024 * 1024 else { throw LoadError.responseTooLarge }
       guard let root = try JSONSerialization.jsonObject(with:response.data) as? [String:Any],
             root["data"] is [[String:Any]], root["errors"] == nil else { throw LoadError.invalidPage }
-      let page = try JSONDecoder().decode(Page<Item>.self,from:response.data)
+      var data = response.data
+      if libraryTracks {
+        var filtered = root
+        let rows = root["data"] as! [[String:Any]]
+        guard rows.allSatisfy({ ["library-songs", "library-music-videos"].contains($0["type"] as? String ?? "") }) else { throw LoadError.invalidPage }
+        filtered["data"] = rows.filter { $0["type"] as? String == "library-songs" }
+        data = try JSONSerialization.data(withJSONObject: filtered)
+      }
+      let page = try JSONDecoder().decode(Page<Item>.self,from:data)
       for item in page.data where ids.insert(item.id).inserted { items.append(item) }
       pages += 1
       guard let next = page.next, !next.isEmpty else { break }

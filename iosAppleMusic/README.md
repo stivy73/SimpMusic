@@ -1,7 +1,7 @@
 # NoteNarrate Apple Music
 
 Variante nativa MusicKit separata dal target YouTube Music. Beta corrente
-0.1.0 (9), bundle `com.stivy.notenarrate.applemusic`, iOS 17 e watchOS 10.
+0.1.0 (14), bundle `com.stivy.notenarrate.applemusic`, iOS 17 e watchOS 10.
 
 ## Implementato
 
@@ -12,9 +12,13 @@ Variante nativa MusicKit separata dal target YouTube Music. Beta corrente
 - Preferiti nativi: aggiunta, verifica inFavorites esplicita e vista personale.
   202 non equivale a conferma; rimozione tramite Musica secondo le API pubbliche.
   Un attributo non disponibile è segnalato, non inventato come stato locale.
-- Autorizzazione Apple Music esplicita e libreria
-  cloud completa di brani/album/playlist con paginazione e ripiego locale.
-  I contenuti locali non presenti nel cloud vengono conservati per ID.
+- Autorizzazione Apple Music esplicita e letture paginate di brani, album,
+  playlist e artisti, con stato e nuovo tentativo indipendenti per categoria.
+  Recupero dei brani mancanti dagli album personali e dalla ricerca personale,
+  anche con elenco iniziale parziale o ID non restituiti dal catalogo pubblico.
+  Errori e recuperi incompleti conservano l'ultimo elenco disponibile in memoria;
+  una lettura completa permette anche di rimuovere righe eliminate in Musica.
+  Aggiornamento al rientro nell'app e su modifica della libreria iOS.
 - Riproduzione con ApplicationMusicPlayer, coda, seek, aggiunta alla libreria,
   condivisione link e selettore AirPlay di sistema.
 - CarPlay con liste paginate e Now Playing; per il nuovo App ID resta necessario

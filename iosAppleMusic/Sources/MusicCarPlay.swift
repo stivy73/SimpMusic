@@ -42,6 +42,7 @@ import Combine
       model.$songs.map { _ in () }.eraseToAnyPublisher(),
       model.$albums.map { _ in () }.eraseToAnyPublisher(),
       model.$playlists.map { _ in () }.eraseToAnyPublisher(),
+      model.$libraryStates.map { _ in () }.eraseToAnyPublisher(),
       model.$authorization.map { _ in () }.eraseToAnyPublisher()
     ]).debounce(for:.milliseconds(100),scheduler:RunLoop.main).sink { [weak self] _ in self?.render() }.store(in:&subscriptions)
     render();interfaceController.setRootTemplate(CPTabBarTemplate(templates:[songs,albums,lists]),animated:false,completion:nil)
@@ -58,17 +59,17 @@ import Combine
       let row=CPListItem(text:song.title,detailText:song.artistName)
       row.handler={ [weak self] _,done in done();Task { await model.play(song,in:model.songs);self?.showPlayer() } };return row
     }
-    setRows(trackRows,in:songs)
+    setRows(trackRows,in:songs,category:.songs)
     setRows(model.albums.map { album in
       let row=CPListItem(text:album.title,detailText:album.artistName)
       row.handler={ [weak self] _,done in done();Task { await model.play(album:album);self?.showPlayer() } };return row
-    },in:albums)
+    },in:albums,category:.albums)
     setRows(model.playlists.map { playlist in
       let row=CPListItem(text:playlist.name,detailText:playlist.curatorName)
       row.handler={ [weak self] _,done in done();Task { await model.play(playlist:playlist);self?.showPlayer() } };return row
-    },in:lists)
+    },in:lists,category:.playlists)
   }
-  private func setRows(_ rows:[CPListItem],in template:CPListTemplate) {
+  private func setRows(_ rows:[CPListItem],in template:CPListTemplate,category:BrowseKind) {
     let key=ObjectIdentifier(template)
     let offset=min(offsets[key] ?? 0,max(0,(rows.count-1)/20*20))
     offsets[key]=offset
@@ -81,7 +82,16 @@ import Combine
       let next=CPListItem(text:"Altri elementi",detailText:"\(offset+21)–\(min(rows.count,offset+40)) di \(rows.count)")
       next.handler={ [weak self] _,done in done();DispatchQueue.main.async { self?.offsets[key]=offset+20;self?.render() } };page.append(next)
     }
-    if page.isEmpty { let empty=CPListItem(text:"Nessun elemento nella libreria",detailText:nil);empty.isEnabled=false;page=[empty] }
+    let state=MusicAppState.shared.music.libraryState(category)
+    if state.needsRetry {
+      let retry=CPListItem(text:state.phase == .partial ? "Libreria parziale · riprova":"Libreria non disponibile · riprova",detailText:state.unresolved>0 ? "\(state.unresolved) elementi da recuperare":nil)
+      retry.handler={_,done in done();Task{await MusicAppState.shared.music.refresh(category:category)}}
+      page.insert(retry,at:0)
+    }
+    if page.isEmpty {
+      let title=state.phase == .updating ? "Aggiornamento libreria…":state.phase == .ready ? "Nessun elemento salvato":"Libreria da aggiornare"
+      let empty=CPListItem(text:title,detailText:nil);empty.isEnabled=false;page=[empty]
+    }
     template.updateSections([CPListSection(items:page)])
   }
   private func showPlayer() { controller?.pushTemplate(CPNowPlayingTemplate.shared,animated:true,completion:nil) }
