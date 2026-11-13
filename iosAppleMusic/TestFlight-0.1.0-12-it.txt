@@ -1,0 +1,9 @@
+Novità da provare in NoteNarrate Music:
+• Home con caroselli, Altro e cronologia di ascolto Apple Music.
+• Esplora: generi, classifiche, playlist per stato d’animo e nuove uscite dei tuoi artisti.
+• Pagina artista ampliata; Preferiti con artisti, griglia e ordinamento.
+• Album e playlist con lo stesso layout di NoteNarrate, azioni sulla coda e gestione delle playlist create con l’app.
+• Ricezione di brani, album e playlist condivisi da Apple Music e Spotify in Libreria → Ricevuti.
+• Menu categorie, ordine originale inverso e cancellazione singola delle ricerche.
+
+La riproduzione resta nativa Apple Music. Verificare sul proprio account cronologia, preferiti, relazioni artista, nuove uscite e operazioni sulle playlist. I dati di collaudo sono esclusi da questa beta.
