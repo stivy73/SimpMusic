@@ -4,20 +4,38 @@
 import AVKit
 import Combine
 import SwiftUI
+import UIKit
 
 struct YTPlayerArtwork: View {
   let url: URL?
   var fit = false
+  var onLoaded: ((URL) -> Void)?
+  var onFailure: ((URL, Error) async -> Void)?
+  @State private var image: UIImage?
+  @State private var renderedURL: URL?
+  private var placeholder: some View {
+    ZStack {
+      LinearGradient(colors: [.cyan.opacity(0.5), .indigo], startPoint: .topLeading, endPoint: .bottomTrailing)
+      Image(systemName: "music.note").font(.largeTitle).foregroundStyle(.white)
+    }
+  }
   var body: some View {
-    AsyncImage(url: url) { image in
-      image.resizable().aspectRatio(contentMode: fit ? .fit : .fill)
-    } placeholder: {
-      ZStack {
-        LinearGradient(
-          colors: [.cyan.opacity(0.5), .indigo], startPoint: .topLeading, endPoint: .bottomTrailing)
-        Image(systemName: "music.note").font(.largeTitle).foregroundStyle(.white)
+    Group {
+      if renderedURL == url, let image {
+        Image(uiImage: image).resizable().aspectRatio(contentMode: fit ? .fit : .fill)
+      } else { placeholder }
+    }.clipped().task(id: url) {
+      guard let url else { return }
+      do {
+        let data = try await ArtworkImageData.shared.load(url)
+        try Task.checkCancellation()
+        guard let decoded = UIImage(data: data) else { throw ArtworkImageData.Failure(code: -4) }
+        renderedURL = url; image = decoded; onLoaded?(url)
+      } catch {
+        guard !Task.isCancelled else { return }
+        await onFailure?(url, error)
       }
-    }.clipped()
+    }
   }
 }
 
@@ -77,7 +95,7 @@ struct AppleMiniPlayer: View {
           model.showPlayer = true
         } label: {
           HStack(spacing: 12) {
-            YTPlayerArtwork(url: song.artwork).frame(width: 44, height: 44).clipShape(
+            YTPlayerArtwork(url: song.artwork, onLoaded: { model.artworkLoaded(song, url: $0) }, onFailure: { url, error in await model.artworkFailed(song, url: url, error: error) }).frame(width: 44, height: 44).clipShape(
               RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading) {
               Text(song.title).font(.subheadline.bold()).lineLimit(1)
@@ -224,12 +242,6 @@ struct AdaptedYTPlayerScreen: View {
           .axisBehavior(.verticalPreferred)
         if vertical {
           ToolbarItemGroup(placement: .bottomBar) {
-            Button {
-              model.loadLyrics()
-              expandedLyrics = true
-            } label: {
-              Label("Significato", systemImage: "quote.bubble")
-            }.accessibilityIdentifier("toggle-lyrics")
             meaningButton
             Button { showQueue = true } label: {
               Label("Coda di riproduzione", systemImage: "music.note.list")
@@ -259,7 +271,7 @@ struct AdaptedYTPlayerScreen: View {
         wide ? AnyLayout(HStackLayout(spacing: 32)) : AnyLayout(VStackLayout(spacing: 18))
       ZStack {
         if let song = model.current {
-          YTPlayerArtwork(url: song.artwork)
+          YTPlayerArtwork(url: song.artwork, onLoaded: { model.artworkLoaded(song, url: $0) }, onFailure: { url, error in await model.artworkFailed(song, url: url, error: error) })
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped().blur(radius: 65).opacity(0.42).ignoresSafeArea()
           LinearGradient(
@@ -279,7 +291,7 @@ struct AdaptedYTPlayerScreen: View {
                   if showLyrics && !expanded {
                     PlayerInfoContent().environmentObject(model).accessibilityHidden(expandedLyrics)
                   } else {
-                    YTPlayerArtwork(url: song.artwork, fit: true)
+                    YTPlayerArtwork(url: song.artwork, fit: true, onLoaded: { model.artworkLoaded(song, url: $0) }, onFailure: { url, error in await model.artworkFailed(song, url: url, error: error) })
                       .accessibilityElement(children: .ignore)
                       .accessibilityAddTraits(.isImage)
                       .accessibilityLabel("Copertina di \(song.title)")
@@ -300,9 +312,6 @@ struct AdaptedYTPlayerScreen: View {
                 AdaptedYTPlayerControls(player: player, reading: model.reading || model.busyMeaning)
                 if !verticalBar {
                   HStack {
-                    playerAction("Significato", icon: "quote.bubble", selected: showLyrics) {
-                      if expanded { expandedLyrics = true } else { toggleLyrics() }
-                    }.accessibilityIdentifier("toggle-lyrics")
                     Spacer()
                     #if os(macOS)
                       playerAction(
@@ -333,7 +342,7 @@ struct AdaptedYTPlayerScreen: View {
     let identity = HStack(spacing: 12) {
 
       if showLyrics && !expanded {
-        YTPlayerArtwork(url: song.artwork).frame(width: 48, height: 48).clipShape(
+        YTPlayerArtwork(url: song.artwork, onLoaded: { model.artworkLoaded(song, url: $0) }, onFailure: { url, error in await model.artworkFailed(song, url: url, error: error) }).frame(width: 48, height: 48).clipShape(
           RoundedRectangle(cornerRadius: 8))
       }
       VStack(alignment: .leading, spacing: 5) {

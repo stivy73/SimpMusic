@@ -1,0 +1,9 @@
+Copertine e ripresa della coda
+
+Corretto il caso in cui una copertina risulta presente nei metadati ma l’immagine non si carica: controllo HTTP, timeout, recupero alternativo Apple per lo stesso ID e cache condivisa fra player e coda. Migliorata la qualità delle immagini recuperate.
+
+La coda conservata rimane visibile se quella nativa si svuota e viene ricostruita alla ripresa. Diagnostica con esito effettivo del caricamento immagini e conteggi delle due code.
+
+Rimosso il pulsante con il fumetto sopra la lampadina, mantenendo l’accesso al significato dalla lampadina.
+
+Da verificare su iPhone: Kiss from a Rose di Seal, cover nella coda, ripresa dopo pausa e rientro nell’app. Se ricompare il codice 6, condividi la nuova diagnostica.

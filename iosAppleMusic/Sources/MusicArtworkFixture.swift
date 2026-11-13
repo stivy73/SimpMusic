@@ -58,7 +58,13 @@ import Foundation
   }
 ]
 """#
-  static var rich:[Song] {(try? JSONDecoder().decode([Song].self,from:Data(json.utf8))) ?? []}
+  // Public Apple lookup metadata for the reported ID. Deliberately break only the native image.
+  static let sealJSON = #"{"id":"302788219","type":"songs","attributes":{"name":"Kiss from a Rose","artistName":"Seal","albumName":"Seal II","durationInMillis":288427,"playParams":{"id":"302788219","kind":"song"},"artwork":{"width":100,"height":100,"url":"https://127.0.0.1:18714/missing.jpg"}}}"#
+  static var rich:[Song] {
+    let belinda=(try? JSONDecoder().decode([Song].self,from:Data(json.utf8))) ?? []
+    let seal=try? JSONDecoder().decode(Song.self,from:Data(sealJSON.utf8))
+    return belinda+[seal].compactMap{$0}
+  }
   static func url(_ id:String)->URL? {rich.first{$0.id.rawValue==id}?.artwork?.url(width:900,height:900)}
   static func configure(_ model:MusicLibraryModel) {
     guard var values=try? JSONSerialization.jsonObject(with:Data(json.utf8)) as? [[String:Any]] else{return}
@@ -66,12 +72,15 @@ import Foundation
       var attrs=values[index]["attributes"] as? [String:Any] ?? [:];attrs.removeValue(forKey:"artwork");values[index]["attributes"]=attrs
     }
     guard let data=try? JSONSerialization.data(withJSONObject:values),let thin=try? JSONDecoder().decode([Song].self,from:data),let first=thin.first else{return}
-    model.nowPlaying=first;model.position=17;model.duration=first.duration ?? 0;model.showPlayer=true
-    model.artworkFixtureQueue=thin.map{MusicPlayer.Queue.Entry($0)}
-    // First cover must survive the thin snapshot. The second is hydrated on opening the queue.
+    guard let seal=rich.last else{return}
+    model.nowPlaying=seal;model.position=48;model.duration=seal.duration ?? 0;model.showPlayer=true
+    let entries=([seal]+thin).map{MusicPlayer.Queue.Entry($0)}
+    model.artworkFixtureQueue=[]
+    model.playbackQueueSnapshot.capture(entries,current:entries.first?.id)
+    // Native queue is empty, as in the device report. Seal must use the live public-ID fallback.
     if let selected=rich.first {model.rememberArtwork([selected])}
-    model.songs=rich;model.queueSongs=thin
-    model.accessReport="Artwork regression: raw player and queue artwork=nil; exact selected catalog image retained."
+    model.rememberArtwork([seal]);model.songs=rich;model.queueSongs=[seal]+thin
+    model.accessReport="Artwork regression: Seal image unavailable; native queue empty; real queue snapshot retained."
   }
 }
 #endif

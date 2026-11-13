@@ -30,6 +30,8 @@ enum PlayerRepeatMode {
     guard let song=music.nowPlaying else{return}
     music.rememberArtwork([song]);await music.artwork.load(id:song.id.rawValue)
   }
+  func artworkLoaded(_ song:PlayerSong,url:URL) {music.artwork.imageLoaded(id:song.id,url:url)}
+  func artworkFailed(_ song:PlayerSong,url:URL,error:Error) async {await music.artwork.imageFailed(id:song.id,url:url,error:error)}
   var showPlayer:Bool {get{music.showPlayer} set{music.showPlayer=newValue}}
   var player:ApplePlayerAdapter {self}
   var isPassenger:Bool {false}
@@ -119,11 +121,14 @@ struct ApplePlayerQueueScreen:View {
         ForEach(model.music.playbackQueueEntries,id:\.id) {entry in
           Button {
             if model.music.isPlayerFixture {dismiss();return}
-            model.music.player.queue.currentEntry=entry
-            Task{await model.music.resume()};dismiss()
+            Task{await model.music.selectQueueEntry(entry)};dismiss()
           } label:{
             HStack {
-              YTPlayerArtwork(url:model.music.artworkURL(entry)).frame(width:44,height:44).clipShape(RoundedRectangle(cornerRadius:6))
+              YTPlayerArtwork(url:model.music.artworkURL(entry),onLoaded:{url in
+                if let id=model.music.artworkID(entry) {model.music.artwork.imageLoaded(id:id,url:url)}
+              },onFailure:{url,error in
+                if let id=model.music.artworkID(entry) {await model.music.artwork.imageFailed(id:id,url:url,error:error)}
+              }).frame(width:44,height:44).clipShape(RoundedRectangle(cornerRadius:6))
                 .accessibilityIdentifier("queue-artwork-"+entry.id)
               VStack(alignment:.leading) {Text(entry.title);Text(entry.subtitle ?? "").font(.caption).foregroundStyle(.secondary)}
               Spacer();if entry.id==model.music.player.queue.currentEntry?.id {Image(systemName:"waveform")}

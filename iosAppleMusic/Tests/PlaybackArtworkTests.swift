@@ -13,6 +13,40 @@ private actor ArtworkFetchProbe {
   }
 }
 final class PlaybackArtworkTests:XCTestCase {
+  @MainActor func testBrokenNativeURLUsesExactIDFallbackAndCannotReturnOnNextTick() async {
+    let bad=URL(string:"https://example.test/missing.jpg")!,good=URL(string:"https://example.test/real.jpg")!
+    let fallback=ArtworkFetchProbe(good)
+    let cache=PlaybackArtwork(fetch:{_ in bad},fallback:fallback.fetch)
+    cache.remember(id:"302788219",url:bad)
+    async let player:Void=cache.imageFailed(id:"302788219",url:bad,error:URLError(.badServerResponse))
+    async let queue:Void=cache.imageFailed(id:"302788219",url:bad,error:URLError(.badServerResponse))
+    _ = await(player,queue)
+    XCTAssertEqual(cache.url(id:"302788219",native:bad),good)
+    cache.remember(id:"302788219",url:bad)
+    XCTAssertEqual(cache.url(id:"302788219"),good)
+    let calls=await fallback.calls;XCTAssertEqual(calls,1)
+    XCTAssertNotEqual(cache.status["302788219"],"immagine caricata")
+    cache.imageLoaded(id:"302788219",url:good)
+    XCTAssertEqual(cache.status["302788219"],"immagine caricata")
+    XCTAssertNotNil(cache.imageFailures["302788219"])
+  }
+  @MainActor func testPrimaryMetadataErrorCanUsePublicArtworkWithoutChangingMediaID() async {
+    let fallback=ArtworkFetchProbe()
+    let cache=PlaybackArtwork(fetch:{_ in throw URLError(.badServerResponse)},fallback:fallback.fetch)
+    await cache.load(id:"302788219")
+    XCTAssertNotNil(cache.url(id:"302788219"));XCTAssertNil(cache.url(id:"30475379"))
+  }
+  @MainActor func testFailureOfEveryImageDoesNotLoopAndCanBeReset() async {
+    let bad=URL(string:"https://example.test/missing.jpg")!
+    let fallback=ArtworkFetchProbe(bad),cache=PlaybackArtwork(fetch:{_ in bad},fallback:fallback.fetch)
+    cache.remember(id:"1",url:bad)
+    await cache.imageFailed(id:"1",url:bad,error:URLError(.fileDoesNotExist))
+    await cache.imageFailed(id:"1",url:bad,error:URLError(.fileDoesNotExist))
+    XCTAssertNil(cache.url(id:"1",native:bad))
+    let calls=await fallback.calls;XCTAssertEqual(calls,1)
+    cache.reset();cache.remember(id:"1",url:bad)
+    XCTAssertEqual(cache.url(id:"1"),bad);XCTAssertTrue(cache.imageFailures.isEmpty)
+  }
   @MainActor func testAppleImageTemplatesBecomeLoadableInPlayerAndQueue() {
     let cache=PlaybackArtwork(fetch:{_ in nil})
     let template=URL(string:"https://is1-ssl.mzstatic.com/image/thumb/catalog/source/900x900{c}.{f}")!
@@ -57,8 +91,9 @@ final class PlaybackArtworkTests:XCTestCase {
     let fetch=ArtworkFetchProbe(nil);var now=Date(timeIntervalSince1970:1_000)
     let cache=PlaybackArtwork(now:{now},fetch:fetch.fetch)
     await cache.load(id:"1");await cache.load(id:"1")
+    XCTAssertFalse(cache.needsLoad(id:"1"))
     let first=await fetch.calls;XCTAssertEqual(first,1)
-    now=now.addingTimeInterval(31);await cache.load(id:"1")
+    now=now.addingTimeInterval(31);XCTAssertTrue(cache.needsLoad(id:"1"));await cache.load(id:"1")
     let second=await fetch.calls;XCTAssertEqual(second,2)
   }
   @MainActor func testQueueArtworkReadsHaveBoundedConcurrency() async {

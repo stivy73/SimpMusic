@@ -2,6 +2,18 @@ import Foundation
 @preconcurrency import MusicKit
 
 enum MusicArtworkResolver {
+  static func publicArtwork(_ id:String) async throws -> URL? {
+    guard ArtworkIdentity.isCatalogSong(id) else{return nil}
+    #if DEBUG && ARTWORK_LAYOUT_FIXTURE
+    let country="it"
+    #else
+    let country=try await MusicRead.perform{try await MusicDataRequest.currentCountryCode}
+    #endif
+    let request=try CatalogArtworkLookup.request(id:id,country:country)
+    let (data,response)=try await URLSession.shared.data(for:request)
+    guard let response=response as? HTTPURLResponse else{throw CatalogArtworkLookup.Failure.invalidResponse}
+    return try CatalogArtworkLookup.artwork(data,status:response.statusCode,id:id)
+  }
   static func resolve(_ id:String) async throws -> URL? {
     #if DEBUG && ARTWORK_LAYOUT_FIXTURE
     if let url=await MusicArtworkFixture.url(id) {return url}
@@ -39,10 +51,11 @@ enum MusicArtworkResolver {
 extension MusicLibraryModel {
   func rememberArtwork(_ songs:[Song]) {for song in songs {artwork.remember(id:song.id.rawValue,url:song.artwork?.url(width:900,height:900))}}
   func artworkURL(_ song:Song)->URL? {artwork.url(id:song.id.rawValue,native:song.artwork?.url(width:900,height:900))}
-  func artworkID(_ entry:MusicPlayer.Queue.Entry)->String? {entry.item?.id.rawValue ?? (entry.transientItem as? Song)?.id.rawValue}
+  func artworkID(_ entry:MusicPlayer.Queue.Entry)->String? {entry.item?.id.rawValue ?? entry.transientItem?.id.rawValue}
   func artworkURL(_ entry:MusicPlayer.Queue.Entry)->URL? {
     let native=entry.artwork?.url(width:900,height:900)
-    return artworkID(entry).flatMap{artwork.url(id:$0,native:native)} ?? PlaybackArtworkURL.resolve(native)
+    if let id=artworkID(entry) {return artwork.url(id:id,native:native)}
+    return PlaybackArtworkURL.resolve(native)
   }
   func loadArtwork(_ entry:MusicPlayer.Queue.Entry) async {
     guard let id=artworkID(entry) else{return}
@@ -53,12 +66,16 @@ extension MusicLibraryModel {
   }
   var playbackQueueEntries:[MusicPlayer.Queue.Entry] {
     #if DEBUG && ARTWORK_LAYOUT_FIXTURE
-    if isPlayerFixture {return artworkFixtureQueue}
+    if isPlayerFixture {return playbackQueueSnapshot.displayed(artworkFixtureQueue)}
     #endif
-    return Array(player.queue.entries)
+    return playbackQueueSnapshot.displayed(Array(player.queue.entries))
   }
   var artworkReport:String {
     guard let id=nowPlaying?.id.rawValue else{return "Copertina: nessun brano corrente"}
-    return "Copertina player: ID \(id); nativa=\(nowPlaying?.artwork != nil); \(artwork.status[id] ?? "non richiesta"); coda=\(playbackQueueEntries.count)"
+    let queue=playbackQueueEntries.prefix(8).map { entry in
+      let id=artworkID(entry) ?? "non disponibile"
+      return "Copertina coda: ID \(id); \(artwork.status[id] ?? "non richiesta"); errore=\(artwork.imageFailures[id] ?? "nessuno")"
+    }.joined(separator:"\n")
+    return "Copertina player: ID \(id); nativa=\(nowPlaying?.artwork != nil); \(artwork.status[id] ?? "non richiesta"); errore=\(artwork.imageFailures[id] ?? "nessuno"); coda nativa=\(player.queue.entries.count), conservata=\(playbackQueueSnapshot.entries.count)\n"+queue
   }
 }

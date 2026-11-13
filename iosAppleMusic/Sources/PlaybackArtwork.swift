@@ -18,39 +18,71 @@ private actor ArtworkReadGate {
 @MainActor final class PlaybackArtwork:ObservableObject {
   @Published private(set) var urls:[String:URL]=[:]
   @Published private(set) var status:[String:String]=[:]
-  private var jobs:[String:Task<Void,Never>]=[:]
+  @Published private(set) var imageFailures:[String:String]=[:]
+  private struct Job {let id:UUID;let task:Task<Void,Never>}
+  private var jobs:[String:Job]=[:]
+  private var rejected:[String:Set<URL>]=[:]
   private var unavailableUntil:[String:Date]=[:]
   private var order:[String]=[]
   private var revision=UUID()
   private let gate=ArtworkReadGate()
   private let fetch:@Sendable (String) async throws -> URL?
+  private let fallback:(@Sendable (String) async throws -> URL?)?
   private let now:()->Date
-  init(now:@escaping ()->Date=Date.init,fetch:@escaping @Sendable (String) async throws -> URL?) {self.now=now;self.fetch=fetch}
+  init(now:@escaping ()->Date=Date.init,fetch:@escaping @Sendable (String) async throws -> URL?,fallback:(@Sendable (String) async throws -> URL?)?=nil) {self.now=now;self.fetch=fetch;self.fallback=fallback}
   func remember(id:String,url:URL?,replace:Bool=true) {
-    guard !id.isEmpty,let url=PlaybackArtworkURL.resolve(url),replace || urls[id]==nil else{return}
+    guard !id.isEmpty,let url=PlaybackArtworkURL.resolve(url),rejected[id]?.contains(url) != true,replace || urls[id]==nil else{return}
     guard urls[id] != url else{return}
-    urls[id]=url;unavailableUntil[id]=nil;status[id]="disponibile"
+    urls[id]=url;unavailableUntil[id]=nil;status[id]="URL disponibile; immagine da verificare"
     order.removeAll{$0==id};order.append(id)
-    while order.count>512 {let removed=order.removeFirst();urls[removed]=nil;status[removed]=nil}
+    while order.count>512 {let removed=order.removeFirst();urls[removed]=nil;status[removed]=nil;imageFailures[removed]=nil;rejected[removed]=nil}
   }
-  func url(id:String,native:URL?=nil)->URL? {PlaybackArtworkURL.resolve(native) ?? urls[id]}
+  func url(id:String,native:URL?=nil)->URL? {
+    if let native=PlaybackArtworkURL.resolve(native),rejected[id]?.contains(native) != true {return native}
+    return urls[id]
+  }
+  func imageLoaded(id:String,url:URL) {
+    guard self.url(id:id)==PlaybackArtworkURL.resolve(url) else{return}
+    if status[id] != "immagine caricata" {status[id]="immagine caricata"}
+  }
+  func imageFailed(id:String,url:URL,error:Error) async {
+    guard let url=PlaybackArtworkURL.resolve(url),rejected[id]?.contains(url) != true else{return}
+    let token=revision
+    rejected[id,default:[]].insert(url)
+    let failure=error as NSError
+    imageFailures[id]="\(failure.domain) \(failure.code); host=\(url.host ?? "locale")"
+    if urls[id]==url {urls[id]=nil}
+    status[id]="errore caricamento immagine; recupero alternativo"
+    unavailableUntil[id]=nil
+    if let job=jobs[id] {await job.task.value;if jobs[id]?.id==job.id {jobs[id]=nil}}
+    guard revision==token else{return}
+    await load(id:id)
+  }
   func reset() {
-    revision=UUID();jobs.values.forEach{$0.cancel()};jobs=[:];urls=[:];status=[:];order=[];unavailableUntil=[:]
+    revision=UUID();jobs.values.forEach{$0.task.cancel()};jobs=[:];urls=[:];status=[:];imageFailures=[:];rejected=[:];order=[];unavailableUntil=[:]
   }
+  func needsLoad(id:String)->Bool {urls[id]==nil && jobs[id]==nil && unavailableUntil[id].map{$0<=now()} != false}
   func load(id:String) async {
     guard !id.isEmpty,urls[id]==nil else{return}
-    if let job=jobs[id] {await job.value;return}
+    if let job=jobs[id] {await job.task.value;return}
     if let until=unavailableUntil[id],until>now() {return}
-    let gate=gate,fetch=fetch,token=revision
+    let gate=gate,fetch=fetch,fallback=fallback,token=revision,jobID=UUID(),excluded=rejected[id] ?? []
     status[id]="recupero in corso"
     let job=Task { [weak self] in
       await gate.acquire()
       do {
         try Task.checkCancellation()
-        let result=try await fetch(id)
+        var result:URL?
+        var primaryError:Error?
+        do {result=try await fetch(id)} catch {try Task.checkCancellation();primaryError=error}
+        try Task.checkCancellation()
+        if result.flatMap(PlaybackArtworkURL.resolve).map({excluded.contains($0)}) != false {
+          if let fallback {result=try await fallback(id)}
+          else if let primaryError {throw primaryError}
+        }
         await gate.release()
         guard let self,self.revision==token,!Task.isCancelled else{return}
-        if let result {self.remember(id:id,url:result,replace:false)}
+        if let result=PlaybackArtworkURL.resolve(result),self.rejected[id]?.contains(result) != true {self.remember(id:id,url:result,replace:false)}
         else if self.urls[id]==nil {self.status[id]="non restituita da Apple Music";self.unavailableUntil[id]=self.now().addingTimeInterval(30)}
       } catch {
         await gate.release()
@@ -60,7 +92,7 @@ private actor ArtworkReadGate {
         self.unavailableUntil[id]=self.now().addingTimeInterval(30)
       }
     }
-    jobs[id]=job;await job.value;guard revision==token else{return};jobs[id]=nil
+    jobs[id]=Job(id:jobID,task:job);await job.value;guard revision==token else{return};if jobs[id]?.id==jobID {jobs[id]=nil}
     if unavailableUntil.count>512 {unavailableUntil=unavailableUntil.filter{$0.value>now()};status=status.filter{urls[$0.key] != nil || jobs[$0.key] != nil || unavailableUntil[$0.key] != nil}}
   }
 }

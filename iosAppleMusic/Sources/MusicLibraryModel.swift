@@ -56,7 +56,8 @@ final class MusicLibraryModel: ObservableObject {
   @Published var playing = false
   @Published var position = 0.0
   @Published var duration = 0.0
-  let artwork=PlaybackArtwork(fetch:MusicArtworkResolver.resolve)
+  let artwork=PlaybackArtwork(fetch:MusicArtworkResolver.resolve,fallback:MusicArtworkResolver.publicArtwork)
+  var playbackQueueSnapshot=PlaybackQueueSnapshot<MusicKit.MusicPlayer.Queue.Entry>()
   var artworkFixtureQueue:[MusicKit.MusicPlayer.Queue.Entry]=[]
   private var artworkChanges:AnyCancellable?
   var beforePlayback: (() -> Void)?
@@ -101,7 +102,7 @@ final class MusicLibraryModel: ObservableObject {
         guard let self else { return }
         self.syncPlaybackState()
         if self.playing { self.playbackFailure=nil }
-        self.position = max(0, self.player.playbackTime)
+        if !self.player.queue.entries.isEmpty {self.position = max(0, self.player.playbackTime)}
       }
     }
   }
@@ -537,6 +538,7 @@ final class MusicLibraryModel: ObservableObject {
     guard !preparingPlayback else { record("\(origin): preparazione già in corso"); return }
     preparingPlayback = true; defer { preparingPlayback = false }
     let intent=UUID();playbackIntent=intent;showPlayer=true;playbackFailure=nil
+    playbackQueueSnapshot.clear()
     var stage = "Sessione audio"
     do {
       error = nil
@@ -544,6 +546,7 @@ final class MusicLibraryModel: ObservableObject {
       beforePlayback?()
       player.stop()
       player.queue = queue
+      playbackQueueSnapshot.capture(Array(queue.entries),current:queue.currentEntry?.id)
       if let shuffle {player.state.shuffleMode=shuffle ? .songs:.off}
       stage = "Preparazione audio \(origin)"
       record("\(stage): avviata; coda nativa")
@@ -579,9 +582,11 @@ final class MusicLibraryModel: ObservableObject {
   }
   func pause() {if isPlayerFixture {playing=false;return};playbackIntent=UUID();player.pause();syncPlaybackState()}
   private func syncPlaybackState() {
-    queueSongs = player.queue.entries.compactMap { entry in
+    let native=Array(player.queue.entries)
+    playbackQueueSnapshot.capture(native,current:player.queue.currentEntry?.id)
+    if !native.isEmpty {queueSongs = native.compactMap { entry in
       if case .song(let song) = entry.item { return song }; return nil
-    }
+    }}
     playing = player.state.playbackStatus == .playing
     if let entry=player.queue.currentEntry {
       if let previous=activeCollectionQueueEntryID,previous != entry.id {activeCollectionRowID=nil}
@@ -592,7 +597,7 @@ final class MusicLibraryModel: ObservableObject {
       rememberArtwork([song])
       artwork.remember(id:song.id.rawValue,url:entry.artwork?.url(width:900,height:900))
       nowPlaying = song; duration = song.duration ?? 0
-      if changed || artwork.status[song.id.rawValue]==nil {Task{await artwork.load(id:song.id.rawValue)}}
+      if changed || artwork.needsLoad(id:song.id.rawValue) {Task{await artwork.load(id:song.id.rawValue)}}
     }
   }
   private func playbackMessage(_ error: any Error) -> String {
@@ -613,12 +618,33 @@ final class MusicLibraryModel: ObservableObject {
     let intent=UUID();playbackIntent=intent;playbackFailure=nil
     do {
       try activateAudio()
+      let resumePosition=position
+      let restored=restoreEmptyQueue()
       if !player.isPreparedToPlay { try await player.prepareToPlay() }
       guard intent==playbackIntent else {return}
+      if restored && resumePosition>0 {player.playbackTime=resumePosition}
       try await player.play()
       guard intent==playbackIntent else {player.pause();return}
       _ = try await observeStart(intent:intent,stage:"Ripresa audio")
-    } catch {if intent==playbackIntent && !Task.isCancelled {recordFailure(error,stage:"Ripresa audio");playbackFailure=playbackMessage(error)}}
+    } catch {if intent==playbackIntent && !Task.isCancelled {record("Ripresa audio: coda nativa=\(player.queue.entries.count); conservata=\(playbackQueueSnapshot.entries.count); preparata=\(player.isPreparedToPlay)");recordFailure(error,stage:"Ripresa audio");playbackFailure=playbackMessage(error)}}
+  }
+  private func restoreEmptyQueue() -> Bool {
+    guard player.queue.entries.isEmpty else{return false}
+    if !playbackQueueSnapshot.entries.isEmpty {
+      player.queue = .init(playbackQueueSnapshot.entries,startingAt:playbackQueueSnapshot.current)
+      record("Ripresa audio: ripristinata coda conservata; elementi=\(playbackQueueSnapshot.entries.count)")
+    } else if let song=nowPlaying,song.playParameters != nil {
+      player.queue = .init(for:[song]);record("Ripresa audio: ripristinato brano corrente; contesto precedente non disponibile")
+    } else {record("Ripresa audio: coda vuota, nessun brano ripristinabile");return false}
+    return true
+  }
+  func selectQueueEntry(_ entry:MusicKit.MusicPlayer.Queue.Entry) async {
+    guard !preparingPlayback else{return}
+    if player.queue.entries.contains(where:{$0.id==entry.id}) {player.queue.currentEntry=entry}
+    else if playbackQueueSnapshot.entries.contains(where:{$0.id==entry.id}) {
+      player.queue = .init(playbackQueueSnapshot.entries,startingAt:entry);position=0
+    } else {return}
+    await resume()
   }
   func next() async { do { try await player.skipToNextEntry() } catch { recordFailure(error,stage:"Brano successivo"); self.error = playbackMessage(error) } }
   func previous() async { do { try await player.skipToPreviousEntry() } catch { recordFailure(error,stage:"Brano precedente"); self.error = playbackMessage(error) } }

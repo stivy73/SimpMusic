@@ -652,3 +652,58 @@ Lo stato INSTALLED è a livello tester/app e non certifica l'installazione della
 build 13 né la conferma fisica delle copertine. Nessun invio pubblico App Store.
 Ricevute: verification/package-0.1.0-13.json e
 verification/testflight-0.1.0-13.json.
+
+## Seal: URL presenti, immagini non caricate e coda vuota — 13 novembre 2026
+
+Report fisico build 13: Kiss from a Rose, ID 302788219, artwork nativo presente
+e stato disponibile, ma immagine assente; coda nativa con zero elementi e
+MPMusicPlayerControllerErrorDomain 6 alla ripresa. Un URL nei metadati non era
+prova di un'immagine caricata: la correzione della build 13 era parziale.
+
+Verificato l'ID esatto tramite lookup pubblico Apple nei negozi IT e US:
+Kiss from a Rose, Seal, Seal II, isStreamable true, artworkUrl100 presente.
+Non è prova che la riproduzione MusicKit sul dispositivo riesca. Il catalogo
+MusicKit dell'utente continua a restituire zero dei 14 ID richiesti: nessuna
+sostituzione per titolo o altra versione della registrazione è stata introdotta.
+
+ArtworkImageData sostituisce il solo trasferimento immagini del player importato:
+deadline richiesta 8 s / risorsa 12 s, verifica HTTP/MIME/dati, download condivisi
+e cache limitata a 40 MiB. Il primo collaudo ha mostrato AsyncImage in attesa
+senza callback di fallimento: il controllo esplicito supera anche questo caso.
+Un URL fallito viene escluso per quell'ID e non può essere reinserito dal timer.
+Il recupero alternativo usa lookup Apple per lo stesso ID numerico e storefront,
+accetta solo risultati song con trackId identico e immagini HTTPS mzstatic.com.
+Non usa tale fallback per ID di libreria privati. Le miniature Apple note
+60/100x100bb.jpg possono richiedere lo stesso asset a 900x900; se non disponibile,
+si usa l'URL originale. URL con query, firme o host diversi non vengono riscritti.
+La diagnostica separa URL disponibile, immagine caricata, errori HTTP/trasporto,
+conteggi della coda nativa e conservata ed esiti delle prime otto immagini in coda.
+Non contiene URL completi, query o token.
+
+PlaybackQueueSnapshot conserva le occorrenze native e quella corrente, compresi
+i brani ripetuti. Il timer non cancella più lo snapshot e la posizione quando
+la coda nativa è temporaneamente vuota. Riprendi ricostruisce lo snapshot nativo;
+se non esiste, prova esclusivamente il brano corrente con parametri MusicKit.
+Una nuova selezione cancella la coda precedente, anche se la preparazione fallisce.
+Non sono stati appiattiti album/playlist e non vengono inventate tracce.
+Rimosso il fumetto duplicato dalla barra verticale e dai comandi del player;
+la lampadina resta l'accesso al significato.
+
+118 test riusciti: HTTP 403, contenuti non immagine, timeout, cache/download
+condivisi, alta risoluzione con riserva, immagini fallite e callback duplicate,
+identità esatta nel lookup, snapshot vuoto, nuove selezioni e brani duplicati.
+Debug e archivio Release riusciti; tre import della presentazione verificati.
+
+Collaudo Device Hub / iPhone 18 Pro iOS 27.2 con fixture DEBUG esclusa Release:
+native artwork di Seal reso irraggiungibile, coda nativa vuota, tre occorrenze
+conservate. Il recupero di Seal usa la rete reale e il parser pubblico della
+produzione (solo storefront IT è fissato nella fixture). Copertina nitida nel
+player, tre copertine corrette in coda, fumetto assente in verticale e orizzontale.
+Screenshot: /tmp/NoteNarrateMusic-Seal-player-final.png,
+/tmp/NoteNarrateMusic-Seal-queue-final.png,
+/tmp/NoteNarrateMusic-Seal-landscape-final.png.
+Nessun test di riproduzione reale con account è simulato come prova risolutiva:
+il codice 6 e il ripristino audio restano da confermare sull'iPhone dell'utente.
+
+Preparata build 0.1.0 (14) per app, Watch ed estensione. Elaborazione Apple,
+assegnazione al gruppo e disponibilità TestFlight da verificare dopo l'upload.
