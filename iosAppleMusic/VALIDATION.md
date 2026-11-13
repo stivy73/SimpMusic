@@ -302,3 +302,14 @@ Modifica di presentazione: verifica con compilazione Debug e archivio Release;
 nessun test aggiunto che duplichi il semplice binding SwiftUI. Il motore di
 recupero della build 7 resta invariato e già coperto dai 48 test precedenti.
 Resta da confermare resa e riproduzione da Home sul dispositivo.
+
+Build 8 consegnata: VALID / IN_BETA_TESTING,
+ID 00c7a350-b1be-4ab3-a86d-edd3b93fe49d, app separata 6833455204.
+Solo gruppo Stivy73 assegnato, manuale, un tester e appartenenza verificati.
+Note italiane caricate. INSTALLED riguarda l’app, non prova l’installazione di 8.
+Compilazione Debug, archivio Release e export firmato riusciti; iPhone e Watch
+entrambi 0.1.0 (8). Sorgenti f4511d20 sincronizzati nel fork personale.
+IPA: iosAppleMusic/deliveries/0.1.0-8/NoteNarrateMusic.ipa.
+SHA256: e6f3f46c292c1079d7f45179b35f5853c4cb768dbde5860c69ecaa7a0e944203.
+Conferma fisica richiesta: Heaven on Earth in Home nella sezione Album della
+libreria e avvio della riproduzione dallo stesso elemento già visibile in Libreria.
