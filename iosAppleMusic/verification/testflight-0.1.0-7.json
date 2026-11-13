@@ -1,0 +1,17 @@
+{
+  "app": "6833455204",
+  "bundle": "com.stivy.notenarrate.applemusic",
+  "version": "0.1.0",
+  "build": "7",
+  "buildID": "fc611521-7717-47d0-b338-319c77ae41db",
+  "processingState": "VALID",
+  "internalBuildState": "IN_BETA_TESTING",
+  "group": "Stivy73",
+  "internal": true,
+  "automaticDistribution": false,
+  "testerCount": 1,
+  "testerState": "INSTALLED",
+  "groupMembershipVerified": true,
+  "sourceCommit": "78885edc",
+  "ipaSHA256": "b6eac5eb137981b134197f2822dd1ca840b19b8ccc04b7fb0108a79ef6fee7e1"
+}

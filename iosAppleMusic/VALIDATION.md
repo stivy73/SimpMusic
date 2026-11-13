@@ -274,3 +274,16 @@ ricerca multipagina e fallimento successivo, rifiuto next di host/term/tipo dive
 ripristino ID con account attuale, ID invalidi, risorse inattese ed errori HTTP.
 Debug riuscita. Resta necessaria la prova fisica: album nell’elenco dopo pulizia
 della ricerca, aggiornamento e riavvio, e riproduzione dello stesso Album.
+
+Build 7 consegnata: VALID / IN_BETA_TESTING,
+ID fc611521-7717-47d0-b338-319c77ae41db, app separata 6833455204.
+Gruppo assegnato Stivy73 soltanto, manuale; un tester e appartenenza verificati.
+Note italiane caricate. INSTALLED riguarda l’app, non conferma il test di build 7.
+Archivio Release firmato ed export riusciti; iPhone/Watch versione 0.1.0 (7).
+Sorgenti 78885edc sincronizzati nel fork personale.
+IPA: iosAppleMusic/deliveries/0.1.0-7/NoteNarrateMusic.ipa.
+SHA256: b6eac5eb137981b134197f2822dd1ca840b19b8ccc04b7fb0108a79ef6fee7e1.
+Resta da confermare sul dispositivo Heaven on Earth nell’elenco principale,
+senza testo di ricerca, dopo aggiornamento e dopo riavvio. Se non rilevato
+automaticamente da iOS, una ricerca sulla nuova build conserva l’ID per la
+verifica Apple successiva; i risultati della vecchia build non erano persistiti.
