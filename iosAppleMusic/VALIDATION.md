@@ -338,3 +338,16 @@ Debug riuscita. Necessari collaudo iPhone con account e verifica manuale di scri
 playlist con duplicati, raccolte grandi, discovery vuota/rete e artista.
 Riferimenti: https://support.apple.com/111118
 https://developer.apple.com/documentation/applemusicapi/add-resource-to-favorites
+
+Build 9 consegnata: VALID / IN_BETA_TESTING,
+ID 5736d232-a6de-4d29-b210-a1b2afb78971, app separata 6833455204.
+Solo Stivy73 assegnato, manuale; un tester e appartenenza verificati.
+Note italiane caricate. Stato INSTALLED riferito all’app, non alla prova di 9.
+Archivio ed export firmati riusciti; iPhone e Watch entrambi 0.1.0 (9).
+Sorgenti 8cfec9a9 sincronizzati sul fork personale. Nessuna modifica YT.
+IPA: iosAppleMusic/deliveries/0.1.0-9/NoteNarrateMusic.ipa.
+SHA256: 7c1a14044293398a679302d708d5de14d3a470d130165d37688bf0afb6eae6ec.
+Collaudo richiesto: Heaven on Earth/traccia intermedia, playlist con duplicati,
+ricerca quattro categorie, recenti e consigli, Preferiti confrontati con Musica.
+Risorse personali senza equivalente catalogo possono non consentire aggiunta
+ai Preferiti dall’app: l’errore resta esplicito e si usa Musica, senza API private.
