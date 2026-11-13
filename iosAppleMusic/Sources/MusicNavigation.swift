@@ -1,9 +1,10 @@
 import SwiftUI
 @preconcurrency import MusicKit
 
-enum MusicBrowseItem:Identifiable {
+enum MusicBrowseItem:Identifiable,Sendable {
   case song(Song),album(Album),playlist(Playlist),artist(Artist)
   var id:String {switch self {case .song(let v):"s:"+v.id.rawValue;case .album(let v):"a:"+v.id.rawValue;case .playlist(let v):"p:"+v.id.rawValue;case .artist(let v):"r:"+v.id.rawValue}}
+  var kind:AppleDiscoveryKind {switch self {case .song:.song;case .album:.album;case .playlist:.playlist;case .artist:.artist}}
   var title:String {switch self {case .song(let v):v.title;case .album(let v):v.title;case .playlist(let v):v.name;case .artist(let v):v.name}}
   var subtitle:String {switch self {case .song(let v):v.artistName;case .album(let v):v.artistName;case .playlist(let v):v.curatorName ?? "Playlist";case .artist:"Artista"}}
   var artwork:Artwork? {switch self {case .song(let v):v.artwork;case .album(let v):v.artwork;case .playlist(let v):v.artwork;case .artist(let v):v.artwork}}
@@ -30,7 +31,8 @@ struct MusicCollectionBrowser:View {
           Menu {
             Picker("Visualizzazione",selection:$preferences.layout) {ForEach(BrowseLayout.allCases,id:\.self){Text($0.title).tag($0)}}
             Picker("Ordina per",selection:$preferences.order) {ForEach(BrowseOrder.allCases,id:\.self){Text($0.title).tag($0)}}
-            if preferences.order != .original {Toggle("Ordine inverso",isOn:$preferences.descending);Toggle("Indice alfabetico",isOn:$preferences.alphabet)}
+            Toggle("Ordine inverso",isOn:$preferences.descending)
+            if preferences.order != .original {Toggle("Indice alfabetico",isOn:$preferences.alphabet)}
           } label:{Label("Visualizzazione e ordine",systemImage:"slider.horizontal.3")}
         }.padding(.horizontal)
         if preferences.alphabet && preferences.order != .original {
@@ -159,7 +161,10 @@ struct LibraryBrowserScreen:View {
       }
     }.navigationTitle("Libreria")
       .sheet(isPresented:$createPlaylist){AppleCreatePlaylistSheet()}
-      .toolbar {if category == .playlists {Button("Nuova playlist",systemImage:"plus"){createPlaylist=true}};NavigationLink {ReceivedMusicScreen()} label:{Label("Ricevuti",systemImage:"tray.and.arrow.down")};Button {Task{await music.refresh()}} label:{Label("Aggiorna libreria",systemImage:"arrow.clockwise")}.disabled(music.loading)}
+      .toolbar {Menu {
+        Picker("Categoria",selection:Binding(get:{category},set:{category=$0;searchAll=false})){ForEach(BrowseKind.allCases){Text($0.title).tag($0)}}
+        NavigationLink("Preferiti"){FavoriteLibraryScreen()}
+      } label:{Label("Categorie",systemImage:"line.3.horizontal.decrease")}.accessibilityIdentifier("library-category-menu");if category == .playlists {Button("Nuova playlist",systemImage:"plus"){createPlaylist=true}};NavigationLink {ReceivedMusicScreen()} label:{Label("Ricevuti",systemImage:"tray.and.arrow.down")};Button {Task{await music.refresh()}} label:{Label("Aggiorna libreria",systemImage:"arrow.clockwise")}.disabled(music.loading)}
       .searchable(text:$search.query,prompt:"Cerca nella tua libreria")
       .onChange(of:search.query){old,value in if old.isEmpty && !value.isEmpty {searchAll=true};if value.trimmingCharacters(in:.whitespacesAndNewlines) != search.submitted {search.invalidate()}}
       .task(id:search.query) {
@@ -192,7 +197,7 @@ struct PersonalResults:View {
 struct CatalogSearchScreen:View {
   @StateObject private var search:MusicSearchStore
   private let initialQuery:String
-  init(initialQuery:String="") {self.initialQuery=initialQuery;_search=StateObject(wrappedValue:MusicSearchStore(personal:false))}
+  init(initialQuery:String="",initialCategory:BrowseKind?=nil) {self.initialQuery=initialQuery;let store=MusicSearchStore(personal:false);store.category=initialCategory;_search=StateObject(wrappedValue:store)}
   var body:some View {
     VStack {
       ScrollView(.horizontal,showsIndicators:false){HStack {
@@ -202,7 +207,10 @@ struct CatalogSearchScreen:View {
       if search.submitted.isEmpty {
         List {
           if search.history.isEmpty {Text("Cerca brani, album, artisti e playlist nel catalogo Apple Music.").foregroundStyle(.secondary)}
-          ForEach(search.history,id:\.self){term in Button(term){search.submit(term)}}
+          ForEach(search.history,id:\.self){term in
+            HStack {Button(term){search.submit(term)};Spacer();Button(role:.destructive){search.removeHistory(term)} label:{Image(systemName:"xmark.circle")}.buttonStyle(.borderless).accessibilityLabel("Elimina ricerca "+term)}
+              .swipeActions {Button("Elimina",role:.destructive){search.removeHistory(term)}}
+          }
           if !search.history.isEmpty {Button("Cancella cronologia",role:.destructive){search.clearHistory()}}
         }
       } else if let kind=search.category {
@@ -219,6 +227,7 @@ struct CatalogSearchScreen:View {
         }.padding(.vertical)}
       }
     }.navigationTitle("Cerca")
+      .toolbar {Menu {Button("Tutti"){search.category=nil};ForEach(BrowseKind.allCases){kind in Button(kind.title){search.category=kind}}} label:{Label("Categorie ricerca",systemImage:"line.3.horizontal.decrease")}}
       .task {if !initialQuery.isEmpty && search.submitted.isEmpty {search.submit(initialQuery)}}
       .searchable(text:$search.query,prompt:"Brani, album, artisti e playlist")
       .onSubmit(of:.search){search.submit()}

@@ -30,6 +30,7 @@ final class MusicLibraryModel: ObservableObject {
   @Published var favoriteSongs:[MusicKit.Song]=[]
   @Published var favoriteAlbums:[Album]=[]
   @Published var favoritePlaylists:[Playlist]=[]
+  @Published var favoriteArtists:[Artist]=[]
   @Published var favoritesFailure:String?
   @Published var loadingFavorites=false
   @Published var notice:String?
@@ -82,6 +83,9 @@ final class MusicLibraryModel: ObservableObject {
     albums=[fixture(Album.self,id:"100001",kind:"albums",attributes:["url":"https://music.apple.com/it/album/100001","name":"Album Beta","artistName":"Artista di prova","genreNames":[],"trackCount":2]),fixture(Album.self,id:"100002",kind:"albums",attributes:["url":"https://music.apple.com/it/album/100002","name":"Album Alpha","artistName":"Altro artista","genreNames":[],"trackCount":2])].compactMap{$0}
     playlists=[fixture(Playlist.self,id:"p.fixture",kind:"library-playlists",attributes:["name":"Playlist di prova","canEdit":true])].compactMap{$0}
     artists=[fixture(Artist.self,id:"1003",kind:"artists",attributes:["name":"Artista di prova"]),fixture(Artist.self,id:"1004",kind:"artists",attributes:["name":"Altro artista"])].compactMap{$0}
+    albums+=(3...7).compactMap{fixture(Album.self,id:String(100000+$0),kind:"albums",attributes:["name":"Album di prova \($0)","artistName":"Artista di prova","genreNames":[],"trackCount":2])}
+    songs+=(1...5).compactMap{fixture(Song.self,id:String(123456789+$0),kind:"songs",attributes:["name":"Ascolto recente \($0)","artistName":"Artista di prova","albumName":"Album di prova","durationInMillis":200000,"playParams":["id":String(123456789+$0),"kind":"song"]])}
+    recentSongs=songs;favoriteSongs=songs;favoriteAlbums=albums;favoritePlaylists=playlists;favoriteArtists=artists
     #endif
     return
     #endif
@@ -102,7 +106,7 @@ final class MusicLibraryModel: ObservableObject {
     guard authorization == .authorized else {
       error = "Accesso Apple Music non consentito. Puoi modificarlo nelle Impostazioni di iOS."; return
     }
-    await refresh()
+    await refreshHome()
   }
   func refresh() async {
     if isPlayerFixture {return}
@@ -430,6 +434,7 @@ final class MusicLibraryModel: ObservableObject {
     catch {self.error=accessMessage(error)}
   }
   func refreshFavorites() async {
+    if isPlayerFixture {return}
     guard !loadingFavorites else {return};loadingFavorites=true;defer{loadingFavorites=false}
     let reader=MusicCloudLibrary(fetch:{request in
       var request=request
@@ -446,6 +451,8 @@ final class MusicLibraryModel: ObservableObject {
     catch {if Task.isCancelled{return};failures.append("Album preferiti non verificabili.")}
     do {favoritePlaylists=try await reader.load(Playlist.self,resource:.playlists).items}
     catch {if Task.isCancelled{return};failures.append("Playlist preferite non verificabili.")}
+    do {favoriteArtists=try await AppleArtistService.favorites()}
+    catch {if Task.isCancelled{return};failures.append("Artisti preferiti non verificabili.")}
     favoritesFailure=failures.isEmpty ? nil:failures.joined(separator:" ") + " Riprova o verifica nell’app Musica."
   }
   func artistDetails(_ artist:Artist) async throws -> (albums:[Album],songs:[MusicKit.Song]) {
@@ -468,7 +475,7 @@ final class MusicLibraryModel: ObservableObject {
       let scope:String
       if id.hasPrefix("i.") || id.hasPrefix("l.") || id.hasPrefix("p.") || id.hasPrefix("r.") {scope="me/library"}
       else {scope="catalog/" + (try await MusicDataRequest.currentCountryCode)}
-      var request=URLRequest(url:URL(string:"https://api.music.apple.com/v1/\(scope)/\(type)/\(id)")!,cachePolicy:.reloadIgnoringLocalCacheData)
+      var request=URLRequest(url:URL(string:"https://api.music.apple.com/v1/\(scope)/\(type)/\(id)?extend=inFavorites")!,cachePolicy:.reloadIgnoringLocalCacheData)
       request.timeoutInterval=15
       let response=try await MusicDataRequest(urlRequest:request).response()
       let state=try MusicFavoriteRequest.state(from:response.data,status:response.urlResponse.statusCode)

@@ -1,0 +1,9 @@
+{
+  "archive": "/tmp/NoteNarrateMusic-DiscoveryReview.xcarchive",
+  "baseCommit": "8ec87127cb2e31cb4a17d84f5a65fa48f4e7f77c",
+  "mainBinarySHA256": "bd874a4da88b29b4260fea2e6e567ee58d8041bcf64b8faeb63669314275a823",
+  "tests": 94,
+  "failures": 0,
+  "fixtureAbsentFromRelease": true,
+  "testflightUploaded": false
+}

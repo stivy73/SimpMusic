@@ -22,22 +22,35 @@ struct CollectionScreen:View {
 struct ArtistScreen:View {
   @EnvironmentObject var music:MusicLibraryModel
   let artist:Artist
-  @State private var albums:[Album]=[]
-  @State private var songs:[Song]=[]
-  @State private var busy=true
-  @State private var failure:String?
+  @StateObject private var profile=ArtistProfileStore()
+  private var shown:Artist {profile.artist ?? artist}
   var body:some View {
-    List {
-      Section {CoverRow(artwork:artist.artwork,title:artist.name,subtitle:"Artista");FavoriteControl(type:"artists",id:artist.id.rawValue);if let url=artist.url {Link("Apri in Musica",destination:url)}}
-      if busy {ProgressView("Caricamento artista…")}
-      if let failure {Text(failure).foregroundStyle(.orange)}
-      Section("Brani") {SongRows(songs:songs)}
-      Section("Album") {AlbumRows(albums:albums)}
-    }.navigationTitle(artist.name).task {
-      defer {busy=false}
-      do { let detail=try await music.artistDetails(artist);albums=detail.albums;songs=detail.songs }
-      catch {if !Task.isCancelled {failure=error.localizedDescription} }
-    }
+    ScrollView {
+      LazyVStack(alignment:.leading,spacing:28) {
+        VStack(alignment:.leading,spacing:16) {
+          Cover(artwork:shown.artwork).aspectRatio(1,contentMode:.fit).frame(maxWidth:340).clipShape(RoundedRectangle(cornerRadius:24))
+          Text(shown.name).font(.largeTitle.bold())
+          if let genres=shown.genreNames,!genres.isEmpty {Text(genres.joined(separator:" · ")).foregroundStyle(.secondary)}
+          FavoriteControl(type:"artists",id:shown.id.rawValue)
+          if let station=shown.station {Button("Radio dell’artista",systemImage:"dot.radiowaves.left.and.right"){Task{
+            guard !music.preparingPlayback else{return}
+            music.activeCollectionID=nil;music.activeCollectionRowID=nil;music.activeCollectionQueueEntryID=nil
+            await music.startPlayback(queue:.init(for:[station]),origin:"Radio artista")
+          }}}
+          if let notes=shown.editorialNotes?.standard ?? shown.editorialNotes?.short {Text(notes).textSelection(.enabled)}
+          if let url=shown.url {ShareLink(item:url){Label("Condividi artista",systemImage:"square.and.arrow.up")};Link("Apri in Musica",destination:url)}
+        }.padding(.horizontal,20)
+        if profile.busy {ProgressView("Caricamento artista…").frame(maxWidth:.infinity)}
+        if let error=profile.error {Text(error).foregroundStyle(.orange);Button("Riprova"){Task{await load()}}}
+        AppleDiscoveryShelves(shelves:profile.shelves)
+      }.padding(.vertical,16)
+    }.navigationTitle(shown.name).navigationBarTitleDisplayMode(.inline).task{await load()}.refreshable{await load()}
+  }
+  private func load() async {
+    #if DEBUG && BROWSE_LAYOUT_FIXTURE
+    if music.isPlayerFixture {profile.artist=artist;profile.shelves=[.init(id:"fixture-top",title:"Brani più ascoltati",items:music.songs.map(MusicBrowseItem.song)),.init(id:"fixture-albums",title:"Album",items:music.albums.map(MusicBrowseItem.album))];return}
+    #endif
+    await profile.load(artist)
   }
 }
 
@@ -50,20 +63,31 @@ struct FavoriteControl:View {
     Button(confirmed ? "Preferito in Apple Music":"Aggiungi ai Preferiti Apple Music",systemImage:confirmed ? "star.fill":"star") {
       Task {await music.requestFavorite(type:type,id:id)}
     }.disabled(confirmed || music.sendingFavorite)
-      .task(id:type+":"+id) {_ = await music.favoriteStatus(type:type,id:id)}
+      .task(id:type+":"+id) {if !music.isPlayerFixture {_ = await music.favoriteStatus(type:type,id:id)}}
   }
 }
 
 struct FavoriteLibraryScreen:View {
   @EnvironmentObject var music:MusicLibraryModel
+  @AppStorage("favorites.selectedCategory") private var category=BrowseKind.songs
+  private var items:[MusicBrowseItem] {switch category {
+    case .songs:music.favoriteSongs.map(MusicBrowseItem.song)
+    case .albums:music.favoriteAlbums.map(MusicBrowseItem.album)
+    case .playlists:music.favoritePlaylists.map(MusicBrowseItem.playlist)
+    case .artists:music.favoriteArtists.map(MusicBrowseItem.artist)
+  }}
   var body:some View {
-    List {
-      Text("Preferiti restituiti dalla libreria Apple Music. Per rimuoverli usa Musica.").font(.caption)
+    VStack {
+      ScrollView(.horizontal,showsIndicators:false){HStack{ForEach(BrowseKind.allCases){kind in Button(kind.title){category=kind}.buttonStyle(.bordered).tint(category==kind ? .cyan:.gray)}}.padding(.horizontal)}
       if music.loadingFavorites {ProgressView("Verifica Preferiti…")}
       if let failure=music.favoritesFailure {Text(failure).foregroundStyle(.orange);Button("Riprova"){Task{await music.refreshFavorites()}}}
-      Section("Brani · \(music.favoriteSongs.count)"){SongRows(songs:music.favoriteSongs)}
-      Section("Album · \(music.favoriteAlbums.count)"){AlbumRows(albums:music.favoriteAlbums)}
-      Section("Playlist · \(music.favoritePlaylists.count)"){PlaylistRows(playlists:music.favoritePlaylists)}
-    }.navigationTitle("Preferiti Apple Music").task{await music.refreshFavorites()}.refreshable{await music.refreshFavorites()}
+      MusicCollectionBrowser(items:items,key:"favorites."+category.rawValue).id(category)
+      if items.isEmpty && !music.loadingFavorites && music.favoritesFailure==nil {Text("Nessun preferito restituito da Apple Music per questa categoria.").foregroundStyle(.secondary).padding()}
+    }.navigationTitle("Preferiti Apple Music").task{await music.refreshFavorites()}
+      .refreshable{await music.refreshFavorites()}
+      .toolbar {
+        Menu {Picker("Categoria",selection:$category){ForEach(BrowseKind.allCases){Text($0.title).tag($0)}}} label:{Label("Categorie",systemImage:"line.3.horizontal.decrease")}
+        Button("Aggiorna",systemImage:"arrow.clockwise"){Task{await music.refreshFavorites()}}.disabled(music.loadingFavorites)
+      }
   }
 }

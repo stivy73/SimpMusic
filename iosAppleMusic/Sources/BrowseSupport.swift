@@ -17,7 +17,7 @@ struct BrowsePreferences:Codable,Equatable {
   var descending=false
   var alphabet=false
   func sorted<T>(_ items:[T],title:(T)->String,artist:(T)->String)->[T] {
-    guard order != .original else {return items}
+    guard order != .original else {return descending ? Array(items.reversed()):items}
     return items.enumerated().sorted {a,b in
       let keyA=order == .title ? title(a.element):artist(a.element)
       let keyB=order == .title ? title(b.element):artist(b.element)
@@ -42,6 +42,9 @@ enum BrowseHistory {
     let value=term.trimmingCharacters(in:.whitespacesAndNewlines)
     guard !value.isEmpty else {return previous}
     return Array(([value]+previous.filter{$0.compare(value,options:[.caseInsensitive,.diacriticInsensitive]) != .orderedSame}).prefix(20))
+  }
+  static func removing(_ term:String,from previous:[String])->[String] {
+    previous.filter{$0.compare(term,options:[.caseInsensitive,.diacriticInsensitive]) != .orderedSame}
   }
   static func merging<T:Identifiable>(_ first:[T],_ second:[T])->[T] where T.ID:Hashable {
     var seen=Set<T.ID>();return (first+second).filter{seen.insert($0.id).inserted}

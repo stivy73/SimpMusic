@@ -549,3 +549,22 @@ ricezione di playlist private o confronto reale Spotify/Apple, display fisici.
 Versione/build rimasta 0.1.0 (11) per sviluppo. Archivio di verifica in
 /tmp/NoteNarrateMusic-CollectionsReview.xcarchive; nessun export, caricamento
 TestFlight o modifica a tester/gruppi in questo lotto. Dettagli in COLLECTION_PORT.md.
+
+## Home, Esplora, Artisti, Preferiti e rifiniture — sviluppo successivo a build 11
+
+Implementati i quattro gruppi richiesti. Caroselli, schede e categorie importati
+dal commit YouTube 5a277798 con script riproducibile e controllo hash. Altro e
+Cronologia usano pagine MusicKit con errore/riprova. Generi e classifiche native,
+ricerche playlist per stato d'animo, ultime uscite per artisti della libreria e
+preferiti, con verifiche a gruppi e data di pubblicazione degli ultimi 90 giorni.
+Artista con sezioni estese, radio e note editoriali; Preferiti con artisti,
+griglia, ordinamento e menu categorie. Cancellazione singola della ricerca,
+menu alternativo e inversione dell'ordine originale della raccolta.
+
+94 test superati (6 nuovi), Debug e archivio iPhone Release firmato riusciti,
+fixture esclusa dal Release. Collaudo sintetico nel simulatore: scorrimento Home,
+Altro, ordine inverso, Cronologia, generi/classifiche, stati d'animo, menu categorie,
+Preferiti Artisti in griglia, pagina artista, cancellazione della sola ricerca
+Rock e pagina Nuove uscite. Nessun account o ascolto musicale reale collaudato.
+Dettagli di riuso, comportamento, prove e limiti in DISCOVERY_PORT.md.
+Nessuna nuova beta TestFlight, versione/build ancora 0.1.0 (11) per sviluppo.

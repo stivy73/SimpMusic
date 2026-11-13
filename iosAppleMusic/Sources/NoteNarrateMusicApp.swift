@@ -31,24 +31,7 @@ struct MusicRoot: View {
               Text("Collega Apple Music per ascoltare la tua musica e scoprirne il significato. L'accesso al catalogo richiede un abbonamento Apple Music.")
             } actions: { Button("Collega Apple Music") { Task { await music.connect() } }.buttonStyle(.borderedProminent) }
           } else {
-            List {
-              if music.subscriptionVerified && !music.canPlayCatalog { Text("Per ascoltare il catalogo, attiva un abbonamento nell'app Musica.").foregroundStyle(.secondary) }
-              if music.loadingDiscovery {ProgressView("Aggiornamento recenti e consigli…")}
-              if let failure=music.discoveryError {Text(failure).font(.caption).foregroundStyle(.secondary)}
-              if !music.recentSongs.isEmpty {Section("Ascoltati di recente") {SongRows(songs:music.recentSongs)}}
-              ForEach(music.recommendations) { recommendation in
-                if !recommendation.albums.isEmpty || !recommendation.playlists.isEmpty {Section(recommendation.title ?? "Consigliati per te") {
-                  AlbumRows(albums:Array(recommendation.albums))
-                  PlaylistRows(playlists:Array(recommendation.playlists))
-                }}
-              }
-              Section("Album della libreria · \(music.albums.count)") {
-                if music.albums.isEmpty && !music.loading { Text("Nessun album nella libreria.").foregroundStyle(.secondary) }
-                AlbumRows(albums:music.albums)
-              }
-              Section("Brani della libreria") { SongRows(songs: music.songs) }
-            }.overlay { if music.loading { ProgressView() } }
-              .refreshable { await music.refreshHome() }
+            MusicHomeScreen()
           }
         }.navigationTitle("NoteNarrate")
       }.tag(0).tabItem { Label("Home",systemImage:"house") }

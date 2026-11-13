@@ -11,9 +11,17 @@ import Combine
   @Published private(set) var history:[String]
   private var job:Task<Void,Never>?
   private var historyKey:String {personal ? "personalSearchHistory":"catalogSearchHistory"}
-  init(personal:Bool) {self.personal=personal;history=UserDefaults.standard.stringArray(forKey:personal ? "personalSearchHistory":"catalogSearchHistory") ?? []}
+  init(personal:Bool) {
+    self.personal=personal;history=UserDefaults.standard.stringArray(forKey:personal ? "personalSearchHistory":"catalogSearchHistory") ?? []
+    #if DEBUG && BROWSE_LAYOUT_FIXTURE
+    if !personal && history.isEmpty {history=["Seal","Rock","Jazz"]}
+    #endif
+  }
   func invalidate() {job?.cancel();job=nil;submitted="";songs.reset();albums.reset();artists.reset();playlists.reset()}
   func clearHistory() {history=[];UserDefaults.standard.removeObject(forKey:historyKey)}
+  func removeHistory(_ term:String) {
+    history=BrowseHistory.removing(term,from:history);UserDefaults.standard.set(history,forKey:historyKey)
+  }
   func submit(_ value:String?=nil) {
     let term=(value ?? query).trimmingCharacters(in:.whitespacesAndNewlines)
     invalidate();query=term;guard !term.isEmpty else{return};submitted=term
