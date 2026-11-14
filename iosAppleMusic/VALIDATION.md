@@ -832,3 +832,28 @@ fixture. Distribuzione richiesta esplicitamente al solo Stivy73, eccezione
 confermata alla regola generica dei gruppi della variante YouTube Music.
 Archivio, firma, sorgenti remote, upload, processing e assegnazione restano
 gate separati da registrare con le rispettive ricevute.
+
+
+### Consegna beta 16 completata — 14 novembre 2026
+
+Archivio ed export Release firmati riusciti. IPA verificata con codesign
+--verify --deep --strict: bundle Apple Music separato, app/Watch/estensione
+0.1.0 (16), App Group dedicato, get-task-allow false, fixture DEBUG escluse.
+IPA: iosAppleMusic/deliveries/0.1.0-16/NoteNarrateMusic.ipa.
+SHA256: 259062caecc4cfc03fee6a745e388905cf329360d3828bf4cb5a7c6bf738065b.
+Sorgenti/versione/build: 22c884ebde90b8831b77369980443628ae776be0,
+verificati sul fork personale stivy73/SimpMusic, codex/apple-music, prima
+che l’IPA fosse caricata. Nessun push all’upstream.
+
+Upload riuscito, delivery/build ID 410ce5f6-37cc-4345-a8e3-d558afd6eed7.
+Riletti VALID / IN_BETA_TESTING, note italiane esatte e unico gruppo assegnato
+Stivy73, interno e manuale, con un solo tester. Il titolare ha richiesto
+esplicitamente questa platea, facendo eccezione alla regola generica di
+AGENTS.md. Non sono stati modificati utenti, ruoli o altri gruppi né la variante
+YouTube Music. Non è stato inviato alcun aggiornamento pubblico App Store.
+Lo stato INSTALLED del tester è riferito all’app e non prova l’installazione
+della build 16. Cover degli artisti reali e 14 brani restano da verificare
+sull’iPhone con l’account del titolare.
+
+Ricevute: verification/package-0.1.0-16.json,
+verification/home-filters-artwork-16.json e verification/testflight-0.1.0-16.json.

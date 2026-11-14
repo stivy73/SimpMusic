@@ -1,0 +1,34 @@
+{
+  "sourceCommit": "22c884ebde90b8831b77369980443628ae776be0",
+  "importedYouTubeCommit": "5a277798",
+  "version": "0.1.0",
+  "build": "16",
+  "tests": 151,
+  "testFailures": 0,
+  "pinnedImportChecks": [
+    "discovery and Home filters",
+    "player",
+    "collections and share"
+  ],
+  "debugSimulatorBuild": "SUCCEEDED",
+  "releaseArchive": "SUCCEEDED",
+  "fixtureExcludedFromIPA": true,
+  "ui": {
+    "device": "iPhone 18 Pro / iOS 27.2 Simulator / Device Hub",
+    "data": "DEBUG synthetic playlists; real Apple CDN image download",
+    "verified": [
+      "portrait and landscape",
+      "Relax selection",
+      "Concentrazione selection",
+      "Altro list and retained selection",
+      "Tutto restores personal shelves",
+      "square crop of rectangular artwork in cards and rows"
+    ]
+  },
+  "requiresOwnerAccount": [
+    "exact personal artist catalog artwork",
+    "14 unresolved device library songs",
+    "catalog playlist results"
+  ],
+  "scope": "Separate Apple Music app; TestFlight only Stivy73 explicitly requested"
+}
