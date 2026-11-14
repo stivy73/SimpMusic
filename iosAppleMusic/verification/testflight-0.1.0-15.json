@@ -5,13 +5,24 @@
   "build": "15",
   "buildID": "b33eeafd-7c20-4943-8327-5847597fc66a",
   "processingState": "VALID",
-  "internalBuildState": "READY_FOR_BETA_TESTING",
-  "groups": [],
+  "internalBuildState": "IN_BETA_TESTING",
+  "groups": [
+    {
+      "id": "89aa3cf7-5e74-4914-b662-f76820933b2a",
+      "name": "Stivy73",
+      "internal": true
+    }
+  ],
+  "audienceAuthorization": "User explicitly confirmed only Stivy73 for build 15 on 2026-11-14, overriding the generic Team interno/Tommaso/Girbreda rule.",
+  "groupAssignment": "VERIFIED",
+  "automaticDistribution": false,
+  "testerCount": 1,
+  "testerState": "INSTALLED",
+  "groupMembershipVerified": true,
   "italianNotesVerified": true,
-  "groupAssignment": "PENDING_USER_CONFIRMATION",
   "sourceCommit": "328ca8176e0249e36ce540b325ea92cf64cfc9f2",
   "ipaSHA256": "b6cafc54afb35b75d12ae7d9d025275af700dddc5e0ec05caf9aabdd40ba140b",
   "tests": 136,
   "physicalLibraryVerification": "pending",
-  "assignmentReview": "Only Stivy73 exists for Apple Music. AGENTS requires Team interno and Tommaso/Girbreda. Explicit clarification requested before assigning."
+  "uiVerification": "partial, unavailable and genuinely empty library states verified in Device Hub, portrait and landscape; see VALIDATION.md"
 }

@@ -793,3 +793,18 @@ dell'estensione dei test. Assegnazione in attesa, nessun nuovo accesso o ruolo
 concesso e nessuna beta dichiarata installabile prima dell'assegnazione.
 Ricevute: verification/package-0.1.0-15.json e
 verification/testflight-0.1.0-15.json. Nessun invio pubblico App Store.
+
+### Assegnazione completata — 14 novembre 2026
+
+L'utente ha confermato esplicitamente la distribuzione della build 15 al solo
+Stivy73, facendo eccezione alla regola generica Team interno/Tommaso/Girbreda.
+Prima dell'assegnazione sono stati riletti bundle dell'app, identità del gruppo
+Stivy73 interno e manuale e unico tester stivy73@gmail.com.
+
+Dopo l'assegnazione, riletto su Apple VALID / IN_BETA_TESTING, con il solo gruppo
+Stivy73 associato, un tester, distribuzione automatica disattivata e note italiane
+esatte. La precedente attesa di conferma è risolta. Non sono stati creati utenti,
+modificati ruoli o aggiunti altri gruppi, né toccata l'app YouTube Music.
+Lo stato INSTALLED del tester riguarda l'app e non prova l'installazione della
+build 15. Il recupero della libreria reale resta da verificare su iPhone.
+Ricevuta aggiornata: verification/testflight-0.1.0-15.json.
