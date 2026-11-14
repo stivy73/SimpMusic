@@ -3,6 +3,24 @@ import UIKit
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testDedicatedCastDiagnosticsIsReachableWithoutConnectedReceiver() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-remote-library"]
+    app.launch()
+    selectTab("Impostazioni", symbol: "gearshape.fill", in: app)
+    let open = app.buttons["open-cast-diagnostics"]
+    XCTAssertTrue(open.waitForExistence(timeout: 20))
+    if !open.isHittable { app.swipeUp() }
+    open.tap()
+    let report = app.staticTexts["cast-diagnostic-report"]
+    XCTAssertTrue(report.waitForExistence(timeout: 10))
+    XCTAssertTrue(report.label.contains("Comandi Chromecast:"), report.label)
+    XCTAssertTrue(report.label.contains("Scheda principale:"), report.label)
+    XCTAssertTrue(app.staticTexts["cast-command-status"].exists)
+    XCTAssertFalse(app.buttons["restore-cast-controls"].isEnabled)
+  }
+
+  @MainActor
   func testCastRegistersRemoteNowPlayingAsSystemPrimary() throws {
     #if targetEnvironment(simulator)
       throw XCTSkip("iOS 27.2 Simulator: mediaremoted reports MRXPCServiceNowPlayingSessions server unavailable; run on a physical iPhone.")

@@ -313,7 +313,6 @@
         return
       }
       if model.player.cast.hasRemoteNowPlaying, !model.reading {
-        if center.nowPlayingInfo != nil { center.nowPlayingInfo = nil }
         publication.reset()
         return
       }

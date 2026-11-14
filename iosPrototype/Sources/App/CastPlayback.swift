@@ -27,7 +27,23 @@
     private var volumeControl = CastVolumeControl()
     private var localPlayerVolume: Double?
     private let lockScreen = CastNowPlaying()
-    var hasRemoteNowPlaying: Bool { lockScreen.published }
+    var hasRemoteNowPlaying: Bool { lockScreen.suppressesLegacy }
+    var systemCardStatus: String { lockScreen.diagnostic }
+    func restoreSystemCard() { client?.requestStatus(); lockScreen.refresh(); update() }
+    var diagnosticReport: String {
+      let bundle = Bundle.main.infoDictionary ?? [:]
+      let session = GCKCastContext.sharedInstance().sessionManager.currentCastSession
+      let sdkState = session.map { String($0.connectionState.rawValue) } ?? "nessuna sessione"
+      let mediaState = client?.mediaStatus.map { String($0.playerState.rawValue) } ?? "nessun brano"
+      return "Build: \(bundle["CFBundleShortVersionString"] as? String ?? "?") (\(bundle["CFBundleVersion"] as? String ?? "?"))"
+        + "\nChromecast collegato: \(connected)"
+        + "\nSessione SDK: \(sdkState)\nStato ricevitore: \(mediaState)"
+        + "\nScheda registrata: \(lockScreen.published)\nScheda principale: \(lockScreen.isPrimary)"
+        + "\nScheda di sistema: \(lockScreen.diagnostic)"
+        + "\nComandi Chromecast: \(CastControlDiagnostics.latest)"
+        + "\nNarrazione attiva: \(AppleAppSession.shared.music.reading)"
+        + "\niOS: \(UIDevice.current.systemVersion)\nRete: \(AudioPreferences.shared.networkDiagnostic)"
+    }
     private var resumeOnAirPlay = false
     private var revision = UUID()
     private var wantsPlayback = false
@@ -68,6 +84,8 @@
           MainActor.assumeIsolated {
             if notification.name == UIApplication.didBecomeActiveNotification {
               self?.startVolumeObservation()
+              self?.lockScreen.refresh()
+              self?.update()
             } else { self?.stopVolumeObservation() }
           }
         }
@@ -265,9 +283,7 @@
       if let session = GCKCastContext.sharedInstance().sessionManager.currentCastSession,
         let receiverSession = session.sessionID, let host = session.device.networkAddress.ipAddress,
         let song = AppleAppSession.shared.music.current {
-        if AppleAppSession.shared.music.reading {
-          lockScreen.end()
-        } else { lockScreen.publish(CastRemoteState(
+        lockScreen.publish(CastRemoteState(
           id: session.device.uniqueID + ":" + receiverSession,
           receiverSession: receiverSession, host: host, port: session.device.servicePort,
           certificate: Data(), deviceName: session.device.friendlyName ?? "Chromecast",
@@ -275,7 +291,7 @@
           duration: player.durationSeconds, position: player.elapsed, timestamp: Date(),
           playback: status.playerState == .playing ? "PLAYING" : status.playerState == .paused ? "PAUSED" : status.playerState == .buffering || status.playerState == .loading ? "BUFFERING" : "IDLE",
           volume: session.currentDeviceMuted ? 0 : Double(session.currentDeviceVolume),
-          mediaSessionID: status.mediaSessionID)) }
+          mediaSessionID: status.mediaSessionID), allowPromotion: !AppleAppSession.shared.music.reading)
       }
       if cutoff > 0, player.elapsed >= cutoff, status.playerState == .playing {
         loaded = false
@@ -377,5 +393,37 @@
       return button
     }
     func updateUIView(_ uiView: GCKUICastButton, context: Context) {}
+  }
+#endif
+
+#if os(iOS)
+  struct CastDiagnosticsScreen: View {
+    @ObservedObject var player: PlaybackPlayer
+    var body: some View {
+      TimelineView(.periodic(from: .now, by: 1)) { _ in
+        List {
+          Section("Collegamento") {
+            LabeledContent("Chromecast", value: player.cast.connected ? "Collegato" : "Non collegato")
+            Text(player.cast.systemCardStatus).textSelection(.enabled)
+              .accessibilityIdentifier("cast-system-card-status")
+            Button("Ripristina controlli") { player.cast.restoreSystemCard() }
+              .disabled(!player.cast.connected).accessibilityIdentifier("restore-cast-controls")
+          }
+          Section("Ultimo comando") {
+            Text(CastControlDiagnostics.latest).textSelection(.enabled)
+              .accessibilityIdentifier("cast-command-status")
+          }
+          Section("Report") {
+            Text(player.cast.diagnosticReport).font(.caption).textSelection(.enabled)
+              .accessibilityIdentifier("cast-diagnostic-report")
+            Button("Copia diagnostica") { PlatformClipboard.copy(player.cast.diagnosticReport) }
+              .accessibilityIdentifier("copy-cast-diagnostics")
+            ShareLink(item: player.cast.diagnosticReport) {
+              Label("Condividi diagnostica", systemImage: "square.and.arrow.up")
+            }
+          }
+        }
+      }.navigationTitle("Diagnostica Chromecast").inlineNavigationTitle()
+    }
   }
 #endif

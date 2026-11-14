@@ -1136,6 +1136,12 @@ struct SettingsView: View {
         }
         if let error = library.error { Text(error).font(.caption).foregroundStyle(.orange) }
       }
+      #if os(iOS)
+        Section("Chromecast") {
+          NavigationLink("Diagnostica Chromecast") { CastDiagnosticsScreen(player: model.player) }
+            .accessibilityIdentifier("open-cast-diagnostics")
+        }
+      #endif
       Section("Riproduzione") {
         #if os(iOS)
           Button("Sessione in auto", systemImage: "person.2.fill") {
