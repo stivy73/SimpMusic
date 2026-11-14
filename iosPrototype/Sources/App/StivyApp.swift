@@ -169,6 +169,13 @@ struct RootView: View {
               Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("passenger-loopback-qa")
                 .task { qaAlbumPaging = await AppleAppSession.shared.passengers.verifyLoopback() }
             }
+            if ProcessInfo.processInfo.arguments.contains("--test-cast-system-session") {
+              Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("cast-system-session-qa")
+                .task {
+                  let bridge = CastNowPlaying()
+                  qaAlbumPaging = await bridge.verifySystemSession()
+                }
+            }
             if ProcessInfo.processInfo.arguments.contains("--test-carplay-passenger-qr") {
               Text(qaAlbumPaging).font(.caption2).accessibilityIdentifier("passenger-qr-artwork-qa")
                 .task { qaAlbumPaging = await AppleAppSession.shared.verifyPassengerQRArtwork() }
@@ -1051,7 +1058,11 @@ struct PlayerControls: View {
       HStack(spacing: 14) {
         Image(systemName: "speaker.fill")
         Slider(value: Binding(get: { player.volume }, set: { player.setVolume($0) }), in: 0...100)
+          #if os(iOS)
+          .accessibilityLabel(player.cast.connected ? "Volume Chromecast" : "Volume del player")
+          #else
           .accessibilityLabel("Volume del player")
+          #endif
         Image(systemName: "speaker.wave.3.fill")
         #if os(iOS)
           AudioOutputButtons()
@@ -1061,6 +1072,10 @@ struct PlayerControls: View {
         if player.cast.connected {
           Text("Chromecast: tieni NoteNarrate aperta. La narrazione usa l’uscita audio dell’iPhone.")
             .font(.caption).foregroundStyle(.secondary)
+          if player.castVolumeAtLimit {
+            Text("Volume iPhone al limite: usa il cursore per regolare ancora Chromecast.")
+              .font(.caption).foregroundStyle(.secondary)
+          }
         }
       #endif
     }
@@ -1237,6 +1252,7 @@ struct SettingsView: View {
         + "\nVoce: " + model.narrationDiagnostic + "\nAccount audio: "
         + model.player.sourceDiagnostic
         + "\nMusica: " + model.player.networkDiagnostic
+        + "\nChromecast: " + model.player.castDiagnostic
         + "\nDurata audio: " + model.player.timingDiagnostic
         + "\niOS: " + UIDevice.current.systemVersion
         + "\nRete attuale: " + AudioPreferences.shared.networkDiagnostic

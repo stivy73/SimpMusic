@@ -28,6 +28,8 @@
     @Published var durationSeconds = 0.0
     @Published var playing = false
     @Published var volume = 100.0
+    @Published var castVolumeAtLimit = false
+    @Published var castDiagnostic = "Chromecast non collegato"
     @Published var sourceDiagnostic =
       UserDefaults.standard.string(forKey: "lastAudioSourceDiagnostic") ?? "Flusso non verificato"
     { didSet { UserDefaults.standard.set(sourceDiagnostic, forKey: "lastAudioSourceDiagnostic") } }

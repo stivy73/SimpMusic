@@ -312,6 +312,11 @@
         publication.reset()
         return
       }
+      if model.player.cast.hasRemoteNowPlaying, !model.reading {
+        if center.nowPlayingInfo != nil { center.nowPlayingInfo = nil }
+        publication.reset()
+        return
+      }
       let live = model.reading
       let contentID = live ? song.id + ":narration:" + model.meaningRequestID.uuidString : song.id
       let rate = model.player.playing || live ? 1.0 : 0.0

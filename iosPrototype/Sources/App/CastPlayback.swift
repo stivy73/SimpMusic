@@ -11,6 +11,9 @@
       let options = GCKCastOptions(
         discoveryCriteria: GCKDiscoveryCriteria(
           applicationID: kGCKDefaultMediaReceiverApplicationID))
+      // Google's physical-button integration is unsupported on modern iOS.
+      // Use the public audio-session observation below, avoiding double commands.
+      options.physicalVolumeButtonsWillControlDeviceVolume = false
       GCKCastContext.setSharedInstanceWith(options)
     }
     private weak var player: PlaybackPlayer?
@@ -18,6 +21,13 @@
     private var task: Task<Void, Never>?
     private var timer: AnyCancellable?
     private var routeChanges: AnyCancellable?
+    private var volumeChanges: AnyCancellable?
+    private var volumeLifecycle: AnyCancellable?
+    private var volumeRevision = UUID()
+    private var volumeControl = CastVolumeControl()
+    private var localPlayerVolume: Double?
+    private let lockScreen = CastNowPlaying()
+    var hasRemoteNowPlaying: Bool { lockScreen.published }
     private var resumeOnAirPlay = false
     private var revision = UUID()
     private var wantsPlayback = false
@@ -47,14 +57,25 @@
               $0.portType == .airPlay
             })
           else { return }
+          self.stopVolumeObservation()
           self.resumeOnAirPlay = self.wantsPlayback
           GCKCastContext.sharedInstance().sessionManager.endSessionAndStopCasting(true)
         }
       }
+      volumeLifecycle = NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+        .merge(with: NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification))
+        .receive(on: DispatchQueue.main).sink { [weak self] notification in
+          MainActor.assumeIsolated {
+            if notification.name == UIApplication.didBecomeActiveNotification {
+              self?.startVolumeObservation()
+            } else { self?.stopVolumeObservation() }
+          }
+        }
       timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect().sink {
         [weak self] _ in
         MainActor.assumeIsolated { self?.update() }
       }
+      startVolumeObservation()
     }
     func load(id: String, position: Double, accountOnly: Bool) {
       guard let player else { return }
@@ -89,6 +110,7 @@
           let metadata = GCKMediaMetadata(metadataType: .musicTrack)
           metadata.setString(song?.title ?? "NoteNarrate", forKey: kGCKMetadataKeyTitle)
           metadata.setString(song?.artist ?? "", forKey: kGCKMetadataKeyArtist)
+          metadata.setString(id, forKey: "notenarrateTrackID")
           if let artwork = song?.artwork {
             metadata.addImage(GCKImage(url: artwork, width: 512, height: 512))
           }
@@ -146,10 +168,71 @@
       client?.seek(with: options)
     }
     func volume(_ value: Double) {
-      GCKCastContext.sharedInstance().sessionManager.currentCastSession?.setDeviceVolume(
-        Float(value / 100))
+      startVolumeObservation()
+      guard let target = volumeControl.request(value / 100, now: ProcessInfo.processInfo.systemUptime)
+      else { return }
+      sendVolume(target)
+    }
+
+    private func startVolumeObservation() {
+      guard volumeChanges == nil, connected, UIApplication.shared.applicationState == .active,
+        !AVAudioSession.sharedInstance().currentRoute.outputs.contains(where: { $0.portType == .airPlay }),
+        let session = GCKCastContext.sharedInstance().sessionManager.currentCastSession,
+        session.connectionState == .connected, session.traits?.isFixedVolume() != true
+      else { return }
+      guard (try? AppleAudioSession.activate()) != nil else { return }
+      if localPlayerVolume == nil { localPlayerVolume = player?.volume }
+      let audio = AVAudioSession.sharedInstance()
+      volumeControl.begin(phone: Double(audio.outputVolume), receiver: session.currentDeviceMuted ? 0 : Double(session.currentDeviceVolume))
+      publishVolume()
+      volumeRevision = UUID()
+      let expected = volumeRevision
+      let route = audio.currentRoute.outputs.map(\.uid)
+      volumeChanges = audio.publisher(for: \.outputVolume, options: [.new])
+        .receive(on: DispatchQueue.main).sink { [weak self] value in
+          MainActor.assumeIsolated {
+            guard let self, self.volumeRevision == expected, self.connected,
+              UIApplication.shared.applicationState == .active,
+              GCKCastContext.sharedInstance().sessionManager.currentCastSession?.connectionState == .connected
+            else { return }
+            guard AVAudioSession.sharedInstance().currentRoute.outputs.map(\.uid) == route else {
+              self.stopVolumeObservation()
+              return
+            }
+            if let target = self.volumeControl.phoneChanged(to: Double(value), now: ProcessInfo.processInfo.systemUptime) {
+              self.sendVolume(target)
+            }
+            self.publishVolume()
+          }
+        }
+    }
+
+    private func stopVolumeObservation() {
+      guard volumeChanges != nil || volumeControl.phoneVolume != nil else { return }
+      volumeRevision = UUID()
+      volumeChanges = nil
+      volumeControl.end()
+      if player?.castVolumeAtLimit == true { player?.castVolumeAtLimit = false }
+    }
+
+    private func sendVolume(_ target: Double) {
+      guard connected, let session = GCKCastContext.sharedInstance().sessionManager.currentCastSession,
+        session.connectionState == .connected, session.traits?.isFixedVolume() != true else { return }
+      if target > 0, session.currentDeviceMuted { session.setDeviceMuted(false) }
+      session.setDeviceVolume(Float(target))
+      publishVolume()
+    }
+
+    private func publishVolume() {
+      guard let player else { return }
+      let value = volumeControl.receiverVolume * 100
+      if abs(player.volume - value) > 0.01 { player.volume = value }
+      if player.castVolumeAtLimit != volumeControl.phoneAtLimit {
+        player.castVolumeAtLimit = volumeControl.phoneAtLimit
+      }
     }
     func clear() {
+      lockScreen.end()
       task?.cancel()
       revision = UUID()
       loaded = false
@@ -159,6 +242,16 @@
       if !endingSession { client?.stop() }
     }
     private func update() {
+      if player?.castDiagnostic != lockScreen.diagnostic { player?.castDiagnostic = lockScreen.diagnostic }
+      if GCKCastContext.sharedInstance().sessionManager.currentCastSession?.connectionState != .connected {
+        stopVolumeObservation()
+      }
+      startVolumeObservation()
+      if volumeChanges != nil,
+        let session = GCKCastContext.sharedInstance().sessionManager.currentCastSession {
+        volumeControl.receive(session.currentDeviceMuted ? 0 : Double(session.currentDeviceVolume), now: ProcessInfo.processInfo.systemUptime)
+        publishVolume()
+      }
       guard connected, loaded, let player, let client, let status = client.mediaStatus,
         (status.mediaInformation?.contentURL?.absoluteString ?? status.mediaInformation?.contentID)
           == loadedURL
@@ -167,6 +260,20 @@
       let remoteDuration = status.mediaInformation?.streamDuration ?? 0
       player.durationSeconds =
         cutoff > 0 ? (remoteDuration > 0 ? min(cutoff, remoteDuration) : cutoff) : remoteDuration
+      if let session = GCKCastContext.sharedInstance().sessionManager.currentCastSession,
+        let receiverSession = session.sessionID, let host = session.device.networkAddress.ipAddress,
+        let song = AppleAppSession.shared.music.current {
+        if AppleAppSession.shared.music.reading {
+          lockScreen.end()
+        } else { lockScreen.publish(CastRemoteState(
+          id: session.device.uniqueID + ":" + receiverSession,
+          receiverSession: receiverSession, host: host, port: session.device.servicePort,
+          certificate: Data(), deviceName: session.device.friendlyName ?? "Chromecast",
+          trackID: song.id, title: song.title, artist: song.artist, artwork: song.artwork,
+          duration: player.durationSeconds, position: player.elapsed, timestamp: Date(),
+          playback: status.playerState == .playing ? "PLAYING" : status.playerState == .paused ? "PAUSED" : status.playerState == .buffering || status.playerState == .loading ? "BUFFERING" : "IDLE",
+          volume: session.currentDeviceMuted ? 0 : Double(session.currentDeviceVolume))) }
+      }
       if cutoff > 0, player.elapsed >= cutoff, status.playerState == .playing {
         loaded = false
         client.stop()
@@ -181,6 +288,7 @@
         player.playing = false
       }
       if status.playerState == .idle {
+        lockScreen.end()
         if status.idleReason == .finished {
           loaded = false
           relay.stop()
@@ -198,9 +306,18 @@
       transfer()
     }
     func sessionManager(_ sessionManager: GCKSessionManager, didResumeSession session: GCKSession) {
+      // The receiver may have advanced while the app was suspended. Keep the
+      // existing stream and its clock instead of loading the old phone position.
+      if loaded, let status = client?.mediaStatus,
+        (status.mediaInformation?.contentURL?.absoluteString ?? status.mediaInformation?.contentID) == loadedURL {
+        stopVolumeObservation(); startVolumeObservation(); update()
+        return
+      }
       transfer()
     }
     private func transfer() {
+      stopVolumeObservation()
+      startVolumeObservation()
       guard let player, !player.videoId.isEmpty else { return }
       let wasPlaying = player.playing
       load(id: player.videoId, position: player.elapsed, accountOnly: player.castAccountOnly)
@@ -209,9 +326,13 @@
     func sessionManager(
       _ sessionManager: GCKSessionManager, didEnd session: GCKSession, withError error: Error?
     ) {
+      lockScreen.end()
+      stopVolumeObservation()
       guard let player else { return }
       endingSession = true
       defer { endingSession = false }
+      if let localPlayerVolume { player.setVolume(localPlayerVolume) }
+      localPlayerVolume = nil
       let position = player.elapsed
       let id = player.videoId
       let resume = resumeOnAirPlay

@@ -3,6 +3,21 @@ import UIKit
 
 final class PrototypeUITests: XCTestCase {
   @MainActor
+  func testCastRegistersRemoteNowPlayingAsSystemPrimary() throws {
+    #if targetEnvironment(simulator)
+      throw XCTSkip("iOS 27.2 Simulator: mediaremoted reports MRXPCServiceNowPlayingSessions server unavailable; run on a physical iPhone.")
+    #else
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-cast-system-session"]
+    app.launch()
+    let result = app.staticTexts["cast-system-session-qa"]
+    XCTAssertTrue(result.waitForExistence(timeout: 25))
+    let complete = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@", "PASS"), object: result)
+    XCTAssertEqual(XCTWaiter.wait(for: [complete], timeout: 25), .completed, result.label)
+    #endif
+  }
+
+  @MainActor
   func testPassengerQRUsesSystemArtworkAndRestoresOriginalWithoutChangingPlayback() {
     let app = XCUIApplication()
     app.launchArguments = ["--test-local-playback", "--test-carplay-passenger-qr"]

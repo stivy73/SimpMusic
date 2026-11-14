@@ -22,13 +22,31 @@ def verify_app(app):
     for binary in [executable, *app.glob('*.debug.dylib')]:
         references += re.findall(r'^\s+(@rpath/\S+) \(compatibility', otool('-L', str(binary)), re.M)
     embedded = [ref for ref in references if '.framework/' in ref]
+    remote_extensions = list((app / 'Extensions').glob('*.appex'))
+    if remote_extensions:
+        assert len(remote_extensions) == 1, 'Unexpected remote extension count'
+        extension = remote_extensions[0]
+        extension_info = plistlib.loads((extension / 'Info.plist').read_bytes())
+        assert extension_info['CFBundleIdentifier'] == info['CFBundleIdentifier'] + '.castnowplaying'
+        assert extension_info['EXAppExtensionAttributes']['EXExtensionPointIdentifier'] == 'com.apple.nowplaying.remote-media'
+        assert extension_info['MinimumOSVersion'] == '27.0'
+        assert extension_info['CFBundleVersion'] == info['CFBundleVersion']
+        assert 'GoogleCast.framework' not in otool('-L', str(extension / extension_info['CFBundleExecutable'])), 'Cast SDK must not load in the extension'
+        weak = False
+        for binary in [executable, *app.glob('*.debug.dylib')]:
+            for command in otool('-l', str(binary)).split('Load command'):
+                if '/NowPlaying.framework/NowPlaying ' in command:
+                    assert 'LC_LOAD_WEAK_DYLIB' in command, 'NowPlaying must be weak-linked for older iPhones'
+                    weak = True
+        assert weak, 'Missing weak NowPlaying dependency'
     if embedded and '@executable_path/Frameworks' not in paths:
         raise ValueError('Missing @executable_path/Frameworks in app LC_RPATH: embedded frameworks cannot load')
     for ref in embedded:
         assert (app / 'Frameworks' / ref.removeprefix('@rpath/')).is_file(), 'Missing embedded dependency: ' + ref
     return {'bundle': info['CFBundleIdentifier'], 'version': info['CFBundleShortVersionString'],
             'build': info['CFBundleVersion'], 'runpaths': list(dict.fromkeys(paths)),
-            'embedded_dependencies': list(dict.fromkeys(embedded)), 'dyld_paths_verified': True}
+            'embedded_dependencies': list(dict.fromkeys(embedded)), 'dyld_paths_verified': True,
+            'cast_remote_extension_verified': bool(remote_extensions)}
 
 
 def verify(path):
