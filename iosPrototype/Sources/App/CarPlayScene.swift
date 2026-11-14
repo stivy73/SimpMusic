@@ -751,7 +751,7 @@
     // Vocalia's presentation guard: reuse the system player instead of stacking it twice.
     private func showNowPlaying() {
       guard let controller, controller.topTemplate !== CPNowPlayingTemplate.shared else { return }
-      controller.pushTemplate(CPNowPlayingTemplate.shared, animated: true, completion: nil)
+      controller.pushTemplate(CPNowPlayingTemplate.shared, animated: true, completion: { _, _ in })
     }
 
     private func tiles(
@@ -979,12 +979,12 @@
           }
         }
         let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
-          self?.controller?.dismissTemplate(animated: true, completion: nil)
+          self?.controller?.dismissTemplate(animated: true, completion: { _, _ in })
         }
         controller.presentTemplate(
           CPAlertTemplate(
             titleVariants: ["Terminare la sessione Passeggero? La musica continua."],
-            actions: [stop, cancel]), animated: true, completion: nil)
+            actions: [stop, cancel]), animated: true, completion: { _, _ in })
       }
       rows.append(close)
       passengersTemplate.updateSections([CPListSection(items: rows)])
@@ -1008,13 +1008,13 @@
           }
         }
         let cancel = CPAlertAction(title: "Annulla", style: .cancel) { [weak self] _ in
-          self?.controller?.dismissTemplate(animated: true, completion: nil)
+          self?.controller?.dismissTemplate(animated: true, completion: { _, _ in })
         }
         controller.presentTemplate(
           CPAlertTemplate(
             titleVariants: [
               "Scollegare \(peer.name)?"
-            ], actions: [action, cancel]), animated: true, completion: nil)
+            ], actions: [action, cancel]), animated: true, completion: { _, _ in })
       }
       return row
     }
@@ -1174,7 +1174,7 @@
             self.app.passengers.link.activateForCarPlay()
           }
           self.renderPassengers()
-          self.controller?.pushTemplate(self.passengersTemplate, animated: true, completion: nil)
+          self.controller?.pushTemplate(self.passengersTemplate, animated: true, completion: { _, _ in })
         }
         radioRows.insert(shared, at: 0)
       }
