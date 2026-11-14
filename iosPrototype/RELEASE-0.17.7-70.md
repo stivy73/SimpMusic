@@ -42,3 +42,18 @@ e weak-linked nell'app e l'estensione non carica GoogleCast.framework.
 del player ripetuta, QR artwork e ripristino della copertina). Un test UI
 di registrazione del servizio remoto saltato per il limite del simulatore
 documentato sopra. Nessuna prova fisica Chromecast dichiarata.
+
+IPA esportata e validata: sei bundle con versione/build coerenti, firme e
+profili di distribuzione verificati, CarPlay, Siri, Watch e dipendenze runtime.
+SHA-256: `de69bbb217acc62f10ecb310ebfb873764db1cf54c055f5a9995dd166c33f617`.
+Sorgenti corrispondenti: `463233e5718a7cae0892654a05ff83625b8f3120`, pubblicati
+su stivy73/SimpMusic, branch feature/youtube-library-albums.
+
+Upload altool completato senza errori; consegna Apple
+`d2dfc1c4-e3e0-4d9e-ac0a-84ca4bc52938`, elaborazione COMPLETE senza avvisi.
+Verifica del 2026-11-14: VALID, INTERNAL_ONLY, IN_BETA_TESTING; build assegnata
+a Team interno e Stivy73. Riletti appartenenza al Team interno e accesso app
+di tommaso.stival@icloud.com e girbreda@gmail.com; note italiane salvate e
+rilette. Nessun utente o ruolo modificato, nessuna pubblicazione App Store.
+Ricevuta: deliveries/NoteNarrate-iOS-0.17.7-build70-AppStore-status.json.
+Validazione: deliveries/NoteNarrate-iOS-0.17.7-build70-validation.json.
