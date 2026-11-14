@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.stivy.simpmusic.prototype</string>
+		<string>$(AppIdentifierPrefix)com.stivy.simpmusic.prototype.cast-controls</string>
+	</array>
 	<key>com.apple.developer.carplay-audio</key>
 	<true/>
 	<key>com.apple.developer.siri</key>

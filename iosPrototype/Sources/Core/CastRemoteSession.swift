@@ -17,6 +17,7 @@ public struct CastRemoteState: Codable, Equatable, Sendable {
   public var timestamp: Date
   public var playback: String
   public var volume: Double
+  public var mediaSessionID: Int? = nil
 }
 
 #if os(iOS)
@@ -25,7 +26,7 @@ public struct CastRemoteState: Codable, Equatable, Sendable {
   extension CastRemoteState: RemoteMediaSessionAttributes {}
 #endif
 
-public enum CastRemoteError: Error { case invalidDevice, invalidMessage, disconnected, timeout, changedSession }
+public enum CastRemoteError: Error { case invalidDevice, invalidMessage, disconnected, timeout, changedSession, notConfirmed, rejected }
 
 /// Cast V2 framing, based on Google's cast_channel.proto. No signed media URL
 /// or account credential is needed to control an already selected receiver.
@@ -82,6 +83,7 @@ public enum CastWire {
 
   public static func localAddress(_ host: String) -> Bool {
     // Numeric, unicast LAN addresses only; never accept a URL, DNS name or public endpoint.
+    let host = host.lowercased()
     if host.hasPrefix("fc") || host.hasPrefix("fd") || host.hasPrefix("fe80:") {
       return IPv6Address(host) != nil
     }
@@ -96,6 +98,66 @@ public enum CastWire {
   import Security
   import CryptoKit
 
+  protocol CastByteConnection: Sendable {
+    func open(host: String, port: UInt16, pin: Data?) async throws -> Data
+    func write(_ data: Data) async throws
+    func read(_ count: Int) async throws -> Data
+    func close() async
+  }
+
+  public enum CastControlDiagnostics {
+    public static var latest: String {
+      #if os(iOS)
+        guard var query else { return "Diagnostica comandi non configurata" }
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data,
+          let value = String(data: data, encoding: .utf8) else {
+          return status == errSecItemNotFound ? "Nessun comando registrato" : "Diagnostica comandi: Keychain \(status)"
+        }
+        return value
+      #else
+        return "Nessun comando registrato"
+      #endif
+    }
+    static func record(_ command: String, _ stage: String) {
+      #if os(iOS)
+        guard ["PLAY", "PAUSE", "SEEK", "SET_VOLUME"].contains(command) else { return }
+        guard var query else { return }
+        let data = Data((Date().formatted(date: .omitted, time: .standard) + " · " + command + " · " + stage).utf8)
+        let values = [kSecValueData as String: data]
+        if SecItemUpdate(query as CFDictionary, values as CFDictionary) == errSecItemNotFound {
+          query[kSecValueData as String] = data
+          query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+          _ = SecItemAdd(query as CFDictionary, nil)
+        }
+      #endif
+    }
+    static func failure(_ error: Error) -> String {
+      if let error = error as? CastRemoteError { return String(describing: error) }
+      if let error = error as? NWError {
+        switch error {
+        case .posix(let code): return "rete POSIX " + String(code.rawValue)
+        case .tls(let code): return "TLS " + String(code)
+        case .dns(let code): return "DNS " + String(code)
+        default: return "rete"
+        }
+      }
+      return "errore di sistema"
+    }
+    #if os(iOS)
+      private static var query: [String: Any]? {
+        guard let group = Bundle.main.object(forInfoDictionaryKey: "CastControlKeychainGroup") as? String,
+          !group.contains("$(") else { return nil }
+        return [kSecClass as String: kSecClassGenericPassword,
+          kSecAttrService as String: "com.stivy.notenarrate.cast-control",
+          kSecAttrAccount as String: "last-result", kSecAttrAccessGroup as String: group]
+      }
+    #endif
+  }
+
   /// One connection to the receiver chosen by the user. The app captures its
   /// certificate while the Cast SDK session is connected. The extension must
   /// match that exact pin; it never accepts arbitrary replacement certificates.
@@ -103,70 +165,171 @@ public enum CastWire {
     private let host: String
     private let port: UInt16
     private let pin: Data?
-    private let certificate = CertificateBox()
-    private var socket: NWConnection?
+    private let connection: any CastByteConnection
     private let sender = "notenarrate-" + UUID().uuidString
     private var request = 0
     public init(host: String, port: UInt16, pin: Data?) {
       self.host = host; self.port = port; self.pin = pin
+      self.connection = CastTLSConnection()
     }
-    public func close() { socket?.cancel(); socket = nil }
+    init(host: String, port: UInt16, pin: Data?, connection: any CastByteConnection) {
+      self.host = host; self.port = port; self.pin = pin; self.connection = connection
+    }
+    public func close() async { await connection.close() }
 
     public func captureCertificate(receiverSession: String) async throws -> Data {
-      defer { close() }
-      try await connect()
-      _ = try await application(receiverSession)
-      guard let value = certificate.value else { throw CastRemoteError.invalidDevice }
-      return value
+      do {
+        let value = try await connect()
+        _ = try await application(receiverSession)
+        await close()
+        return value
+      } catch { await close(); throw error }
     }
 
     public func perform(_ command: String, value: Double? = nil, state: CastRemoteState) async throws -> CastRemoteState {
       guard pin?.count == 32 else { throw CastRemoteError.invalidDevice }
-      defer { close() }
-      try await connect()
-      let destination = try await application(state.receiverSession)
-      _ = try await send(CastWire.connection, to: destination, payload: ["type": "CONNECT"])
-      let current = try await exchange(CastWire.media, to: destination, payload: ["type": "GET_STATUS"])
-      guard let status = (current["status"] as? [[String: Any]])?.first,
-        let mediaID = status["mediaSessionId"] as? Int,
-        let media = status["media"] as? [String: Any],
-        let metadata = media["metadata"] as? [String: Any],
-        metadata["notenarrateTrackID"] as? String == state.trackID
-      else { throw CastRemoteError.changedSession }
-      var payload: [String: Any] = ["type": command, "mediaSessionId": mediaID]
-      let reply: [String: Any]
-      var receivedVolume: Double?
-      if command == "SET_VOLUME" {
-        guard let value, value.isFinite else { throw CastRemoteError.invalidMessage }
-        let receiverReply = try await exchange(CastWire.receiver, to: "receiver-0", payload: ["type": "SET_VOLUME", "volume": ["level": min(1, max(0, value)), "muted": false]])
-        receivedVolume = ((receiverReply["status"] as? [String: Any])?["volume"] as? [String: Any])?["level"] as? Double
-        reply = try await exchange(CastWire.media, to: destination, payload: ["type": "GET_STATUS"])
-      } else {
-        guard ["PLAY", "PAUSE", "SEEK"].contains(command) else { throw CastRemoteError.invalidMessage }
-        if command == "SEEK" {
-          guard let value, value.isFinite else { throw CastRemoteError.invalidMessage }
-          payload["currentTime"] = min(state.duration, max(0, value))
+      var phase = "connessione TLS"
+      CastControlDiagnostics.record(command, phase)
+      do {
+        _ = try await connect()
+        phase = "verifica sessione ricevitore"
+        CastControlDiagnostics.record(command, phase)
+        let destination = try await application(state.receiverSession)
+        _ = try await send(CastWire.connection, to: destination, payload: ["type": "CONNECT"])
+        phase = "verifica sessione brano"
+        let current = try await exchange(CastWire.media, to: destination, payload: ["type": "GET_STATUS"])
+        let status = try mediaStatus(current, expectedID: state.mediaSessionID)
+        guard let mediaID = status["mediaSessionId"] as? Int else { throw CastRemoteError.invalidMessage }
+        if state.mediaSessionID == nil {
+          guard let media = status["media"] as? [String: Any],
+            let metadata = media["metadata"] as? [String: Any],
+            metadata["notenarrateTrackID"] as? String == state.trackID
+          else { throw CastRemoteError.changedSession }
         }
-        reply = try await exchange(CastWire.media, to: destination, payload: payload)
+        var payload: [String: Any] = ["type": command, "mediaSessionId": mediaID]
+        var receivedVolume: Double?
+        phase = "invio comando"
+        CastControlDiagnostics.record(command, phase)
+        if command == "SET_VOLUME" {
+          guard let value, value.isFinite else { throw CastRemoteError.invalidMessage }
+          let receiverReply = try await exchange(CastWire.receiver, to: "receiver-0", payload: ["type": "SET_VOLUME", "volume": ["level": min(1, max(0, value)), "muted": false]])
+          receivedVolume = ((receiverReply["status"] as? [String: Any])?["volume"] as? [String: Any])?["level"] as? Double
+        } else {
+          guard ["PLAY", "PAUSE", "SEEK"].contains(command) else { throw CastRemoteError.invalidMessage }
+          if command == "SEEK" {
+            guard let value, value.isFinite else { throw CastRemoteError.invalidMessage }
+            payload["currentTime"] = min(state.duration, max(0, value))
+          }
+          // PLAY/PAUSE/SEEK have no mandatory direct reply. Confirm the actual
+          // receiver state with GET_STATUS instead of awaiting their requestId.
+          _ = try await send(CastWire.media, to: destination, payload: payload)
+        }
+        phase = "attesa conferma ricevitore"
+        CastControlDiagnostics.record(command, phase)
+        var result: [String: Any] = [:]
+        var confirmed = false
+        for attempt in 0..<3 {
+          if attempt > 0 { try await Task.sleep(for: .milliseconds(150)) }
+          let reply = try await exchange(CastWire.media, to: destination, payload: ["type": "GET_STATUS", "mediaSessionId": mediaID])
+          result = try mediaStatus(reply, expectedID: mediaID)
+          let playback = result["playerState"] as? String
+          switch command {
+          case "PAUSE": confirmed = playback == "PAUSED"
+          case "PLAY": confirmed = playback == "PLAYING" || playback == "BUFFERING"
+          case "SEEK": confirmed = (result["currentTime"] as? Double).map { abs($0 - min(state.duration, max(0, value ?? 0))) <= 3 } == true
+          case "SET_VOLUME": confirmed = receivedVolume.map { abs($0 - min(1, max(0, value ?? 0))) < 0.02 } == true
+          default: break
+          }
+          if confirmed { break }
+        }
+        guard confirmed else { throw CastRemoteError.notConfirmed }
+        guard let playback = result["playerState"] as? String,
+          ["PLAYING", "PAUSED", "BUFFERING", "LOADING", "IDLE"].contains(playback)
+        else { throw CastRemoteError.invalidMessage }
+        var next = state
+        next.position = (result["currentTime"] as? Double) ?? state.position
+        next.playback = playback
+        next.timestamp = Date()
+        if let receivedVolume, receivedVolume.isFinite { next.volume = min(1, max(0, receivedVolume)) }
+        await close()
+        CastControlDiagnostics.record(command, "confermato · " + next.playback)
+        return next
+      } catch {
+        await close()
+        CastControlDiagnostics.record(command, phase + " · " + CastControlDiagnostics.failure(error))
+        throw error
       }
-      guard let result = (reply["status"] as? [[String: Any]])?.first else { throw CastRemoteError.invalidMessage }
-      var next = state
-      next.position = (result["currentTime"] as? Double) ?? state.position
-      next.playback = (result["playerState"] as? String) ?? state.playback
-      next.timestamp = Date()
-      if let receivedVolume, receivedVolume.isFinite { next.volume = min(1, max(0, receivedVolume)) }
-      return next
     }
 
-    private func connect() async throws {
+    private func mediaStatus(_ reply: [String: Any], expectedID: Int?) throws -> [String: Any] {
+      guard let rows = reply["status"] as? [[String: Any]],
+        let status = rows.first(where: { expectedID == nil || $0["mediaSessionId"] as? Int == expectedID })
+      else { throw CastRemoteError.changedSession }
+      return status
+    }
+
+    private func connect() async throws -> Data {
       guard CastWire.localAddress(host), port > 0 else { throw CastRemoteError.invalidDevice }
-      let tls = NWProtocolTLS.Options(); let expected = pin; let box = certificate
+      let certificate = try await connection.open(host: host, port: port, pin: pin)
+      guard certificate.count == 32, pin == nil || pin == certificate else { throw CastRemoteError.invalidDevice }
+      return certificate
+    }
+
+    private func deadline() -> Task<Void, Never> {
+      let connection = self.connection
+      return Task { try? await Task.sleep(for: .seconds(5)); if !Task.isCancelled { await connection.close() } }
+    }
+
+    private func application(_ session: String) async throws -> String {
+      _ = try await send(CastWire.connection, to: "receiver-0", payload: ["type": "CONNECT"])
+      let reply = try await exchange(CastWire.receiver, to: "receiver-0", payload: ["type": "GET_STATUS"])
+      guard let status = reply["status"] as? [String: Any], let apps = status["applications"] as? [[String: Any]],
+        let app = apps.first(where: { $0["appId"] as? String == "CC1AD845" && $0["sessionId"] as? String == session }),
+        let transport = app["transportId"] as? String else { throw CastRemoteError.changedSession }
+      return transport
+    }
+
+    private func send(_ namespace: String, to destination: String, payload: [String: Any]) async throws -> Int {
+      request += 1; var payload = payload; payload["requestId"] = request
+      let frame = try CastWire.frame(source: sender, destination: destination, namespace: namespace, json: JSONSerialization.data(withJSONObject: payload))
+      try await connection.write(frame)
+      return request
+    }
+
+    private func exchange(_ namespace: String, to destination: String, payload: [String: Any]) async throws -> [String: Any] {
+      let timeout = deadline(); defer { timeout.cancel() }
+      let id = try await send(namespace, to: destination, payload: payload)
+      for _ in 0..<40 {
+        let prefix = try await connection.read(4)
+        let length = prefix.reduce(0) { $0 << 8 | Int($1) }
+        guard length > 0, length <= CastWire.limit else { throw CastRemoteError.invalidMessage }
+        let message = try CastWire.decode(await connection.read(length))
+        guard let json = try JSONSerialization.jsonObject(with: message.json) as? [String: Any] else { continue }
+        if message.namespace == CastWire.heartbeat, json["type"] as? String == "PING" {
+          _ = try await send(CastWire.heartbeat, to: "receiver-0", payload: ["type": "PONG"])
+        }
+        if message.namespace == namespace, json["requestId"] as? Int == id {
+          if ["INVALID_REQUEST", "INVALID_PLAYER_STATE", "LOAD_FAILED"].contains(json["type"] as? String ?? "") { throw CastRemoteError.rejected }
+          return json
+        }
+      }
+      throw CastRemoteError.invalidMessage
+    }
+
+  }
+
+  private actor CastTLSConnection: CastByteConnection {
+    private var socket: NWConnection?
+    private let certificate = CertificateBox()
+    func close() { socket?.cancel(); socket = nil }
+    func open(host: String, port: UInt16, pin: Data?) async throws -> Data {
+      let tls = NWProtocolTLS.Options(); let box = certificate
       sec_protocol_options_set_verify_block(tls.securityProtocolOptions, { _, trust, complete in
         let trust = sec_trust_copy_ref(trust).takeRetainedValue()
         guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate], let leaf = chain.first else { complete(false); return }
         let hash = Data(SHA256.hash(data: SecCertificateCopyData(leaf) as Data))
         box.value = hash
-        complete(expected.map { $0 == hash } ?? true)
+        complete(pin.map { $0 == hash } ?? true)
       }, .global(qos: .userInitiated))
       let connection = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!, using: NWParameters(tls: tls))
       socket = connection
@@ -180,56 +343,24 @@ public enum CastWire {
           }
         }
       }
-      let timeout = deadline(connection); defer { timeout.cancel() }
+      let timeout = Task { try? await Task.sleep(for: .seconds(5)); if !Task.isCancelled { connection.cancel() } }
+      defer { timeout.cancel() }
       connection.start(queue: .global(qos: .userInitiated))
-      for try await _ in states { return }
+      for try await _ in states {
+        guard let value = certificate.value else { throw CastRemoteError.invalidDevice }
+        return value
+      }
       throw CastRemoteError.disconnected
     }
-
-    private func deadline(_ connection: NWConnection) -> Task<Void, Never> {
-      Task { try? await Task.sleep(for: .seconds(5)); if !Task.isCancelled { connection.cancel() } }
-    }
-
-    private func application(_ session: String) async throws -> String {
-      _ = try await send(CastWire.connection, to: "receiver-0", payload: ["type": "CONNECT"])
-      let reply = try await exchange(CastWire.receiver, to: "receiver-0", payload: ["type": "GET_STATUS"])
-      guard let status = reply["status"] as? [String: Any], let apps = status["applications"] as? [[String: Any]],
-        let app = apps.first(where: { $0["appId"] as? String == "CC1AD845" && $0["sessionId"] as? String == session }),
-        let transport = app["transportId"] as? String else { throw CastRemoteError.changedSession }
-      return transport
-    }
-
-    private func send(_ namespace: String, to destination: String, payload: [String: Any]) async throws -> Int {
+    func write(_ data: Data) async throws {
       guard let socket else { throw CastRemoteError.disconnected }
-      request += 1; var payload = payload; payload["requestId"] = request
-      let frame = try CastWire.frame(source: sender, destination: destination, namespace: namespace, json: JSONSerialization.data(withJSONObject: payload))
       try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-        socket.send(content: frame, completion: .contentProcessed { error in
+        socket.send(content: data, completion: .contentProcessed { error in
           if let error { continuation.resume(throwing: error) } else { continuation.resume() }
         })
       }
-      return request
     }
-
-    private func exchange(_ namespace: String, to destination: String, payload: [String: Any]) async throws -> [String: Any] {
-      guard let socket else { throw CastRemoteError.disconnected }
-      let timeout = deadline(socket); defer { timeout.cancel() }
-      let id = try await send(namespace, to: destination, payload: payload)
-      for _ in 0..<40 {
-        let prefix = try await read(4)
-        let length = prefix.reduce(0) { $0 << 8 | Int($1) }
-        guard length > 0, length <= CastWire.limit else { throw CastRemoteError.invalidMessage }
-        let message = try CastWire.decode(await read(length))
-        guard let json = try JSONSerialization.jsonObject(with: message.json) as? [String: Any] else { continue }
-        if message.namespace == CastWire.heartbeat, json["type"] as? String == "PING" {
-          _ = try await send(CastWire.heartbeat, to: "receiver-0", payload: ["type": "PONG"])
-        }
-        if message.namespace == namespace, json["requestId"] as? Int == id { return json }
-      }
-      throw CastRemoteError.invalidMessage
-    }
-
-    private func read(_ count: Int) async throws -> Data {
+    func read(_ count: Int) async throws -> Data {
       guard let socket else { throw CastRemoteError.disconnected }
       var result = Data()
       while result.count < count {

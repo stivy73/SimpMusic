@@ -90,6 +90,9 @@ struct SharedCatalogScreen: View {
   private var content: some View {
     List {
       if let collection = importer.collection {
+        let received = collection.total.flatMap { total in
+          total > collection.tracks.count ? "\(collection.tracks.count) di \(total) tracce ricevute" : nil
+        } ?? (collection.tracks.count == 1 ? "1 traccia ricevuta" : "\(collection.tracks.count) tracce ricevute")
         Section {
           VStack(alignment: .leading, spacing: 12) {
             Artwork(url: collection.artwork).frame(width: 156, height: 156)
@@ -99,18 +102,12 @@ struct SharedCatalogScreen: View {
             Text(collection.subtitle).foregroundStyle(.secondary)
             Link("Apri su " + collection.link.provider.title, destination: collection.link.url)
             Text(
-              (collection.tracks.count == 1
-                ? "1 traccia ricevuta" : "\(collection.tracks.count) tracce ricevute")
+              received
                 + " · "
                 + (importer.matches.count == 1 ? "1 trovata" : "\(importer.matches.count) trovate")
                 + " su YouTube Music"
             )
             .accessibilityIdentifier("shared-catalog-count")
-            if let warning = collection.warning { Text(warning).foregroundStyle(.orange) }
-            Text(
-              "La riproduzione usa le versioni trovate su YouTube Music. I Mi piace e la raccolta originale non vengono modificati."
-            )
-            .font(.caption).foregroundStyle(.secondary)
           }
           if importer.busy {
             ProgressView("Verifico \(importer.completed) di \(collection.tracks.count)…")

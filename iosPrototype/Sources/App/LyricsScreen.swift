@@ -76,8 +76,6 @@ struct SyncedLyricsScreen: View {
               Text(text).font(.title2.bold()).lineSpacing(12).textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier(
                   "song-lyrics")
-              Text("Testo non sincronizzato. Puoi incollare un testo LRC dal menu del player.")
-                .font(.caption).foregroundStyle(.secondary)
             } else if let error = model.lyricsError {
               Text(error).foregroundStyle(.secondary)
               Button("Riprova") {

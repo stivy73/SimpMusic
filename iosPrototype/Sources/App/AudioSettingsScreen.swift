@@ -11,9 +11,6 @@ struct AudioSettingsScreen: View {
         qualityPicker("Streaming Wi-Fi", selection: $preferences.wifiQuality)
         qualityPicker("Streaming rete mobile", selection: $preferences.cellularQuality)
         qualityPicker("Download", selection: $preferences.downloadQuality)
-        Text(
-          "La preferenza viene applicata al prossimo caricamento. Il formato e il bitrate effettivi dipendono dai flussi disponibili su YouTube Music."
-        ).font(.caption)
       }
       Section("Equalizzatore a dieci bande") {
         Toggle("Attiva effetti audio", isOn: $preferences.effects.enabled).accessibilityIdentifier(
@@ -46,8 +43,6 @@ struct AudioSettingsScreen: View {
         }
         Text("Preamplificazione: \(preferences.effects.preamp, specifier: "%.1f") dB")
         Slider(value: $preferences.effects.preamp, in: -30...0, step: 0.5)
-        Text("La riserva di volume automatica evita la saturazione quando aumenti una banda.").font(
-          .caption)
         NavigationLink("Cerca profili cuffie AutoEq") { AutoEqScreen() }
         Button("Importa AutoEq FixedBandEQ.txt") { importing = true }
       }
@@ -66,14 +61,8 @@ struct AudioSettingsScreen: View {
         Slider(value: $preferences.crossfade, in: 0...12, step: 1).accessibilityIdentifier(
           "crossfade-seconds")
         Toggle("Modalità DJ", isOn: $preferences.djMode)
-        Text(
-          "Sovrappone due brani con una curva di volume più marcata al centro e filtri passa-basso / passa-alto. Non esegue beat matching. Se il prossimo flusso non è pronto, passa al brano normalmente."
-        ).font(.caption)
       }
       if let error { Text(error).foregroundStyle(.orange) }
-      Text(
-        "Gli effetti elaborano il PCM del player iOS; non modificano video o voce narrante. Alcuni flussi HLS possono non offrire il processamento audio."
-      ).font(.caption)
     }.navigationTitle("Audio")
       .fileImporter(isPresented: $importing, allowedContentTypes: [.plainText, .text]) { result in
         do {

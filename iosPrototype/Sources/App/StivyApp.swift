@@ -488,10 +488,6 @@ struct QueueScreen: View {
                 .accessibilityIdentifier("radio-test-pause")
             }
           #endif
-        } footer: {
-          Text(
-            "A coda terminata prosegue con nuovi suggerimenti. La ripetizione ha precedenza."
-          )
         }
         Text("\(model.queue.count) brani").font(.caption).foregroundStyle(.secondary)
           .accessibilityIdentifier("queue-count")
@@ -1068,16 +1064,6 @@ struct PlayerControls: View {
           AudioOutputButtons()
         #endif
       }.font(.caption)
-      #if os(iOS)
-        if player.cast.connected {
-          Text("Chromecast: tieni NoteNarrate aperta. La narrazione usa l’uscita audio dell’iPhone.")
-            .font(.caption).foregroundStyle(.secondary)
-          if player.castVolumeAtLimit {
-            Text("Volume iPhone al limite: usa il cursore per regolare ancora Chromecast.")
-              .font(.caption).foregroundStyle(.secondary)
-          }
-        }
-      #endif
     }
   }
 }
@@ -1101,10 +1087,6 @@ struct MeaningView: View {
             }
             Text(model.meaning).accessibilityIdentifier("meaning-text").font(.title3).lineSpacing(6)
               .textSelection(.enabled)
-            if !Interpretation.isExpectedLength(model.meaning) {
-              Text("Il modello ha superato il limite richiesto; il testo è mantenuto completo.")
-                .font(.caption).foregroundStyle(.secondary)
-            }
             HStack(spacing: 22) {
               Button {
                 PlatformClipboard.copy(model.meaning)
@@ -1167,10 +1149,6 @@ struct SettingsView: View {
           "open-listening")
 
         Toggle("Riproduzione automatica", isOn: $model.autoplayEnabled)
-        Text(
-          "Terminata la coda, continua con brani suggeriti da YouTube Music. Puoi avviare una radio dal menu di un brano o di un artista."
-        )
-        .font(.caption).foregroundStyle(.secondary)
       }
       Section("Scopri") {
         ForEach(DiscoveryDestination.allCases) { destination in
@@ -1182,9 +1160,6 @@ struct SettingsView: View {
         }
         NavigationLink("Consigli musicali IA") { MusicSuggestionsScreen() }
         NavigationLink("Artisti e nuove uscite") { ArtistReleasesScreen() }
-        Text(
-          "Aggiungi i widget Player, Playlist e Ascolti dalla schermata Home di iOS. Apri la Libreria → Playlist per aggiornare le raccolte mostrate."
-        ).font(.caption).foregroundStyle(.secondary)
       }
       Section("Interpretazione IA") {
         SecureField("Chiave API Google Gemini", text: $model.apiKey).verbatimTextInput()
@@ -1204,9 +1179,6 @@ struct SettingsView: View {
           Picker("Voce", selection: $model.voice) {
             ForEach(["Kore", "Puck", "Charon", "Aoede"], id: \.self) { Text($0).tag($0) }
           }
-        } else {
-          Text("Voce italiana di sistema, senza una seconda richiesta cloud.").font(.caption)
-            .foregroundStyle(.secondary)
         }
       }
       Section {
@@ -1215,9 +1187,6 @@ struct SettingsView: View {
           ShareLink(item: diagnostics) {
             Label("Condividi diagnostica", systemImage: "square.and.arrow.up")
           }
-          Text("Include percorsi audio, intervalli verificati e risposte HTTP. Senza chiavi API, cookie, testo, indirizzi firmati o brani.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
       }
       Section {
@@ -1239,9 +1208,6 @@ struct SettingsView: View {
             Text(thirdPartyNotices).font(.footnote).textSelection(.enabled).padding()
           }.navigationTitle("Licenze")
         }
-        Text(
-          "Client Apple sperimentale. Ricerca e riproduzione dipendono dalle API interne di YouTube. Raccolte remote e Mi piace sincronizzati con YouTube Music. Su iOS l’audio usa il player nativo anche in background. CarPlay richiede l’abilitazione audio da Apple."
-        ).font(.caption)
       }
     }
   }
@@ -1253,6 +1219,7 @@ struct SettingsView: View {
         + model.player.sourceDiagnostic
         + "\nMusica: " + model.player.networkDiagnostic
         + "\nChromecast: " + model.player.castDiagnostic
+        + "\nComandi Chromecast: " + CastControlDiagnostics.latest
         + "\nDurata audio: " + model.player.timingDiagnostic
         + "\niOS: " + UIDevice.current.systemVersion
         + "\nRete attuale: " + AudioPreferences.shared.networkDiagnostic

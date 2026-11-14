@@ -28,9 +28,6 @@ struct LyricsTools: View {
         if model.lyricsProvider == .spotify {
           SecureField("Token web Spotify", text: $model.spotifyLyricsToken).verbatimTextInput()
           SecureField("Client token Spotify", text: $model.spotifyClientToken).verbatimTextInput()
-          Text(
-            "Facoltativi, salvati nel Portachiavi con Salva impostazioni. Spotify può richiedere una sessione valida; Premium YouTube non la sostituisce."
-          ).font(.caption)
           Button("Salva e recupera testo") {
             model.saveSettings()
             model.loadLyrics(force: true)

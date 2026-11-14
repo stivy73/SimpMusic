@@ -69,7 +69,7 @@ final class CastLockScreenSession: RemoteMediaSessionRepresentable {
       let channel = CastDeviceChannel(host: state.host, port: state.port, pin: state.certificate)
       let next = try await channel.perform(command, value: value, state: state)
       guard attributes.id == state.id, attributes.trackID == state.trackID,
-        attributes.timestamp <= next.timestamp else { throw CastRemoteError.changedSession }
+        attributes.mediaSessionID == state.mediaSessionID else { throw CastRemoteError.changedSession }
       attributes = next
       return next
     }

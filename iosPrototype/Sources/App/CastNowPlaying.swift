@@ -12,6 +12,7 @@
     private var pinTask: Task<Void, Never>?
     private var pins: [String: Data] = [:]
     private var pinRetryAfter: [String: Date] = [:]
+    private var pinErrors: [String: String] = [:]
     private var retryAfter = Date.distantPast
     private(set) var published = false
     private(set) var diagnostic = "Sessione remota non avviata"
@@ -53,10 +54,11 @@
             let pin = try await channel.captureCertificate(receiverSession: value.receiverSession)
             guard let self, !Task.isCancelled else { return }
             self.pins[endpoint] = pin
+            self.pinErrors[endpoint] = nil
           } catch {
             guard let self, !Task.isCancelled else { return }
             self.pinRetryAfter[endpoint] = Date().addingTimeInterval(30)
-            self.diagnostic = "Scheda Cast disponibile; collegamento comandi da verificare sul ricevitore"
+            self.pinErrors[endpoint] = CastControlDiagnostics.failure(error)
           }
           self?.pinTask = nil
         }
@@ -74,7 +76,7 @@
     func end() {
       desired = nil; last = nil; pinTask?.cancel(); pinTask = nil
       retryAfter = .distantPast
-      pinRetryAfter.removeAll(); pins.removeAll()
+      pinRetryAfter.removeAll(); pins.removeAll(); pinErrors.removeAll()
       if #available(iOS 27, *) { drain() }
     }
 
@@ -100,6 +102,10 @@
                   try await current?.requestToBecomeSystemPrimary()
                 }
                 self.diagnostic = current?.isSystemPrimary == true ? "Scheda Cast attiva nel blocco schermo" : "Sessione Cast pubblicata; scheda gestita da iOS"
+                if value.certificate.count != 32 {
+                  let endpoint = value.host + ":" + String(value.port) + ":" + value.receiverSession
+                  self.diagnostic += "; comandi non collegati: " + (self.pinErrors[endpoint] ?? "verifica certificato in corso")
+                } else { self.diagnostic += "; comandi collegati" }
               } catch {
                 self.diagnostic = "Sessione Cast pubblicata; iOS non ha ancora attivato la scheda: " + String(describing: error)
               }

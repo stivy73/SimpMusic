@@ -191,7 +191,6 @@ private struct ArtistReleasesContent: View {
   @ObservedObject var releases: ArtistReleases
   @EnvironmentObject private var music: MusicModel
   @EnvironmentObject private var library: LibraryModel
-  @State private var notificationStatus = ""
   var body: some View {
     List {
       if library.session == nil {
@@ -207,20 +206,12 @@ private struct ArtistReleasesContent: View {
                 #if os(iOS)
                   Task {
                     await AppleAppSession.shared.releaseNotifications.enable(enabled)
-                    notificationStatus = await AppleAppSession.shared.releaseNotifications
-                      .authorizationMessage()
                   }
                 #else
                   releases.setEnabled(enabled)
                 #endif
               })
           ).accessibilityIdentifier("release-alerts-toggle")
-          Text(
-            "Il primo controllo registra le uscite già presenti senza notifiche. I controlli successivi segnalano le novità. iOS decide quando eseguire i controlli in background; puoi controllare anche da qui."
-          ).font(.caption).foregroundStyle(.secondary)
-          if !notificationStatus.isEmpty {
-            Text(notificationStatus).font(.caption).foregroundStyle(.secondary)
-          }
           if let date = releases.state.lastCheck {
             Text("Ultimo controllo: " + date.formatted(date: .abbreviated, time: .shortened)).font(
               .caption)

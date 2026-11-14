@@ -17,10 +17,6 @@ import SwiftUI
             link.status, systemImage: link.mode == .hosting ? "car.fill" : "person.2.fill"
           )
           .accessibilityIdentifier("passenger-status")
-          Text(
-            "Il telefono principale riproduce su CarPlay con il proprio account. I passeggeri inviano solo le selezioni musicali; account e chiavi restano separati."
-          )
-          .font(.footnote).foregroundStyle(.secondary)
         }
         switch link.mode {
         case .idle:
@@ -42,9 +38,6 @@ import SwiftUI
             Button("Ripristina collegamento", systemImage: "arrow.clockwise") {
               link.resumeHosting(force: true)
             }
-            Text(
-              "Riapre il collegamento Wi-Fi mantenendo lo stesso QR, i passeggeri Bluetooth e la coda musicale."
-            ).font(.caption)
           }
           if let invitation = link.invitation {
             Section("Invita un passeggero · " + String(invitation.sessionID.uuidString.prefix(6))) {
@@ -54,10 +47,6 @@ import SwiftUI
                   .frame(maxWidth: .infinity).accessibilityLabel("QR della sessione Passeggero")
               }
               Text("Sull’altro telefono: NoteNarrate → Sessione in auto → Scansiona QR.")
-              Text(
-                "Per CarPlay wireless, attiva Bluetooth su entrambi gli iPhone e consenti l’accesso a NoteNarrate. Il QR permette anche il collegamento Bluetooth senza una rete Wi-Fi comune."
-              )
-              .font(.caption).foregroundStyle(.secondary)
               Text(invitation.displayCode).font(.system(.headline, design: .monospaced))
                 .textSelection(.enabled).accessibilityIdentifier("passenger-code")
               Text(
@@ -87,10 +76,6 @@ import SwiftUI
             scanButton
             TextField("Codice della sessione", text: $code).verbatimTextInput()
               .accessibilityIdentifier("passenger-code-input")
-            Text(
-              "Con il QR l’app prova Wi-Fi e Bluetooth. Attiva Bluetooth e consenti il permesso Bluetooth di iOS su entrambi gli iPhone. La ricerca per numero richiede una rete locale raggiungibile; con CarPlay wireless usa Scansiona QR."
-            )
-            .font(.caption).foregroundStyle(.secondary)
             if code.hasPrefix("notenarrate:") {
               Button("Usa invito") {
                 link.join(text: code, name: name)
@@ -117,9 +102,6 @@ import SwiftUI
             Text("\(link.playback.queueCount) brani in coda")
           }
           Section("Scegli la musica") {
-            Text(
-              "Chiudi questo pannello per usare Cerca e Libreria. Play invia la selezione all’auto; i menu «Invia all’auto» permettono di aggiungerla alla coda. Il tuo telefono resta silenzioso."
-            )
             Button("Scegli in NoteNarrate") { bridge.showing = false }
               .accessibilityIdentifier("passenger-choose-music")
           }
@@ -148,15 +130,7 @@ import SwiftUI
             ShareLink(item: link.diagnosticReport) {
               Label("Condividi diagnostica", systemImage: "square.and.arrow.up")
             }
-            Text("Non include codice QR, chiavi, account o titoli musicali.").font(.caption2)
-              .foregroundStyle(.secondary)
           }
-        }
-        Section {
-          Text(
-            "Scansiona il QR da fermo: con un invito valido il collegamento è automatico. Tieni entrambe le app aperte durante l’abbinamento. L’invito QR protegge il collegamento anche via Bluetooth; la musica resta sul principale. Se iOS sospende l’app, riapri NoteNarrate e riconnettiti."
-          )
-          .font(.footnote).foregroundStyle(.secondary)
         }
       }.navigationTitle("Sessione in auto").inlineNavigationTitle()
         .confirmationDialog(

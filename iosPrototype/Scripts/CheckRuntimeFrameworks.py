@@ -32,6 +32,18 @@ def verify_app(app):
         assert extension_info['MinimumOSVersion'] == '27.0'
         assert extension_info['CFBundleVersion'] == info['CFBundleVersion']
         assert 'GoogleCast.framework' not in otool('-L', str(extension / extension_info['CFBundleExecutable'])), 'Cast SDK must not load in the extension'
+        if group := extension_info.get('CastControlKeychainGroup'):
+            assert group == info.get('CastControlKeychainGroup')
+            assert group == '63W2ZKR3Z7.com.stivy.simpmusic.prototype.cast-controls'
+            for bundle in (app, extension):
+                raw = subprocess.check_output(['codesign', '-d', '--entitlements', ':-', str(bundle)], stderr=subprocess.DEVNULL)
+                signed = plistlib.loads(raw[raw.index(b'<?xml'):])
+                groups = signed['keychain-access-groups']
+                assert groups[0] == signed['application-identifier'], 'Private default Keychain group changed'
+                assert group in groups, 'Cast command diagnostics group missing from signature'
+                if bundle == extension:
+                    assert set(groups) == {signed['application-identifier'], group}, 'Unexpected extension Keychain access'
+                    assert not signed.get('com.apple.security.application-groups'), 'Cast extension must not access app account containers'
         weak = False
         for binary in [executable, *app.glob('*.debug.dylib')]:
             for command in otool('-l', str(binary)).split('Load command'):

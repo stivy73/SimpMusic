@@ -160,6 +160,8 @@
     }
     func pause() {
       wantsPlayback = false
+      CastControlDiagnostics.record("PAUSE", "inoltrato al Cast SDK · " +
+        (UIApplication.shared.applicationState == .active ? "app attiva" : "app in background"))
       client?.pause()
     }
     func seek(_ seconds: Double) {
@@ -272,7 +274,8 @@
           trackID: song.id, title: song.title, artist: song.artist, artwork: song.artwork,
           duration: player.durationSeconds, position: player.elapsed, timestamp: Date(),
           playback: status.playerState == .playing ? "PLAYING" : status.playerState == .paused ? "PAUSED" : status.playerState == .buffering || status.playerState == .loading ? "BUFFERING" : "IDLE",
-          volume: session.currentDeviceMuted ? 0 : Double(session.currentDeviceVolume))) }
+          volume: session.currentDeviceMuted ? 0 : Double(session.currentDeviceVolume),
+          mediaSessionID: status.mediaSessionID)) }
       }
       if cutoff > 0, player.elapsed >= cutoff, status.playerState == .playing {
         loaded = false
