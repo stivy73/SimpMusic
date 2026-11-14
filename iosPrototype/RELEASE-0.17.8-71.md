@@ -43,3 +43,19 @@ NowPlaying weak-linked, gruppo Portachiavi diagnostico condiviso e gruppi
 privati preservati. Sulla versione 71 sono passati tre test UI senza errori:
 avvio/apertura ripetuta del player, salvataggio impostazioni e riapertura
 della sessione passeggeri con rotazione del codice.
+
+IPA: deliveries/NoteNarrate-iOS-0.17.8-build71.ipa.
+Archivio e simboli: deliveries/archives/NoteNarrate-0.17.8-build71.xcarchive.
+SHA-256: `9d618f27a4338766afba56c611c0a3a254c99d3a838e7a9d38ae0c9019074509`.
+Sorgenti: `f7ad43306ef9ce27109ca9cf074749790152cbdb`, pubblicati sul fork
+stivy73/SimpMusic, branch feature/youtube-library-albums.
+
+Upload ufficiale completato tramite modalita legacy altool dopo il timeout
+del canale predefinito, riutilizzando la stessa consegna senza duplicati.
+Delivery UUID: `bcc2c0be-1c7e-492d-9126-1ac5fc3b0c59`.
+Verifica del 2026-11-14: VALID, INTERNAL_ONLY, IN_BETA_TESTING; assegnata a
+Team interno e Stivy73. Confermati appartenenza e accesso app di Tommaso e
+Girbreda; note italiane salvate e rilette. Nessun utente o ruolo modificato,
+nessuna pubblicazione App Store.
+Ricevuta: deliveries/NoteNarrate-iOS-0.17.8-build71-AppStore-status.json.
+Validazione: deliveries/NoteNarrate-iOS-0.17.8-build71-validation.json.
