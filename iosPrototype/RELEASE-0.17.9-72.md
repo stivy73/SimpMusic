@@ -30,3 +30,19 @@ App YouTube Music 6821630132, com.stivy.simpmusic.prototype; Apple Music
 resta separata. Xcode 27.2 RC (27B48), SDK 27.2; minimi iOS 17 e Watch 10
 invariati, estensione remota iOS 27. Distribuzione ai gruppi interni esistenti
 Team interno e Stivy73 con verifica di Tommaso e Girbreda dopo elaborazione.
+
+Archivio Release ed esportazione interna completati; firme e profili dei
+sei bundle verificati, controllo dyld e framework superato, gruppi privati
+del Portachiavi preservati e diagnostica condivisa isolata dalle credenziali.
+IPA: deliveries/NoteNarrate-iOS-0.17.9-build72.ipa.
+Archivio e simboli: deliveries/archives/NoteNarrate-0.17.9-build72.xcarchive.
+SHA-256: `aeeec58e73dae6cf9c75c5af7d740a54fbd0d84df3a123a8e9bedd09fcc33ed6`.
+Sorgenti: `d104a94804db5643d68af980b65939577790b96d`, pubblicati sul fork
+stivy73/SimpMusic, branch feature/youtube-library-albums.
+Upload ufficiale completato, delivery `f66c141f-1ead-408c-9810-789e0159ffe4`.
+Validazione: deliveries/NoteNarrate-iOS-0.17.9-build72-validation.json.
+
+Verifica Apple del 2026-11-14: VALID, INTERNAL_ONLY, IN_BETA_TESTING;
+assegnata a Team interno e Stivy73. Confermati appartenenza al gruppo e
+accesso app di Tommaso e Girbreda, note italiane salvate e rilette.
+Ricevuta: deliveries/NoteNarrate-iOS-0.17.9-build72-AppStore-status.json.
