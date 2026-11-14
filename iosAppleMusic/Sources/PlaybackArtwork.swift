@@ -25,6 +25,7 @@ private actor ArtworkReadGate {
   private var unavailableUntil:[String:Date]=[:]
   private var order:[String]=[]
   private var revision=UUID()
+  var resetID:UUID {revision}
   private let gate=ArtworkReadGate()
   private let fetch:@Sendable (String) async throws -> URL?
   private let fallback:(@Sendable (String) async throws -> URL?)?
@@ -78,7 +79,7 @@ private actor ArtworkReadGate {
         try Task.checkCancellation()
         if result.flatMap(PlaybackArtworkURL.resolve).map({excluded.contains($0)}) != false {
           if let fallback {result=try await fallback(id)}
-          else if let primaryError {throw primaryError}
+          if result == nil,let primaryError {throw primaryError}
         }
         await gate.release()
         guard let self,self.revision==token,!Task.isCancelled else{return}

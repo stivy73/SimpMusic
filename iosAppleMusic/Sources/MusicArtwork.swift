@@ -71,11 +71,14 @@ extension MusicLibraryModel {
     return playbackQueueSnapshot.displayed(Array(player.queue.entries))
   }
   var artworkReport:String {
-    guard let id=nowPlaying?.id.rawValue else{return "Copertina: nessun brano corrente"}
+    let failures=Array(browseArtwork.imageFailures.values.prefix(4)).joined(separator:"; ")
+    let metadata=Array(browseArtwork.status.values.filter{$0.hasPrefix("errore")}.prefix(4)).joined(separator:"; ")
+    let browse="Copertine raccolte: richieste=\(browseArtwork.status.count); URL disponibili=\(browseArtwork.urls.count); caricate=\(browseArtwork.status.values.filter{$0 == "immagine caricata"}.count); errori immagine=\(browseArtwork.imageFailures.count)"+(failures.isEmpty ? "":"\nCopertine raccolte, errori: "+failures)+(metadata.isEmpty ? "":"\nCopertine raccolte, metadati: "+metadata)
+    guard let id=nowPlaying?.id.rawValue else{return browse+"\nCopertina: nessun brano corrente"}
     let queue=playbackQueueEntries.prefix(8).map { entry in
       let id=artworkID(entry) ?? "non disponibile"
       return "Copertina coda: ID \(id); \(artwork.status[id] ?? "non richiesta"); errore=\(artwork.imageFailures[id] ?? "nessuno")"
     }.joined(separator:"\n")
-    return "Copertina player: ID \(id); nativa=\(nowPlaying?.artwork != nil); \(artwork.status[id] ?? "non richiesta"); errore=\(artwork.imageFailures[id] ?? "nessuno"); coda nativa=\(player.queue.entries.count), conservata=\(playbackQueueSnapshot.entries.count)\n"+queue
+    return browse+"\nCopertina player: ID \(id); nativa=\(nowPlaying?.artwork != nil); \(artwork.status[id] ?? "non richiesta"); errore=\(artwork.imageFailures[id] ?? "nessuno"); coda nativa=\(player.queue.entries.count), conservata=\(playbackQueueSnapshot.entries.count)\n"+queue
   }
 }

@@ -18,6 +18,32 @@ private actor RecoveryCalls {
   func counts() -> [Int] { [albums, searches, catalog] }
 }
 final class LibrarySyncTests: XCTestCase {
+  func testBroadSearchCannotAddUnrelatedSongsOrAccumulateRotatingLibraryIDs() async throws {
+    let reference=LibraryTrackReference(storeID:"unavailable",title:"Reported",artist:"Artist",album:"",duration:180)
+    let result=try await LibrarySongRecovery.recover(references:[reference],available:[SyncSong](),id:{$0.id},identity:{$0.identity},albumTracks:{_ in []},search:{_ in
+      [SyncSong(id:"i.exact",title:"Reported"),SyncSong(id:"i.unrelated",title:"Other title")]
+    },catalog:{_ in []})
+    XCTAssertEqual(result.items.map(\.id),["i.exact"]);XCTAssertEqual(result.unresolved,0)
+    let sameRecording=SyncSong(id:"i.rotated",title:"Reported")
+    XCTAssertEqual(LibrarySongRecovery.merging([sameRecording],result.items,identity:{$0.identity}).count,1)
+    let stale=[SyncSong(id:"i.unrelated",title:"Other title")]+result.items
+    XCTAssertEqual(LibrarySongRecovery.verified(stale,references:[reference],identity:{$0.identity}).map(\.id),["i.exact"])
+  }
+  func testMissingAlbumRequiresDurationAndAmbiguousRecordingsAreNotGuessed() {
+    let reference=LibraryTrackReference(storeID:"0",title:"Song",artist:"Artist",album:"",duration:180)
+    let choices=[SyncSong(id:"i.a",album:"First album"),SyncSong(id:"i.b",album:"Second album")]
+    XCTAssertTrue(LibrarySongRecovery.verified(choices,references:[reference],identity:{$0.identity}).isEmpty)
+    let noDuration=LibraryTrackReference(storeID:"0",title:"Song",artist:"Artist",album:"")
+    XCTAssertFalse(choices[0].identity.matches(noDuration))
+  }
+  func testCloudArtistsDoNotDoubleWhenNativeIDsUseAnotherNamespace() {
+    let cloud=(1...14).map{SyncSong(id:"r.cloud\($0)",title:"Artist \($0)")}
+    let local=(1...14).map{SyncSong(id:"native\($0)",title:"Artist \($0)")}
+    let result=ArtistLibraryPolicy.reconcile(previous:cloud+local,local:.success(local),cloud:.success(cloud),previousState:.init())
+    XCTAssertEqual(result.items.map(\.id),cloud.map(\.id));XCTAssertEqual(result.state.phase,.ready)
+    let fallback=ArtistLibraryPolicy.reconcile(previous:[SyncSong](),local:.success(local),cloud:.success([]),previousState:.init())
+    XCTAssertEqual(fallback.items.count,14)
+  }
   func testCategoryCanRetryWhileOthersLoadAndOldCleanupCannotCancelNewRetry() {
     var activity = LibrarySyncActivity()
     let initial = activity.begin(Set(BrowseKind.allCases))

@@ -10,7 +10,9 @@ struct PlaylistRows: View {
 struct ArtistRows: View {
   let artists:[Artist]
   var body:some View {
-    ForEach(artists) { artist in NavigationLink { ArtistScreen(artist:artist) } label: { CoverRow(artwork:artist.artwork,title:artist.name,subtitle:"Artista") } }
+    ForEach(artists) { artist in NavigationLink { ArtistScreen(artist:artist) } label: {
+      HStack {BrowseCover(item:.artist(artist)).frame(width:48,height:48).clipShape(Circle());Text(artist.name).foregroundStyle(.primary)}
+    } }
   }
 }
 struct CollectionScreen:View {
@@ -28,7 +30,7 @@ struct ArtistScreen:View {
     ScrollView {
       LazyVStack(alignment:.leading,spacing:28) {
         VStack(alignment:.leading,spacing:16) {
-          Cover(artwork:shown.artwork).aspectRatio(1,contentMode:.fit).frame(maxWidth:340).clipShape(RoundedRectangle(cornerRadius:24))
+          BrowseCover(item:.artist(shown)).aspectRatio(1,contentMode:.fit).frame(maxWidth:340).clipShape(RoundedRectangle(cornerRadius:24))
           Text(shown.name).font(.largeTitle.bold())
           if let genres=shown.genreNames,!genres.isEmpty {Text(genres.joined(separator:" · ")).foregroundStyle(.secondary)}
           FavoriteControl(type:"artists",id:shown.id.rawValue)

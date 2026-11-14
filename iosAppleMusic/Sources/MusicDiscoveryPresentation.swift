@@ -44,6 +44,7 @@ struct AppleShelfScreen:View {
 
 struct MusicHomeScreen:View {
   @EnvironmentObject private var music:MusicLibraryModel
+  @StateObject private var home=HomeQuickFilterStore<MusicBrowseItem>(fetch:AppleDiscoveryService.homeFilter)
   private var shelves:[AppleShelf] {
     var values:[AppleShelf]=[]
     if !music.recentSongs.isEmpty {values.append(.init(id:"recent",title:"Ascolta di nuovo",items:music.recentSongs.map(MusicBrowseItem.song),load:AppleDiscoveryService.recentPage))}
@@ -55,6 +56,8 @@ struct MusicHomeScreen:View {
   var body:some View {
     ScrollView {
       LazyVStack(alignment:.leading,spacing:28) {
+        AppleHomeQuickFilters(home:home)
+        if home.selectedFilter == .all {
         if music.subscriptionVerified && !music.canPlayCatalog {Text("Per ascoltare il catalogo, attiva un abbonamento nell’app Musica.").foregroundStyle(.secondary).padding(.horizontal,20)}
         if music.loadingDiscovery || music.loading {ProgressView("Aggiornamento libreria e consigli…").frame(maxWidth:.infinity)}
         if music.libraryStates.values.contains(where: { $0.needsRetry }) {
@@ -64,9 +67,26 @@ struct MusicHomeScreen:View {
         if let error=music.discoveryError {Text(error).foregroundStyle(.orange).padding(.horizontal,20);Button("Riprova"){Task{await music.refreshDiscovery()}}.padding(.horizontal,20)}
         AppleDiscoveryShelves(shelves:shelves)
         if shelves.isEmpty && !music.loading && !music.loadingDiscovery && !music.libraryStates.values.contains(where: { $0.needsRetry }) {ContentUnavailableView("Nessun contenuto disponibile",systemImage:"music.note",description:Text("Aggiorna la Home o aggiungi musica alla libreria Apple Music."))}
+        } else {
+          if home.page.busy {ProgressView("Carico le playlist: \(home.selectedFilter.title)…").frame(maxWidth:.infinity).padding(.vertical,36)}
+          if let error=home.page.error {
+            VStack(alignment:.leading,spacing:10) {
+              Text("Impossibile caricare le playlist. "+error).foregroundStyle(.orange)
+              Button("Riprova"){Task{await home.refresh()}}.accessibilityIdentifier("home-filter-retry")
+            }.padding(.horizontal,20)
+          }
+          if !home.page.items.isEmpty {
+            let filter=home.selectedFilter
+            AppleDiscoveryShelves(shelves:[.init(id:"home-filter:"+filter.id,title:"Playlist · "+filter.title,items:home.page.items,load:{try await AppleDiscoveryService.homeFilter(filter)})])
+          } else if !home.page.busy && home.page.error == nil {
+            ContentUnavailableView("Nessuna playlist disponibile",systemImage:"music.note",description:Text("Prova un altro filtro oppure aggiorna la pagina."))
+          }
+        }
         AppleDiscoveryCategories(sections:AppleCategorySection.explore)
       }.padding(.vertical,12)
-    }.accessibilityIdentifier("home-scroll").refreshable{await music.refreshHome()}
+    }.accessibilityIdentifier("home-scroll").refreshable {
+      if home.selectedFilter == .all {await music.refreshHome()} else {await home.refresh()}
+    }
       .toolbar {
         NavigationLink{MusicListeningHistoryScreen()} label:{Label("Cronologia di ascolto",systemImage:"clock.arrow.circlepath")}.accessibilityIdentifier("open-listening-history")
         NavigationLink{AppleExploreScreen()} label:{Label("Esplora",systemImage:"square.grid.2x2")}.accessibilityIdentifier("open-explore")

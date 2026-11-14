@@ -61,6 +61,7 @@ final class MusicLibraryModel: ObservableObject {
   @Published var position = 0.0
   @Published var duration = 0.0
   let artwork=PlaybackArtwork(fetch:MusicArtworkResolver.resolve,fallback:MusicArtworkResolver.publicArtwork)
+  let browseArtwork=PlaybackArtwork(fetch:BrowseArtworkResolver.resolve,fallback:BrowseArtworkResolver.fallback)
   var playbackQueueSnapshot=PlaybackQueueSnapshot<MusicKit.MusicPlayer.Queue.Entry>()
   var artworkFixtureQueue:[MusicKit.MusicPlayer.Queue.Entry]=[]
   private var artworkChanges:AnyCancellable?
@@ -77,7 +78,7 @@ final class MusicLibraryModel: ObservableObject {
     #endif
   }
   init() {
-    artworkChanges=artwork.objectWillChange.sink{[weak self] in self?.objectWillChange.send()}
+    artworkChanges=Publishers.Merge(artwork.objectWillChange,browseArtwork.objectWillChange).sink{[weak self] in self?.objectWillChange.send()}
     #if DEBUG && PLAYER_LAYOUT_FIXTURE
     let data=Data(#"{"id":"123456789","type":"songs","attributes":{"name":"Brano di prova","artistName":"NoteNarrate · test interfaccia","albumName":"Album di prova","durationInMillis":261000,"playParams":{"id":"123456789","kind":"song"}}}"#.utf8)
     nowPlaying=try? JSONDecoder().decode(MusicKit.Song.self,from:data)
@@ -159,6 +160,7 @@ final class MusicLibraryModel: ObservableObject {
   func restoreAccess() async {
     guard !checkingAccess else { return }
     artwork.reset()
+    browseArtwork.reset()
     checkingAccess = true; defer { checkingAccess = false }
     record("Ripristino richiesto; autorizzazione=\(authorization)")
     if MusicAuthorization.currentStatus != .authorized { await connect(); return }

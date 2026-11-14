@@ -150,8 +150,8 @@ struct CoverRow: View {
 struct Cover: View {
   let artwork: Artwork?
   var body: some View {
-    if let artwork { ArtworkImage(artwork,width:320).scaledToFit() }
-    else { RoundedRectangle(cornerRadius:12).fill(.gray.opacity(0.2)).overlay { Image(systemName:"music.note") } }
+    YTPlayerArtwork(url:PlaybackArtworkURL.resolve(artwork?.url(width:600,height:600)))
+      .aspectRatio(1,contentMode:.fit).clipped()
   }
 }
 struct AlbumRows: View {

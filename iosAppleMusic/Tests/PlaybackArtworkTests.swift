@@ -36,6 +36,13 @@ final class PlaybackArtworkTests:XCTestCase {
     await cache.load(id:"302788219")
     XCTAssertNotNil(cache.url(id:"302788219"));XCTAssertNil(cache.url(id:"30475379"))
   }
+  @MainActor func testEmptyFallbackPreservesMetadataFailureForDiagnostics() async {
+    let cache=PlaybackArtwork(fetch:{_ in throw BrowseArtworkRequest.Failure.http(403)},fallback:{_ in nil})
+    await cache.load(id:"r:r.artist")
+    XCTAssertNil(cache.url(id:"r:r.artist"))
+    XCTAssertEqual(cache.status["r:r.artist"],"errore AppleBrowseArtwork 403")
+    XCTAssertFalse(cache.needsLoad(id:"r:r.artist"))
+  }
   @MainActor func testFailureOfEveryImageDoesNotLoopAndCanBeReset() async {
     let bad=URL(string:"https://example.test/missing.jpg")!
     let fallback=ArtworkFetchProbe(bad),cache=PlaybackArtwork(fetch:{_ in bad},fallback:fallback.fetch)

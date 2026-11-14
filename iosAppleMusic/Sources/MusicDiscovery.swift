@@ -44,6 +44,24 @@ enum AppleDiscoveryKind {case song,album,playlist,artist}
     let value=request
     return batch(try await MusicRead.perform{try await value.response()}.playlists,map:MusicBrowseItem.playlist)
   }
+  static func homeFilter(_ filter:AppleHomeFilter) async throws -> BrowseBatch<MusicBrowseItem> {
+    guard let term=filter.catalogQuery else{throw HomeFilterFailure.unsupported}
+    #if DEBUG && HOME_FILTERS_LAYOUT_FIXTURE
+    let playlists=try (1...6).map {index in
+      let data=try JSONSerialization.data(withJSONObject:["id":"pl.fixture.\(filter.id).\(index)","type":"playlists","attributes":["name":"\(filter.title) · Playlist \(index)","curatorName":"NoteNarrate · collaudo filtri","artwork":["width":320,"height":160,"url":"https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/63/7e/3b/637e3b1b-afd2-5a89-84b7-c5ce4dff1c65/5032698671663.jpg/320x160bb.jpg"],"playParams":["id":"pl.fixture.\(filter.id).\(index)","kind":"playlist"]]])
+      return MusicBrowseItem.playlist(try JSONDecoder().decode(Playlist.self,from:data))
+    }
+    return .init(items:playlists)
+    #else
+    var request=MusicCatalogSearchRequest(term:term,types:[Playlist.self]);request.limit=25
+    let value=request
+    return batch(try await MusicRead.perform{try await value.response()}.playlists,map:MusicBrowseItem.playlist)
+    #endif
+  }
+  private enum HomeFilterFailure:LocalizedError {
+    case unsupported
+    var errorDescription:String? {"Questo filtro non è disponibile. Scegli un altro filtro della Home."}
+  }
   static func recommendation(_ value:MusicPersonalRecommendation)->AppleShelf {
     let map:@Sendable (MusicPersonalRecommendation.Item)->MusicBrowseItem?={item in
       switch item {case .album(let v):.album(v);case .playlist(let v):.playlist(v);default:nil}

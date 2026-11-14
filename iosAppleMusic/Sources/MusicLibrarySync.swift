@@ -108,7 +108,7 @@ extension MusicLibraryModel {
     guard enabled else { return }
     async let local = localLibraryRead(Artist.self, label: "artisti")
     async let cloud = cloudLibraryRead(Artist.self, resource: .artists, label: "artisti")
-    let result = try await LibrarySyncPolicy.reconcile(previous: artists, local: local, cloud: cloud, previousState: libraryState(.artists))
+    let result = try await ArtistLibraryPolicy.reconcile(previous: artists, local: local, cloud: cloud, previousState: libraryState(.artists))
     try validateLibraryWork(.artists, work: work)
     artists = result.items; libraryStates[.artists] = result.state
     recordSection(.artists, count: artists.count, work: work)
@@ -192,7 +192,10 @@ extension MusicLibraryModel {
       })
     try validateLibraryWork(.songs, work: work)
     let message = recovery.unresolved > 0 ? "\(recovery.unresolved) brani rilevati da iOS non sono ancora disponibili nell’elenco. La libreria è parziale; puoi riprovare questa categoria." : nil
-    var result = LibrarySyncPolicy.reconcile(previous: songs, local: local, cloud: cloud,
+    // Revalidate the retained recovery rows against today's device references.
+    // Older broad-search results must not accumulate after every partial read.
+    let retained = local.failure != nil || cloud.failure != nil ? songs : LibrarySongRecovery.verified(songs,references:device.tracks,identity:Self.libraryIdentity)
+    var result = LibrarySyncPolicy.reconcile(previous: retained, local: local, cloud: cloud,
       recovered: recovery.items, unresolved: recovery.unresolved, recoveryMessage: message, previousState: libraryState(.songs))
     result.items = LibrarySongRecovery.merging(result.items, [], identity: Self.libraryIdentity)
     songs = result.items; libraryStates[.songs] = result.state
@@ -231,7 +234,7 @@ extension MusicLibraryModel {
       }
     }
     return .init(ids: ids, title: song.title, artist: song.artistName, album: song.albumTitle ?? "",
-      track: song.trackNumber ?? 0, disc: song.discNumber ?? 0, duration: song.duration ?? 0)
+      track: song.trackNumber ?? 0, disc: song.discNumber ?? 0, duration: song.duration ?? 0, isrc: song.isrc)
   }
   private func verifyLibrarySubscription() async {
     do {
@@ -270,6 +273,7 @@ extension MusicLibraryModel {
     mediaLibrarySummary = snapshot.report; record(snapshot.report)
     let ids = MediaCatalogBridge.catalogIDs(snapshot.tracks.map(\.storeID))
     record("Identificativi brani iOS: ID catalogo distinti=\(ids.count); senza ID utilizzabile=\(snapshot.tracks.filter { MediaCatalogBridge.catalogIDs([$0.storeID]).isEmpty }.count)")
+    record("Metadati riferimenti iOS: senza titolo=\(snapshot.tracks.filter{$0.title.isEmpty}.count); senza artista=\(snapshot.tracks.filter{$0.artist.isEmpty}.count); senza album=\(snapshot.tracks.filter{$0.album.isEmpty}.count); senza durata=\(snapshot.tracks.filter{$0.duration<=0}.count)")
     return snapshot
   }
 }

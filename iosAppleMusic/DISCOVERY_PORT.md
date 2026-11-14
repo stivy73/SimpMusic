@@ -84,3 +84,34 @@ Restano distinti i test sui display fisici, CarPlay e iPhone Duo.
 - https://developer.apple.com/documentation/applemusicapi/get-all-genres
 - https://developer.apple.com/documentation/musickit/artist
 - https://developer.apple.com/documentation/applemusicapi/artists/attributes-data.dictionary
+
+
+## Filtri rapidi e copertine — 0.1.0 (16)
+
+Importati dallo stesso commit YouTube `5a277798` gli ID, le etichette e la
+presentazione della barra `homeFilters`. Il generatore ora verifica anche
+HomeFilter.swift e YouTubeHomeFiltersPresentation.swift. Conservati ordine,
+Capsule, colori, spaziature e scorrimento; esclusi i parametri browse di YouTube.
+Le dieci scelte tematiche usano ricerche native di playlist Apple Music, con
+cursore MusicKit, senza classificare arbitrariamente la libreria personale.
+Tutto ripristina i caroselli personali. Altro e pull-to-refresh conservano il
+filtro; un cambio annulla e invalida le risposte precedenti. Errori, riprova e
+risultati realmente vuoti hanno stati distinti.
+
+Le schede, gli elenchi e gli artisti usano la stessa pipeline YTPlayerArtwork /
+ArtworkImageData del player, con cache, errore e tentativi limitati. Riquadri
+quadrati ritagliano le cover rettangolari. Gli ID personali degli artisti
+seguono solo la relazione ufficiale catalog: niente ricerca per nome o foto
+prese da un altro artista. La diagnostica delle raccolte funziona anche quando
+non è in riproduzione un brano. Un errore HTTP resta un errore anche se il
+recupero alternativo non restituisce un’immagine.
+
+Il recupero dei brani ora accetta solo registrazioni univoche verificate contro
+i riferimenti iOS e non aggiunge tutti i risultati di una ricerca personale.
+Rivalida i vecchi risultati quando entrambe le letture principali riescono,
+conserva gli elenchi se una lettura fallisce e deduplica le stesse registrazioni.
+Per gli artisti, una lettura cloud completa e non vuota è autorevole: non viene
+sommata alla lista locale con ID di un altro namespace.
+
+Riferimenti: https://developer.apple.com/documentation/musickit/musiccatalogsearchrequest
+e https://developer.apple.com/documentation/applemusicapi/fetch-a-relationship-on-this-resource-by-name-9dsoc

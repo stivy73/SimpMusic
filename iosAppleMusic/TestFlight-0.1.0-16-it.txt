@@ -1,0 +1,9 @@
+Filtri rapidi Home e copertine
+
+Aggiunti gli stessi 11 filtri della Home YouTube Music, adattati alle playlist del catalogo Apple Music: Tutto, Relax, Riposo, Energetico, Triste, Romantico, Buonumore, Allenamento, Festa, In viaggio e Concentrazione. Altro e aggiornamento mantengono il filtro; le richieste precedenti vengono annullate quando cambi scelta.
+
+Uniformato il caricamento delle copertine di Home, raccolte e artisti al componente del player. Le immagini rettangolari riempiono il riquadro quadrato. Se manca la foto dell’artista personale, l’app prova la relazione esatta con il catalogo Apple; aggiunta diagnostica anche senza un brano in riproduzione.
+
+Corretto l’accumulo di risultati estranei durante i tentativi di recupero dei 14 brani mancanti e la somma degli artisti locali e cloud. Un elenco parziale resta segnalato come tale.
+
+Da verificare sul tuo account: cover degli artisti e delle playlist, stabilità del numero dei brani dopo più aggiornamenti e stato dei 14 brani mancanti. Se resta un problema, condividi la diagnostica dopo aver aperto la schermata interessata.

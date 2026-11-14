@@ -28,7 +28,7 @@ struct AppleDiscoveryShelves: View {
           ForEach(shelf.items) { item in
             AppleDiscoveryItemLink(item: item, queue: shelf.items) {
               HStack(spacing: 14) {
-                Cover(artwork: item.artwork).frame(width: 58, height: 58)
+                BrowseCover(item: item).frame(width: 58, height: 58)
                   .clipShape(RoundedRectangle(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 5) {
                   Text(item.title).foregroundStyle(.primary).fontWeight(.semibold).lineLimit(2)
@@ -63,7 +63,7 @@ private struct AppleDiscoveryCard: View {
   let item: MusicBrowseItem
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
-      Cover(artwork: item.artwork).frame(width: 164, height: 164)
+      BrowseCover(item: item).frame(width: 164, height: 164)
         .clipShape(RoundedRectangle(cornerRadius: item.kind == .artist ? 82 : 14))
       Text(item.title).font(.subheadline.weight(.semibold))
         .lineLimit(2, reservesSpace: true).fixedSize(horizontal: false, vertical: true)

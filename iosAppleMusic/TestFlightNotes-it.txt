@@ -1,7 +1,9 @@
-Completezza e sincronizzazione della libreria
+Filtri rapidi Home e copertine
 
-Migliorato il recupero dei brani presenti in Musica ma assenti dall’elenco: verifica delle tracce degli album personali e ricerca nella libreria, anche quando l’elenco iniziale è parziale o il catalogo non restituisce gli identificativi.
+Aggiunti gli stessi 11 filtri della Home YouTube Music, adattati alle playlist del catalogo Apple Music: Tutto, Relax, Riposo, Energetico, Triste, Romantico, Buonumore, Allenamento, Festa, In viaggio e Concentrazione. Altro e aggiornamento mantengono il filtro; le richieste precedenti vengono annullate quando cambi scelta.
 
-Brani, album, playlist e artisti hanno ora stato e pulsante Riprova indipendenti. Un errore mantiene i dati disponibili; le raccolte vuote sono distinte dalle letture incomplete. Aggiunto aggiornamento al rientro nell’app e dopo modifiche alla libreria in Musica.
+Uniformato il caricamento delle copertine di Home, raccolte e artisti al componente del player. Le immagini rettangolari riempiono il riquadro quadrato. Se manca la foto dell’artista personale, l’app prova la relazione esatta con il catalogo Apple; aggiunta diagnostica anche senza un brano in riproduzione.
 
-Da verificare sul tuo iPhone: apri Libreria → Brani e controlla i 14 brani rilevati da iOS. Prova anche ad aggiungere o rimuovere un elemento in Musica e torna in NoteNarrate. Se l’elenco resta parziale, condividi la diagnostica da Impostazioni → Collegamento Apple Music.
+Corretto l’accumulo di risultati estranei durante i tentativi di recupero dei 14 brani mancanti e la somma degli artisti locali e cloud. Un elenco parziale resta segnalato come tale.
+
+Da verificare sul tuo account: cover degli artisti e delle playlist, stabilità del numero dei brani dopo più aggiornamenti e stato dei 14 brani mancanti. Se resta un problema, condividi la diagnostica dopo aver aperto la schermata interessata.

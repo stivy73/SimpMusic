@@ -75,6 +75,13 @@ struct LibrarySongIdentity: Sendable {
   var track: Int = 0
   var disc: Int = 0
   var duration: Double = 0
+  var isrc: String? = nil
+
+  var recordingKey: String? {
+    guard !title.isEmpty, !artist.isEmpty, duration > 0 else { return nil }
+    return [Self.key(title), Self.key(artist), Self.key(album), String(track), String(disc),
+      String(Int((duration * 1000).rounded())), isrc ?? ""].joined(separator: "\u{1F}")
+  }
 
   static func key(_ value: String) -> String {
     value.split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -85,8 +92,10 @@ struct LibrarySongIdentity: Sendable {
     // Preserve editions, mixes and live versions. Do not fuzzy-match a catalog
     // replacement for a recording which Apple did not return.
     guard !title.isEmpty, !artist.isEmpty, !reference.title.isEmpty, !reference.artist.isEmpty,
-      Self.key(title) == Self.key(reference.title), Self.key(artist) == Self.key(reference.artist),
-      !reference.album.isEmpty, Self.key(album) == Self.key(reference.album) else { return false }
+      Self.key(title) == Self.key(reference.title), Self.key(artist) == Self.key(reference.artist) else { return false }
+    if !reference.album.isEmpty {
+      guard Self.key(album) == Self.key(reference.album) else { return false }
+    } else if duration <= 0 || reference.duration <= 0 { return false }
     if track > 0 && reference.track > 0 && track != reference.track { return false }
     if disc > 0 && reference.disc > 0 && disc != reference.disc { return false }
     if duration > 0 && reference.duration > 0 && abs(duration - reference.duration) > 2 { return false }
@@ -125,12 +134,27 @@ enum LibrarySongRecovery {
   }
   static func merging<Item: Identifiable>(_ preferred: [Item], _ additional: [Item],
     identity: (Item) -> LibrarySongIdentity) -> [Item] where Item.ID: Hashable {
-    var itemIDs = Set<Item.ID>(), aliases = Set<String>()
+    var itemIDs = Set<Item.ID>(), aliases = Set<String>(), recordings = Set<String>()
     return (preferred + additional).filter { item in
-      let ids = identity(item).ids
+      let value = identity(item), ids = value.ids
       guard !itemIDs.contains(item.id), ids.isDisjoint(with: aliases) else { return false }
+      if let key = value.recordingKey, !recordings.insert(key).inserted { return false }
       itemIDs.insert(item.id); aliases.formUnion(ids); return true
     }
+  }
+  /// A personal search can return a whole album or many similarly named songs.
+  /// Recover only a unique recording for an observed device reference.
+  static func verified<Item: Identifiable>(_ values: [Item], references: [LibraryTrackReference],
+    identity: (Item) -> LibrarySongIdentity) -> [Item] where Item.ID: Hashable {
+    let candidates = merging(values, [], identity: identity)
+    var accepted = Set<Item.ID>()
+    for reference in references {
+      let matches = candidates.filter { identity($0).matches(reference) }
+      let exact = matches.filter { reference.storeID != "0" && !reference.storeID.isEmpty && identity($0).ids.contains(reference.storeID) }
+      if !exact.isEmpty { accepted.formUnion(exact.map(\.id)) }
+      else if matches.count == 1 { accepted.insert(matches[0].id) }
+    }
+    return candidates.filter { accepted.contains($0.id) }
   }
   static func recover<Item: Identifiable & Sendable>(
     references: [LibraryTrackReference], available: [Item],
@@ -149,7 +173,7 @@ enum LibrarySongRecovery {
         do {
           let found = try await albumTracks(group.album)
           try Task.checkCancellation(); albumReads += 1
-          items = merging(items, found, identity: identity)
+          items = merging(items, verified(found, references: outstanding, identity: identity), identity: identity)
         } catch { if Task.isCancelled || error is CancellationError { throw CancellationError() }; failedReads += 1 }
       }
       guard groups(missing(references, in: items, identity: identity)).contains(where: {
@@ -158,7 +182,7 @@ enum LibrarySongRecovery {
       do {
         let found = try await search(group.term)
         try Task.checkCancellation(); searches += 1
-        items = merging(items, found, identity: identity)
+        items = merging(items, verified(found, references: missing(references, in: items, identity: identity), identity: identity), identity: identity)
       } catch { if Task.isCancelled || error is CancellationError { throw CancellationError() }; failedReads += 1 }
     }
     let ids = MediaCatalogBridge.catalogIDs(missing(references, in: items, identity: identity).map(\.storeID))
@@ -173,5 +197,17 @@ enum LibrarySongRecovery {
     }
     return .init(items: items, unresolved: missing(references, in: items, identity: identity).count,
       albumReads: albumReads, searches: searches, catalogRequested: ids.count, failedReads: failedReads)
+  }
+}
+
+enum ArtistLibraryPolicy {
+  /// A completed cloud artist collection is the authoritative account snapshot.
+  /// Local IDs and cloud IDs are different namespaces, so concatenation doubles
+  /// rows. Do not infer artist identity from a matching name.
+  static func reconcile<Item: Identifiable & Sendable>(previous:[Item], local:LibraryRead<Item>, cloud:LibraryRead<Item>, previousState:LibrarySectionState) -> (items:[Item],state:LibrarySectionState) where Item.ID:Hashable {
+    if case .success(let values) = cloud, !values.isEmpty {
+      return LibrarySyncPolicy.reconcile(previous:[],local:.success([]),cloud:.success(values),previousState:previousState)
+    }
+    return LibrarySyncPolicy.reconcile(previous:previous,local:local,cloud:cloud,previousState:previousState)
   }
 }

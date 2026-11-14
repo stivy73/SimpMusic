@@ -808,3 +808,27 @@ modificati ruoli o aggiunti altri gruppi, né toccata l'app YouTube Music.
 Lo stato INSTALLED del tester riguarda l'app e non prova l'installazione della
 build 15. Il recupero della libreria reale resta da verificare su iPhone.
 Ricevuta aggiornata: verification/testflight-0.1.0-15.json.
+
+
+## Filtri Home, copertine e recupero libreria — beta 16
+
+151 test riusciti, zero errori: selezioni rapide e risposte fuori ordine,
+ritorno a Tutto, refresh/riprova e cursori precedenti; identità e namespace
+esatti per le cover, risposte HTTP/malformate e URL Apple; errori metadati non
+nascosti da un fallback vuoto; esclusione dei risultati estranei, ambigui e
+duplicati; elenco cloud artisti autorevole. Tre script di importazione --check
+riusciti. Debug iOS Simulator compilato.
+
+Device Hub / iPhone 18 Pro iOS 27.2, solo fixture DEBUG: barra e caroselli in
+verticale e orizzontale; selezione Relax e Concentrazione, Altro con sei righe,
+ritorno con selezione conservata, Tutto che ripristina le sezioni personali.
+Cover realmente scaricata da CDN Apple, sorgente rettangolare, riempie le
+schede quadrate e le miniature dell’elenco. Le playlist sintetiche verificano
+il layout e non i risultati del catalogo autenticato.
+
+Il recupero delle foto degli artisti e dei 14 brani richiede ancora verifica
+con l’account dell’utente su iPhone; non viene dichiarato risolto dai test delle
+fixture. Distribuzione richiesta esplicitamente al solo Stivy73, eccezione
+confermata alla regola generica dei gruppi della variante YouTube Music.
+Archivio, firma, sorgenti remote, upload, processing e assegnazione restano
+gate separati da registrare con le rispettive ricevute.

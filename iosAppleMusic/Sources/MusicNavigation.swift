@@ -75,11 +75,15 @@ struct MusicBrowseCell:View {
     Group {
       if grid {
         VStack(alignment:.leading,spacing:6) {
-          Cover(artwork:item.artwork).aspectRatio(1,contentMode:.fit).clipShape(RoundedRectangle(cornerRadius:14))
+          BrowseCover(item:item).aspectRatio(1,contentMode:.fit).clipShape(RoundedRectangle(cornerRadius:14))
           Text(item.title).font(.headline).lineLimit(2)
           Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }.frame(maxWidth:.infinity,alignment:.leading).contentShape(Rectangle())
-      } else {HStack {CoverRow(artwork:item.artwork,title:item.title,subtitle:item.subtitle);Spacer();Image(systemName:"chevron.right").foregroundStyle(.secondary)}.contentShape(Rectangle())}
+      } else {HStack {
+        BrowseCover(item:item).frame(width:48,height:48).clipShape(RoundedRectangle(cornerRadius:8))
+        VStack(alignment:.leading){Text(item.title).foregroundStyle(.primary).lineLimit(2);Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)}
+        Spacer();Image(systemName:"chevron.right").foregroundStyle(.secondary)
+      }.contentShape(Rectangle())}
     }.foregroundStyle(.primary)
   }
 }
