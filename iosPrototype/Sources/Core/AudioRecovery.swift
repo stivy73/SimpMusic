@@ -7,7 +7,9 @@ public struct AudioPlaybackTiming: Equatable, Sendable {
   public let container: Double
   public let audioEnd: Double
   public let duration: Double
-  public init(source: Double, container: Double, audioEnd: Double) {
+  public let isLive: Bool
+  public init(source: Double, container: Double, audioEnd: Double, isLive: Bool = false) {
+    self.isLive = isLive
     self.source = Self.valid(source) ?? 0
     self.container = Self.valid(container) ?? 0
     self.audioEnd = Self.valid(audioEnd) ?? 0
@@ -17,7 +19,7 @@ public struct AudioPlaybackTiming: Equatable, Sendable {
     if self.source > 0, end > self.source + max(2, self.source * 0.01) {
       end = self.source + 0.25
     }
-    duration = end
+    duration = isLive ? 0 : end
   }
   private static func valid(_ value: Double) -> Double? {
     value.isFinite && value > 0 ? value : nil
@@ -26,8 +28,9 @@ public struct AudioPlaybackTiming: Equatable, Sendable {
   /// duration/timeRange/segments. Its validated player response already identifies
   /// this exact video and its end; do not turn startup into a whole-song download.
   /// Local files and sources without a known end retain the precise timeline check.
-  public static func prepare(_ asset: AVURLAsset, source: Double = 0) async throws -> Self {
+  public static func prepare(_ asset: AVURLAsset, source: Double = 0, isLive: Bool = false) async throws -> Self {
     try Task.checkCancellation()
+    if isLive { return Self(source: 0, container: 0, audioEnd: 0, isLive: true) }
     if !asset.url.isFileURL, valid(source) != nil {
       return Self(source: source, container: 0, audioEnd: 0)
     }
@@ -45,6 +48,7 @@ public struct AudioPlaybackTiming: Equatable, Sendable {
     return Self(source: source, container: container, audioEnd: ends.max() ?? range.end.seconds)
   }
   public var diagnostic: String {
+    if isLive { return "diretta: durata non finita; nessuna scansione della fine all’avvio" }
     if source > 0, container == 0, audioEnd == 0 {
       return "sorgente \(Int(source)) s, fine \(Int(duration)) s; indice remoto non scandito all'avvio"
     }

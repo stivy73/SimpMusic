@@ -9,8 +9,12 @@ final class PrototypeUITests: XCTestCase {
     app.launch()
     selectTab("Impostazioni", symbol: "gearshape.fill", in: app)
     let open = app.buttons["open-cast-diagnostics"]
-    XCTAssertTrue(open.waitForExistence(timeout: 20))
-    if !open.isHittable { app.swipeUp() }
+    for _ in 0..<8 {
+      if open.exists && open.isHittable { break }
+      app.swipeUp()
+    }
+    XCTAssertTrue(open.waitForExistence(timeout: 10))
+    XCTAssertTrue(app.buttons["Diagnostica audio e voce"].exists)
     open.tap()
     let report = app.staticTexts["cast-diagnostic-report"]
     XCTAssertTrue(report.waitForExistence(timeout: 10))

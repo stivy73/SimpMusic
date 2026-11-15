@@ -170,7 +170,7 @@
             duration = source.duration
           }
           try Task.checkCancellation()
-          let timing = try await AudioPlaybackTiming.prepare(asset, source: duration)
+          let timing = try await AudioPlaybackTiming.prepare(asset, source: duration, isLive: resolvedSource?.isLive == true)
           duration = timing.duration
           let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
           if duration > 0 {
@@ -533,6 +533,7 @@
           }
           let asset: AVURLAsset
           var sourceDuration = 0.0
+          var sourceIsLive = false
           if let local = localFileProvider(videoId) {
             asset = AVURLAsset(url: local)
             #if DEBUG
@@ -581,6 +582,8 @@
             }
             durationSeconds = source.duration
             sourceDuration = source.duration
+            sourceIsLive = source.isLive
+            if source.isLive { initialSeek = nil }
             let token = UUID()
             activeRangeToken = token
             let loader = AudioRangeLoader(source: source, diagnostic: rangeDiagnostic(token: token))
@@ -595,7 +598,7 @@
           // which scans long fragmented files even without an explicit load(.duration).
           let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
           item.preferredForwardBufferDuration = 5
-          let timing = try await AudioPlaybackTiming.prepare(asset, source: sourceDuration)
+          let timing = try await AudioPlaybackTiming.prepare(asset, source: sourceDuration, isLive: sourceIsLive)
           try Task.checkCancellation()
           guard intent.revision == expected, assetRevision == generation else { return }
           timingDiagnostic = timing.diagnostic
@@ -621,7 +624,7 @@
                 self.isLoading = false
                 if timing.duration > 0 {
                   self.durationSeconds = timing.duration
-                } else if duration.isFinite, duration > 0 {
+                } else if !timing.isLive, duration.isFinite, duration > 0 {
                   self.durationSeconds = duration
                 }
                 if self.initialSeek != nil {

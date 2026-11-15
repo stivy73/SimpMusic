@@ -4,6 +4,15 @@ import XCTest
 @testable import PrototypeCore
 
 final class AudioRecoveryTests: XCTestCase {
+  func testLivePreparationDoesNotRequestDurationOrTracks() async throws {
+    // An unreadable asset fails any timeline access. A live source must bypass it.
+    let asset = AVURLAsset(url: URL(string: "notenarrate-audio://unavailable/live.m3u8")!)
+    let timing = try await AudioPlaybackTiming.prepare(asset, isLive: true)
+    XCTAssertTrue(timing.isLive)
+    XCTAssertEqual(timing.duration, 0)
+    XCTAssertTrue(timing.diagnostic.contains("diretta"))
+  }
+
   func testRemoteStartupUsesValidatedEndWithoutReadingTheEntireAsset() async throws {
     // No resource-loader delegate: any metadata access would fail. A validated
     // source must be sufficient even for a one-hour fragmented remote file.

@@ -1136,12 +1136,6 @@ struct SettingsView: View {
         }
         if let error = library.error { Text(error).font(.caption).foregroundStyle(.orange) }
       }
-      #if os(iOS)
-        Section("Chromecast") {
-          NavigationLink("Diagnostica Chromecast") { CastDiagnosticsScreen(player: model.player) }
-            .accessibilityIdentifier("open-cast-diagnostics")
-        }
-      #endif
       Section("Riproduzione") {
         #if os(iOS)
           Button("Sessione in auto", systemImage: "person.2.fill") {
@@ -1187,7 +1181,11 @@ struct SettingsView: View {
           }
         }
       }
-      Section {
+      Section("Diagnostica") {
+        #if os(iOS)
+          NavigationLink("Diagnostica Chromecast") { CastDiagnosticsScreen(player: model.player) }
+            .accessibilityIdentifier("open-cast-diagnostics")
+        #endif
         DisclosureGroup("Diagnostica audio e voce") {
           Text(diagnostics).font(.caption).textSelection(.enabled)
           ShareLink(item: diagnostics) {
@@ -1231,6 +1229,7 @@ struct SettingsView: View {
         + "\nRete attuale: " + AudioPreferences.shared.networkDiagnostic
         + "\n\nDettaglio narrazione:\n" + model.narrationReport
         + "\n\nDettaglio risoluzione audio:\n" + model.player.audioResolutionReport
+        + "\n\nDettaglio Chromecast:\n" + model.player.cast.diagnosticReport
     #else
       "Voce: " + model.narrationDiagnostic
     #endif
