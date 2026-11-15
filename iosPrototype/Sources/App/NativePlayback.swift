@@ -568,7 +568,7 @@
             recordPreparation("sorgente verificata")
             if source.isHLS {
               networkDiagnostic = (source.authenticated ? "Flusso account HLS" : "Flusso pubblico HLS")
-                + "; segmenti iniziale, oltre il minuto e finale verificati"
+                + (source.isLive ? "; diretta, segmento corrente verificato" : "; segmenti iniziale, oltre il minuto e finale verificati")
             } else {
               networkDiagnostic =
                 source.authenticated

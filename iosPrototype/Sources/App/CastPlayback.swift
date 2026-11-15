@@ -43,6 +43,14 @@
         + "\nComandi Chromecast: \(CastControlDiagnostics.latest)"
         + "\nNarrazione attiva: \(AppleAppSession.shared.music.reading)"
         + "\niOS: \(UIDevice.current.systemVersion)\nRete: \(AudioPreferences.shared.networkDiagnostic)"
+        + "\n\nCoda Chromecast:\n" + queueEvents.joined(separator: "\n")
+    }
+    private var queueEvents: [String] = []
+    private var lastReceiverState: Int?
+    private func recordQueue(_ event: String) {
+      let state = UIApplication.shared.applicationState == .active ? "attiva" : "background"
+      queueEvents.append(Date().formatted(date: .omitted, time: .standard) + " · app " + state + " · " + event)
+      if queueEvents.count > 24 { queueEvents.removeFirst(queueEvents.count - 24) }
     }
     private var resumeOnAirPlay = false
     private var revision = UUID()
@@ -83,10 +91,11 @@
         .receive(on: DispatchQueue.main).sink { [weak self] notification in
           MainActor.assumeIsolated {
             if notification.name == UIApplication.didBecomeActiveNotification {
+              self?.recordQueue("ritorno in primo piano")
               self?.startVolumeObservation()
               self?.lockScreen.refresh()
               self?.update()
-            } else { self?.stopVolumeObservation() }
+            } else { self?.recordQueue("uscita dal primo piano"); self?.stopVolumeObservation() }
           }
         }
       timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect().sink {
@@ -97,6 +106,7 @@
     }
     func load(id: String, position: Double, accountOnly: Bool) {
       guard let player else { return }
+      recordQueue("richiesto caricamento brano")
       task?.cancel()
       relay.stop()
       revision = UUID()
@@ -148,6 +158,7 @@
           load.mediaInformation = media.build()
           load.startTime = position
           load.autoplay = NSNumber(value: self.wantsPlayback)
+          self.recordQueue("LOAD inviato al ricevitore")
           client.loadMedia(with: load.build())
           self.loadedURL = url.absoluteString
           self.loaded = true
@@ -276,6 +287,10 @@
         (status.mediaInformation?.contentURL?.absoluteString ?? status.mediaInformation?.contentID)
           == loadedURL
       else { return }
+      if lastReceiverState != status.playerState.rawValue {
+        lastReceiverState = status.playerState.rawValue
+        recordQueue("stato ricevitore \(status.playerState.rawValue), motivo fine \(status.idleReason.rawValue)")
+      }
       player.elapsed = max(0, client.approximateStreamPosition())
       let remoteDuration = status.mediaInformation?.streamDuration ?? 0
       player.durationSeconds =
@@ -297,6 +312,7 @@
         loaded = false
         client.stop()
         relay.stop()
+        recordQueue("durata raggiunta: richiesto avanzamento coda")
         player.onEnded?()
         return
       }
@@ -311,6 +327,7 @@
         if status.idleReason == .finished {
           loaded = false
           relay.stop()
+          recordQueue("fine ricevitore: richiesto avanzamento coda")
           player.onEnded?()
         } else if status.idleReason == .error {
           loaded = false

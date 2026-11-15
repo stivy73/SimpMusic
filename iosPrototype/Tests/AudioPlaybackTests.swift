@@ -439,6 +439,68 @@ final class AudioPlaybackTests: XCTestCase {
     XCTAssertEqual(result.url.lastPathComponent, "media.m3u8")
     XCTAssertEqual(calls.count(60), 1)
   }
+  func testLiveHLSValidatesCurrentWindowWithoutEndList() async throws {
+    RangeStub.handler = { request in
+      if request.url!.lastPathComponent == "master.m3u8" {
+        return (200, [:], Data("#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:4321\n#EXTINF:6,\ncurrent.ts\n#EXTINF:6,\nnewest.ts\n".utf8))
+      }
+      guard request.url!.lastPathComponent == "current.ts" else { return (403, [:], Data()) }
+      return (206, [:], Data(repeating: 1, count: 1024))
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let source = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(hls: true, seconds: 0), userAgent: "Test", authenticated: false, quality: .high)
+    XCTAssertTrue(source.isHLS)
+    XCTAssertTrue(source.isLive)
+    XCTAssertEqual(source.duration, 0)
+  }
+
+  func testOneKiBAACInitializationIsNeverAcceptedAsCompleteAudio() async throws {
+    RangeStub.handler = { _ in
+      (206, ["Content-Range": "bytes 0-1023/1024"], Data(repeating: 0, count: 1024))
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    for seconds in [0, 180] {
+      do {
+        _ = try await YouTubeAudio(transport: transport).source(
+          video: validationVideo(seconds: seconds), userAgent: "Test", authenticated: true, quality: .high)
+        XCTFail("An initialization fragment cannot be a complete song")
+      } catch is AudioPlaybackError {}
+    }
+  }
+
+  func testFailedLiveHLSDoesNotFallBackToOneKiBAAC() async throws {
+    RangeStub.handler = { request in
+      if request.url!.lastPathComponent == "master.m3u8" { return (403, [:], Data()) }
+      return (206, ["Content-Range": "bytes 0-1023/1024"], Data(repeating: 0, count: 1024))
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    do {
+      _ = try await YouTubeAudio(transport: transport).source(
+        video: validationVideo(hls: true, seconds: 0), userAgent: "Test", authenticated: true, quality: .high)
+      XCTFail("A blocked live source must not select a fake complete AAC file")
+    } catch is AudioPlaybackError {}
+  }
+
+  func testIncompleteFiniteHLSIsNotMistakenForLive() async throws {
+    RangeStub.handler = { request in
+      if request.url!.lastPathComponent == "master.m3u8" {
+        return (200, [:], Data("#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\ncurrent.ts\n".utf8))
+      }
+      return (403, [:], Data())
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    do {
+      _ = try await YouTubeAudio(transport: transport).source(
+        video: validationVideo(hls: true, seconds: 180), userAgent: "Test", authenticated: false, quality: .high)
+      XCTFail("An incomplete finite track must not become live")
+    } catch is AudioPlaybackError {}
+  }
+
   func testManifestSuccessDoesNotHideSegment403() async throws {
     RangeStub.handler = { request in
       switch request.url!.lastPathComponent {
