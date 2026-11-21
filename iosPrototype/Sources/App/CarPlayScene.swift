@@ -1,6 +1,7 @@
 #if os(iOS)
   import CarPlay
   import Combine
+  import MediaPlayer
   import UIKit
   @preconcurrency import Intents
 
@@ -1475,7 +1476,8 @@
         identifier: VoiceMediaIdentifier(kind: item.kind, mediaID: item.mediaId).encoded,
         title: item.title,
         type: item.kind == .album ? .album : item.kind == .artist ? .artist : .song,
-        artwork: item.artwork.flatMap { INImage(url: $0) }, artist: item.subtitle)
+        artwork: item.artwork.flatMap { INImage(url: $0) },
+        artist: item.kind == .artist ? item.title : item.subtitle)
     }
 
     func resolveMediaItems(for intent: INPlayMediaIntent) async
@@ -1484,7 +1486,14 @@
       if let items = intent.mediaItems, !items.isEmpty,
         items.allSatisfy({ VoiceMediaIdentifier(encoded: $0.identifier ?? "") != nil })
       {
-        return INPlayMediaMediaItemResolutionResult.successes(with: items)
+        let corrected = items.map { item in
+          guard let identifier = VoiceMediaIdentifier(encoded: item.identifier ?? ""),
+            identifier.kind == .artist, let title = item.title, !title.isEmpty, item.artist != title
+          else { return item }
+          return INMediaItem(identifier: item.identifier, title: title, type: .artist,
+            artwork: item.artwork, artist: title)
+        }
+        return INPlayMediaMediaItemResolutionResult.successes(with: corrected)
       }
       guard let voice = request(intent.mediaSearch, fallback: intent.mediaItems?.first?.title)
       else {
@@ -1515,10 +1524,19 @@
       } catch { return INSearchForMediaIntentResponse(code: .failure, userActivity: nil) }
     }
 
+    private func playbackResponse(for song: Song) -> INPlayMediaIntentResponse {
+      let response = INPlayMediaIntentResponse(code: .success, userActivity: nil)
+      response.nowPlayingInfo = [
+        MPMediaItemPropertyTitle: song.title,
+        MPMediaItemPropertyArtist: song.artist
+      ]
+      return response
+    }
+
     func handle(intent: INPlayMediaIntent) async -> INPlayMediaIntentResponse {
-      if intent.resumePlayback == true, app.music.current != nil {
+      if intent.resumePlayback == true, let current = app.music.current {
         app.music.player.play()
-        return INPlayMediaIntentResponse(code: .success, userActivity: nil)
+        return playbackResponse(for: current)
       }
       let voice = request(intent.mediaSearch, fallback: intent.mediaItems?.first?.title)
       if let voice { app.music.carPlayVoiceQuery = voice }
@@ -1568,7 +1586,7 @@
         }
         app.music.play(first, queue: songs)
         app.music.showPlayer = false
-        return INPlayMediaIntentResponse(code: .success, userActivity: nil)
+        return playbackResponse(for: first)
       } catch { return INPlayMediaIntentResponse(code: .failure, userActivity: nil) }
     }
   }
