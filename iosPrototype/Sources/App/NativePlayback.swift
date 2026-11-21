@@ -163,7 +163,7 @@
           }
           #if DEBUG
             if let local, ProcessInfo.processInfo.arguments.contains("--test-warm-playlist-fallback") {
-              source = .invalidPlaylistFixture(originalFile: local)
+              source = .invalidPlaylistFixture(originalFile: local.url)
             }
           #endif
           let verifiedAt = Date()
@@ -177,12 +177,12 @@
               try await loader.prepare()
               asset = loader.asset()
             } else if let local {
-              asset = AVURLAsset(url: local)
+              asset = AVURLAsset(url: local.url)
             } else {
               throw AudioPlaybackError.unavailable
             }
             let timing = try await AudioPlaybackTiming.prepare(asset, source: source?.duration ?? 0,
-              isLive: source?.isLive == true)
+              isLive: source?.isLive == true, validatedLocalDuration: source == nil ? local?.duration : nil)
             let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
             if timing.duration > 0 {
               item.forwardPlaybackEndTime = CMTime(seconds: timing.duration, preferredTimescale: 600)
@@ -436,7 +436,7 @@
       return true
     }
     var onEnded: (() -> Void)?
-    var localFileProvider: @MainActor (String) -> URL? = { _ in nil }
+    var localFileProvider: @MainActor (String) -> (url: URL, duration: Double?)? = { _ in nil }
     var accountProvider: @MainActor () -> YouTubeSession? = { nil }
     var accountRevisionProvider: @MainActor () -> UUID? = { nil }
     private let defaultAccountRevision = UUID()
@@ -646,11 +646,16 @@
           let asset: AVURLAsset
           var sourceDuration = 0.0
           var sourceIsLive = false
+          var validatedLocalDuration: Double?
           if let local = localFileProvider(videoId) {
-            asset = AVURLAsset(url: local)
+            asset = AVURLAsset(url: local.url)
+            validatedLocalDuration = local.duration
             #if DEBUG
               if ProcessInfo.processInfo.arguments.contains("--test-padded-audio-end"),
-                videoId == "local-1-padded" { sourceDuration = 6 }
+                videoId == "local-1-padded" {
+                sourceDuration = 6
+                validatedLocalDuration = nil
+              }
             #endif
             sourceDiagnostic = "File locale verificato"
             networkDiagnostic = "Riproduzione offline, nessuna richiesta CDN"
@@ -720,7 +725,8 @@
           // which scans long fragmented files even without an explicit load(.duration).
           let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
           item.preferredForwardBufferDuration = 5
-          let timing = try await AudioPlaybackTiming.prepare(asset, source: sourceDuration, isLive: sourceIsLive)
+          let timing = try await AudioPlaybackTiming.prepare(asset, source: sourceDuration,
+            isLive: sourceIsLive, validatedLocalDuration: validatedLocalDuration)
           try Task.checkCancellation()
           guard intent.revision == expected, assetRevision == generation else { return }
           timingDiagnostic = timing.diagnostic

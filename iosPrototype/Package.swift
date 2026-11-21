@@ -11,7 +11,8 @@ let package = Package(
   targets: [
     .target(name: "PrototypeCore", dependencies: ["YouTubeSDK"], path: "Sources/Core"),
     .testTarget(
-      name: "PrototypeCoreTests", dependencies: ["PrototypeCore", "YouTubeSDK"], path: "Tests"),
+      name: "PrototypeCoreTests", dependencies: ["PrototypeCore", "YouTubeSDK"], path: "Tests",
+      resources: [.copy("Fixtures/four-seconds-fragmented.m4a")]),
     .executableTarget(
       name: "NetworkProbe", dependencies: ["YouTubeSDK", "PrototypeCore"], path: "Probe"),
   ]

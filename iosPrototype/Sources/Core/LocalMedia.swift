@@ -37,6 +37,7 @@ public struct OfflineRecord: Identifiable, Codable, Sendable {
   public var bytes: Int64 = 0
   public var expectedBytes: Int64?
   public var expectedDuration: Double?
+  public var playableDuration: Double?
   public var error: String?
   public var fileName: String?
   public var added = Date()
@@ -90,26 +91,37 @@ public enum OfflineValidation {
     guard reader.canAdd(output) else { throw OfflineError.incomplete }
     reader.add(output)
     guard reader.startReading() else { throw OfflineError.incomplete }
+    var first = Double.infinity
     var last = 0.0
+    var audioSeconds = 0.0
     while let sample = output.copyNextSampleBuffer() {
       if Task.isCancelled {
         reader.cancelReading()
         throw CancellationError()
       }
-      let end =
-        CMSampleBufferGetPresentationTimeStamp(sample).seconds
-        + CMSampleBufferGetDuration(sample).seconds
-      if end.isFinite { last = max(last, end) }
+      // Fragmented AAC may end with an empty marker far beyond the music.
+      guard CMSampleBufferGetNumSamples(sample) > 0,
+        CMSampleBufferGetTotalSampleSize(sample) > 0 else { continue }
+      let start = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+      let seconds = CMSampleBufferGetDuration(sample).seconds
+      guard start.isFinite, seconds.isFinite, seconds > 0 else { continue }
+      first = min(first, start)
+      last = max(last, start + seconds)
+      audioSeconds += seconds
     }
-    guard reader.status == .completed, last >= duration - 0.25 else {
-      throw OfflineError.incomplete
+    guard reader.status == .completed, last > 0 else { throw OfflineError.incomplete }
+    let expected = expectedDuration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+    if last >= duration - 0.25 {
+      if let expected, abs(duration - expected) > max(1, expected * 0.02) {
+        throw OfflineError.incomplete
+      }
+      return duration
     }
-    if let expectedDuration, expectedDuration.isFinite, expectedDuration > 0,
-      abs(duration - expectedDuration) > max(1, expectedDuration * 0.02)
-    {
-      throw OfflineError.incomplete
-    }
-    return duration
+    // Accept a padded timeline only when the known song length and the
+    // compressed audio agree independently, including the actual end.
+    guard let expected, abs(first) <= 0.25, abs(last - expected) <= 1,
+      abs(audioSeconds - last) <= 0.25 else { throw OfflineError.incomplete }
+    return last
   }
 }
 
@@ -142,11 +154,15 @@ public final class OfflineLibrary: ObservableObject {
   public var ready: [OfflineRecord] { records.filter { $0.state == .ready } }
   public var totalBytes: Int64 { ready.reduce(0) { $0 + $1.bytes } }
   public func url(for id: String) -> URL? {
+    file(for: id)?.url
+  }
+  public func file(for id: String) -> (url: URL, duration: Double?)? {
     guard let record = records.first(where: { $0.id == id && $0.state == .ready }),
       let name = record.fileName, name == URL(fileURLWithPath: name).lastPathComponent
     else { return nil }
     let url = directory.appendingPathComponent(name)
-    return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+    return (url, record.playableDuration)
   }
   public func begin(_ track: PlaybackTrack) {
     if let index = records.firstIndex(where: { $0.id == track.id }) {
@@ -199,7 +215,7 @@ public final class OfflineLibrary: ObservableObject {
     try OfflineValidation.byteCount(
       actual: actual, expected: record.expectedBytes, status: status, contentRange: contentRange)
     if let maxBytes, maxBytes < actual || totalBytes > maxBytes - actual { throw OfflineError.storage }
-    _ = try await OfflineValidation.playableFile(
+    let playableDuration = try await OfflineValidation.playableFile(
       temporary, expectedDuration: record.expectedDuration ?? record.track.durationSeconds)
     try Task.checkCancellation()
     guard let index = records.firstIndex(where: { $0.id == id }), records[index].state == .verifying
@@ -218,6 +234,7 @@ public final class OfflineLibrary: ObservableObject {
     try? saved.setResourceValues(excluded)
     var committed = records
     committed[index].fileName = name
+    committed[index].playableDuration = playableDuration
     committed[index].bytes = actual
     committed[index].state = .ready
     committed[index].progress = 1

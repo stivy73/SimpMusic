@@ -17,7 +17,7 @@ import YouTubeSDK
     @Published var playing = false
     @Published var volume = 100.0
     var onEnded: (() -> Void)?
-    var localFileProvider: @MainActor (String) -> URL? = { _ in nil }
+    var localFileProvider: @MainActor (String) -> (url: URL, duration: Double?)? = { _ in nil }
     var wantsPlayback = false
     private(set) var controlRevision = UUID()
     weak var webView: WKWebView?
@@ -457,7 +457,7 @@ final class MusicModel: NSObject, ObservableObject {
 
   override init() {
     super.init()
-    player.localFileProvider = { [weak downloads] id in downloads?.library.url(for: id) }
+    player.localFileProvider = { [weak downloads] id in downloads?.library.file(for: id) }
     downloadSubscription = downloads.objectWillChange.sink { [weak self] _ in
       self?.objectWillChange.send()
     }

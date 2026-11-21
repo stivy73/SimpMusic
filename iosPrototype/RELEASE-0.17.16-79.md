@@ -13,3 +13,7 @@ tra brani, la ripresa dalla posizione salvata, l’aggiornamento dal 37% al 72%
 nel player e il completamento del download in background. Sul Mac, a server spento
 e dopo la riapertura della libreria, il player ha riprodotto gli ultimi cinque
 secondi di un AAC di prova lungo 1:03:59.
+
+La successiva prova sul download completo di *Oceanic Delta Waves* ha rivelato
+un falso errore di file incompleto. Apple ha validato la build 79 ed è rimasta
+senza gruppi di test assegnati. La correzione è nella build 80.

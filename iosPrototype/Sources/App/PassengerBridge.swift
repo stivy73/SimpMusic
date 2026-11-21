@@ -105,7 +105,7 @@
           guard await wait({ music.current != nil }) else { return "FAIL local fixture" }
           try LocalPlaybackFixture.audio(audio, seconds: 20)
           music.player.localFileProvider = { id in
-            ["abcdefghijk", "lmnopqrstuv"].contains(id) ? audio : originalProvider(id)
+            ["abcdefghijk", "lmnopqrstuv"].contains(id) ? (audio, nil) : originalProvider(id)
           }
           let tracks = [
             PassengerTrack(id: "abcdefghijk", title: "Dal passeggero 1", artist: "Prova",

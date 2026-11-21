@@ -129,9 +129,17 @@
             ? try await YouTubeAudio().resolve(
               videoID: id, session: player.accountProvider(),
               quality: AudioPreferences.shared.currentQuality, accountOnly: accountOnly) : nil
+          let duration: Double
+          if let local {
+            let timing = try await AudioPlaybackTiming.prepare(AVURLAsset(url: local.url),
+              validatedLocalDuration: local.duration)
+            duration = timing.duration
+          } else {
+            duration = source?.duration ?? 0
+          }
           try Task.checkCancellation()
           guard self.revision == expected, self.connected else { return }
-          let url = try await self.relay.start(source: source, file: local)
+          let url = try await self.relay.start(source: source, file: local?.url)
           try Task.checkCancellation()
           guard self.revision == expected, let client = self.client else { return }
           let song = AppleAppSession.shared.music.current
@@ -146,12 +154,7 @@
           media.contentID = url.absoluteString
           media.contentType = "audio/mp4"
           media.streamType = .buffered
-          if let local {
-            let duration = try await AVURLAsset(url: local).load(.duration).seconds
-            cutoff = duration.isFinite ? max(0, duration) : 0
-          } else {
-            cutoff = source?.duration ?? 0
-          }
+          cutoff = duration
           media.metadata = metadata
           media.streamDuration = cutoff
           let load = GCKMediaLoadRequestDataBuilder()
