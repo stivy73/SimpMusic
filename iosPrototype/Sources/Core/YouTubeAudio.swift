@@ -1,4 +1,5 @@
 import Foundation
+import os
 import YouTubeSDK
 
 /// Uploaded music can use Google's c.youtube.com media CDN, not just googlevideo.
@@ -146,6 +147,20 @@ public struct YouTubeAudio: Sendable {
     public fileprivate(set) var accountDiagnostic: String
     public fileprivate(set) var resolutionReport: String
     fileprivate(set) var initialBlock: Data?
+    fileprivate(set) var vodPlaylist: Data?
+    var withoutPlaylist: Self {
+      var copy = self
+      copy.vodPlaylist = nil
+      return copy
+    }
+    #if DEBUG
+      static func invalidPlaylistFixture(originalFile: URL) -> Self {
+        var source = Self(url: originalFile, duration: 30, userAgent: "NoteNarrate UITest",
+          byteCount: nil, isHLS: true, authenticated: false)
+        source.vodPlaylist = Data("Invalid playlist".utf8)
+        return source
+      }
+    #endif
     public init(
       url: URL, duration: Double, userAgent: String, byteCount: Int64?, isHLS: Bool,
       isLive: Bool = false, authenticated: Bool = false, accountDiagnostic: String = "", resolutionReport: String = ""
@@ -346,12 +361,18 @@ public struct YouTubeAudio: Sendable {
       do {
         if url == video.hlsURL {
           let playlist = try await validateHLS(url: url, userAgent: userAgent, transport: transport,
-            allowLive: (Double(video.lengthInSeconds) ?? 0) == 0, diagnostic: record)
+            allowLive: (Double(video.lengthInSeconds) ?? 0) == 0,
+            retainPlaylist: longStream && preloadFirstBlock && !preferHLS, diagnostic: record)
           guard !excluding.contains(playlist.url) else { continue }
-          return Source(
+          var source = Source(
             url: playlist.url, duration: Double(video.lengthInSeconds) ?? 0,
             userAgent: userAgent, byteCount: nil, isHLS: true, isLive: playlist.live, authenticated: authenticated,
             accountDiagnostic: authenticated ? "Account: segmenti HLS verificati" : "")
+          source.vodPlaylist = playlist.snapshot
+          if let snapshot = playlist.snapshot {
+            record("HLS playlist verificata in memoria: " + String(snapshot.count) + " byte")
+          }
+          return source
         }
         let length = try await validateRange(
           url: url, userAgent: userAgent, transport: transport, first: 0, last: 1023,
@@ -405,6 +426,12 @@ public struct YouTubeAudio: Sendable {
           authenticated: authenticated,
           accountDiagnostic: authenticated ? "Account: inizio, oltre 1 MiB e fine verificati" : "")
         selected.initialBlock = initialBlock
+        if longStream, !preferHLS, let initialBlock,
+          let playlist = IndexedAACPlaylist.make(prefix: initialBlock, url: url, length: length,
+            duration: selected.duration) {
+          selected.vodPlaylist = playlist
+          record("AAC: indice dei frammenti pronto nel primo blocco; avvio per segmenti")
+        }
         return selected
       } catch is CancellationError { throw CancellationError() } catch {
         try Task.checkCancellation()
@@ -454,8 +481,9 @@ public struct YouTubeAudio: Sendable {
   /// post-minute and final segment, keeping all requests on Google's media hosts.
   private func validateHLS(
     url: URL, userAgent: String, transport: URLSession, depth: Int = 0, allowLive: Bool = false,
+    retainPlaylist: Bool = false,
     diagnostic: (@Sendable (String) -> Void)? = nil
-  ) async throws -> (url: URL, live: Bool) {
+  ) async throws -> (url: URL, live: Bool, snapshot: Data?) {
     guard depth < 3 else { throw AudioPlaybackError.unavailable }
     diagnostic?("HLS manifest depth=\(depth)")
     // A one-hour playlist can exceed 512 KiB because every segment has a signed
@@ -491,6 +519,7 @@ public struct YouTubeAudio: Sendable {
       else { throw AudioPlaybackError.unavailable }
       return try await validateHLS(
         url: child, userAgent: userAgent, transport: transport, depth: depth + 1, allowLive: allowLive,
+        retainPlaylist: retainPlaylist,
         diagnostic: diagnostic)
     }
     var segments: [(url: URL, start: Double)] = []
@@ -530,7 +559,27 @@ public struct YouTubeAudio: Sendable {
       }
       for try await _ in group {}
     }
-    return (url, live)
+    // Only a static playlist whose references are independent of its base URL
+    // can be served verbatim under an in-memory URL. Other HLS uses normal HTTPS.
+    let snapshot = retainPlaylist && !live && lines.allSatisfy(Self.isStandalonePlaylistLine) ? data : nil
+    return (url, live, snapshot)
+  }
+
+  private static func isStandalonePlaylistLine(_ line: String) -> Bool {
+    guard !line.isEmpty else { return true }
+    if !line.hasPrefix("#") {
+      return line.hasPrefix("https://") && URL(string: line).map(YouTubeMediaURL.allows) == true
+    }
+    guard line.hasPrefix("#EXT") else { return true }
+    switch line.prefix(while: { $0 != ":" }) {
+    case "#EXTM3U", "#EXTINF", "#EXT-X-ENDLIST", "#EXT-X-VERSION",
+      "#EXT-X-PLAYLIST-TYPE", "#EXT-X-TARGETDURATION", "#EXT-X-MEDIA-SEQUENCE",
+      "#EXT-X-INDEPENDENT-SEGMENTS", "#EXT-X-BYTERANGE", "#EXT-X-DISCONTINUITY",
+      "#EXT-X-DISCONTINUITY-SEQUENCE":
+      return true
+    default:
+      return false
+    }
   }
 
   /// HLS attribute lists allow commas inside quoted values (CODECS, names and URIs).
@@ -580,34 +629,91 @@ public struct YouTubeAudio: Sendable {
     request.cachePolicy = .reloadIgnoringLocalCacheData
     request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
     if range { request.setValue("bytes=0-1023", forHTTPHeaderField: "Range") }
-    let began = Date()
-    let (bytes, response) = try await transport.bytes(for: request)
-    defer { bytes.task.cancel() }
+    let activeTask = OSAllocatedUnfairLock<URLSessionDataTask?>(initialState: nil)
+    return try await withTaskCancellationHandler {
+      let body: Data = try await withCheckedThrowingContinuation { completion in
+        let task = transport.dataTask(with: request)
+        task.delegate = HLSBodyReader(url: url, limit: limit, sample: range,
+          diagnostic: diagnostic, completion: completion)
+        activeTask.withLock { current in
+          current = task
+          task.resume()
+          if Task.isCancelled { task.cancel() }
+        }
+      }
+      try Task.checkCancellation()
+      return body
+    } onCancel: {
+      activeTask.withLock { $0?.cancel() }
+    }
+  }
+}
+
+/// One reader per request. URLSession delivers the response, chunks and completion
+/// in order on its delegate queue. The cancellation handler only cancels the task.
+private final class HLSBodyReader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+  private let url: URL
+  private let limit: Int
+  private let sample: Bool
+  private let diagnostic: (@Sendable (String) -> Void)?
+  private let began = Date()
+  private var data = Data()
+  private var completion: CheckedContinuation<Data, Error>?
+
+  init(url: URL, limit: Int, sample: Bool, diagnostic: (@Sendable (String) -> Void)?,
+    completion: CheckedContinuation<Data, Error>) {
+    self.url = url
+    self.limit = limit
+    self.sample = sample
+    self.diagnostic = diagnostic
+    self.completion = completion
+  }
+
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+    completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
     if let http = response as? HTTPURLResponse {
       diagnostic?("headers " + AudioResolutionTrace.response(http, requested: url, bytes: 0,
         ms: Int(max(0, Date().timeIntervalSince(began) * 1000))))
     }
-    guard let http = response as? HTTPURLResponse,
-      [200, 206].contains(http.statusCode),
-      let final = http.url, Self.mediaURL(final.absoluteString, relativeTo: url) != nil
-    else { throw AudioPlaybackError.unavailable }
-    var data = Data()
-    for try await byte in bytes {
-      try Task.checkCancellation()
-      data.append(byte)
-      if data.count == limit {
-        guard range else {
-          diagnostic?("manifest size limit reached: \(limit) bytes")
-          throw AudioPlaybackError.unavailable
-        }
-        break
-      }
+    guard let http = response as? HTTPURLResponse, [200, 206].contains(http.statusCode),
+      let final = http.url, YouTubeMediaURL.allows(final)
+    else {
+      finish(.failure(AudioPlaybackError.unavailable))
+      completionHandler(.cancel)
+      return
     }
-    guard !data.isEmpty else { throw AudioPlaybackError.unavailable }
-    diagnostic?("sample bytes=\(data.count)")
-    return data
+    completionHandler(.allow)
   }
 
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive chunk: Data) {
+    guard completion != nil else { return }
+    let remaining = limit - data.count
+    if chunk.count < remaining {
+      data.append(chunk)
+      return
+    }
+    if sample {
+      data.append(chunk.prefix(remaining))
+      finish(.success(data))
+    } else {
+      diagnostic?("manifest size limit reached: \(limit) bytes")
+      finish(.failure(AudioPlaybackError.unavailable))
+    }
+    dataTask.cancel()
+  }
+
+  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    if let error { finish(.failure(error)) }
+    else if data.isEmpty { finish(.failure(AudioPlaybackError.unavailable)) }
+    else { finish(.success(data)) }
+  }
+
+  private func finish(_ result: Result<Data, Error>) {
+    guard let completion else { return }
+    self.completion = nil
+    if case .success(let bytes) = result { diagnostic?("sample bytes=\(bytes.count)") }
+    completion.resume(with: result)
+  }
 }
 
 /// Async loads and interruption callbacks must never resurrect a paused/changed track.

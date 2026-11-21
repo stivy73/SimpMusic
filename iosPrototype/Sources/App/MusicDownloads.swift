@@ -4,6 +4,7 @@ import Foundation
 /// Two user-initiated background transfers. Only validated complete files enter the offline collection.
 @MainActor
 final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
+  typealias Resolve = @Sendable (String, YouTubeSession?, AudioQuality, Bool) async throws -> YouTubeAudio.Source
   static let identifier = "com.stivy.simpmusic.prototype.music-downloads"
   let library: OfflineLibrary
   @Published var wifiOnly =
@@ -21,13 +22,15 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
   private var resolutions: [String: Task<Void, Never>] = [:]
   private var transfers: [String: URLSessionDownloadTask] = [:]
   private var verifications: [String: Task<Void, Never>] = [:]
+  private let resolve: Resolve
+  private let configuration: URLSessionConfiguration?
   private var restored = false
   private lazy var session: URLSession = {
     #if os(iOS)
-      let config = URLSessionConfiguration.background(withIdentifier: Self.identifier)
-      config.sessionSendsLaunchEvents = true
+      let config = configuration ?? .background(withIdentifier: Self.identifier)
+      if config.identifier != nil { config.sessionSendsLaunchEvents = true }
     #else
-      let config = URLSessionConfiguration.default
+      let config = configuration ?? .default
     #endif
     config.httpMaximumConnectionsPerHost = 2
     config.isDiscretionary = false
@@ -36,9 +39,14 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
   init(
     library: OfflineLibrary = OfflineLibrary(
       directory: ProcessInfo.processInfo.arguments.contains("--test-local-playback")
-        ? LocalFiles.directory("QAOffline") : LocalFiles.directory("Offline"))
+        ? LocalFiles.directory("QAOffline") : LocalFiles.directory("Offline")),
+    resolve: @escaping Resolve = { id, account, quality, accountOnly in
+      try await YouTubeAudio().resolve(videoID: id, session: account, quality: quality, accountOnly: accountOnly)
+    }, configuration: URLSessionConfiguration? = nil
   ) {
     self.library = library
+    self.resolve = resolve
+    self.configuration = configuration
     super.init()
     subscription = library.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
     #if DEBUG
@@ -54,10 +62,18 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
         session.getAllTasks { continuation.resume(returning: $0) }
       }
       for task in tasks {
-        if let id = task.taskDescription, let task = task as? URLSessionDownloadTask {
-          active.insert(id)
-          transfers[id] = task
+        guard let task = task as? URLSessionDownloadTask, let id = task.taskDescription,
+          task.state == .running || task.state == .suspended else { continue }
+        guard ownsTransfer(task, id: id) else {
+          // The user may have paused or removed it while the system was reconnecting.
+          task.cancel()
+          continue
         }
+        library.recordTransfer(id, received: task.countOfBytesReceived, responseLength: task.countOfBytesExpectedToReceive)
+      }
+      queued.removeAll { active.contains($0.0.id) || library.url(for: $0.0.id) != nil }
+      for (track, _) in queued where library.records.first(where: { $0.id == track.id })?.state != .preparing {
+        library.begin(track)
       }
       library.reconcile(active: active.union(queued.map { $0.0.id }))
       restored = true
@@ -68,8 +84,10 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
     guard library.url(for: track.id) == nil, !active.contains(track.id),
       !queued.contains(where: { $0.0.id == track.id })
     else { return }
-    library.begin(track)
     queued.append((track, account))
+    if !restored, let state = library.records.first(where: { $0.id == track.id })?.state,
+      state == .downloading || state == .verifying { return }
+    library.begin(track)
     pump()
   }
   private func pump() {
@@ -79,9 +97,7 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
       active.insert(track.id)
       resolutions[track.id] = Task {
         do {
-          let source = try await YouTubeAudio().resolve(
-            videoID: track.id, session: account, quality: AudioPreferences.shared.downloadQuality,
-            accountOnly: track.isUploaded == true)
+          let source = try await resolve(track.id, account, AudioPreferences.shared.downloadQuality, track.isUploaded == true)
           try Task.checkCancellation()
           guard active.contains(track.id) else { return }
           guard !source.isHLS else { throw OfflineError.unsupportedStream }
@@ -89,8 +105,8 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
             let free =
               (try? FileManager.default.attributesOfFileSystem(forPath: library.directory.path)[
                 .systemFreeSize] as? NSNumber)?.int64Value ?? Int64.max
-            guard bytes + library.totalBytes <= Int64(limitGB) * 1_073_741_824,
-              bytes + 50_000_000 < free
+            guard bytes > 0, bytes <= Int64(limitGB) * 1_073_741_824 - library.totalBytes,
+              free > 50_000_000, bytes < free - 50_000_000
             else { throw OfflineError.storage }
           }
           var request = URLRequest(url: source.url, timeoutInterval: 60)
@@ -119,6 +135,8 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
     }
   }
   func pause(_ id: String) {
+    guard let record = library.records.first(where: { $0.id == id }),
+      [.preparing, .downloading, .verifying].contains(record.state) else { return }
     queued.removeAll { $0.0.id == id }
     resolutions.removeValue(forKey: id)?.cancel()
     transfers.removeValue(forKey: id)?.cancel()
@@ -133,19 +151,33 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
       library.persistenceError = "Non riesco a rimuovere il file scaricato."
     }
   }
+  private func ownsTransfer(_ task: URLSessionDownloadTask, id: String) -> Bool {
+    if let current = transfers[id] { return current.taskIdentifier == task.taskIdentifier }
+    // A background callback can arrive before getAllTasks returns after relaunch.
+    guard !restored, library.records.contains(where: { $0.id == id && $0.state == .downloading })
+    else { return false }
+    active.insert(id)
+    transfers[id] = task
+    return true
+  }
+  private func endTransfer(_ id: String, taskID: Int) {
+    guard transfers[id]?.taskIdentifier == taskID else { return }
+    verifications[id] = nil
+    transfers[id] = nil
+    active.remove(id)
+    pump()
+  }
   nonisolated func urlSession(
     _ session: URLSession, downloadTask: URLSessionDownloadTask,
     didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
     totalBytesExpectedToWrite: Int64
   ) {
     guard let id = downloadTask.taskDescription else { return }
-    let taskID = downloadTask.taskIdentifier
-    let progress =
-      totalBytesExpectedToWrite > 0
-      ? Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) : 0
-    Task { @MainActor [weak self] in
-      guard let self, active.contains(id), transfers[id]?.taskIdentifier == taskID else { return }
-      library.update(id, state: .downloading, progress: progress)
+    // This session's serial delegate queue is OperationQueue.main. Process
+    // callbacks in order so a late progress event can't undo verification.
+    MainActor.assumeIsolated {
+      guard ownsTransfer(downloadTask, id: id) else { return }
+      library.recordTransfer(id, received: totalBytesWritten, responseLength: totalBytesExpectedToWrite)
     }
   }
   nonisolated func urlSession(
@@ -161,13 +193,15 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
     let status = response?.statusCode ?? 0
     let contentRange = response?.value(forHTTPHeaderField: "Content-Range")
     do { try FileManager.default.moveItem(at: location, to: staged) } catch {
-      Task { @MainActor [weak self] in
-        self?.library.update(id, state: .failed, error: "Impossibile conservare il file scaricato.")
+      MainActor.assumeIsolated {
+        guard ownsTransfer(downloadTask, id: id) else { return }
+        library.update(id, state: .failed, error: "Impossibile conservare il file scaricato.")
+        endTransfer(id, taskID: taskID)
       }
       return
     }
-    Task { @MainActor [weak self] in
-      guard let self, transfers[id]?.taskIdentifier == taskID,
+    MainActor.assumeIsolated {
+      guard ownsTransfer(downloadTask, id: id),
         library.records.contains(where: { $0.id == id && $0.state == .downloading })
       else {
         try? FileManager.default.removeItem(at: staged)
@@ -176,23 +210,14 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
       verifications[id] = Task {
         defer {
           try? FileManager.default.removeItem(at: staged)
-          verifications[id] = nil
-          if transfers[id]?.taskIdentifier == taskID {
-            active.remove(id)
-            transfers[id] = nil
-            pump()
-          }
+          endTransfer(id, taskID: taskID)
         }
         do {
-          let size = Int64(try staged.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
-          guard size + library.totalBytes <= Int64(limitGB) * 1_073_741_824 else {
-            throw OfflineError.storage
-          }
           try await library.finish(
             id, temporary: staged, status: status, contentRange: contentRange,
             maxBytes: Int64(limitGB) * 1_073_741_824)
         } catch {
-          if !Task.isCancelled {
+          if !Task.isCancelled, transfers[id]?.taskIdentifier == taskID {
             library.update(
               id, state: .failed,
               error: (error as? OfflineError)?.localizedDescription
@@ -206,18 +231,14 @@ final class MusicDownloads: NSObject, ObservableObject, URLSessionDownloadDelega
     _ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?
   ) {
     guard let id = task.taskDescription else { return }
-    let failed = error != nil
-    let taskID = task.taskIdentifier
-    Task { @MainActor [weak self] in
-      guard let self, transfers[id]?.taskIdentifier == taskID else { return }
-      guard failed else { return }
+    guard error != nil, let transfer = task as? URLSessionDownloadTask else { return }
+    MainActor.assumeIsolated {
+      guard ownsTransfer(transfer, id: id) else { return }
       if library.records.first(where: { $0.id == id })?.state == .downloading {
         library.update(
           id, state: .failed, error: "Download interrotto. Controlla la connessione e riprova.")
       }
-      active.remove(id)
-      transfers[id] = nil
-      pump()
+      endTransfer(id, taskID: task.taskIdentifier)
     }
   }
   nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {

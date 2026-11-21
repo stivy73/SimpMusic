@@ -1,5 +1,41 @@
 # Avvio audio — 21 novembre 2026
 
+## Brani lunghi con audio AAC frammentato
+
+Su iPhone, la build 78 ha verificato il file AAC di *Oceanic Delta Waves* da
+62.132.786 byte in 2,34 s su rete cellulare. AVPlayer è diventato pronto a
+23,09 s e la riproduzione è partita a 23,19 s. Il log registra anche tre
+timeout CDN; la build 78 non riportava gli offset di queste richieste.
+
+Per un brano di almeno 10 minuti, il player cerca l’indice dei frammenti
+nel primo blocco AAC già verificato. Per questo brano bastano i primi 5.411
+byte per individuare tutti i 385 frammenti. Se l’indice copre la durata e i
+byte dell’intero file, il player riceve una playlist in memoria e può chiedere
+al CDN il frammento desiderato. Se il formato non è riconosciuto usa il lettore
+AAC originale. Se l’apertura della playlist fallisce, può riprovare la stessa
+sorgente verificata finché il contesto e la scadenza lo consentono.
+
+Anche le playlist HLS statiche con indirizzi assoluti possono riutilizzare
+la copia già verificata. Aprire il player con un brano lungo ripristinato
+in pausa prepara in silenzio la posizione salvata.
+
+| Prova su Mac con AVFoundation e uscita muta | Percorso precedente | Nuovo player |
+| --- | ---: | ---: |
+| Stesso AAC pubblico del brano, avvio a freddo, mediana di 3 prove | 17,78 s | 1,08 s |
+| Dalla verifica di quel file al primo avanzamento, mediana di 3 prove | 17,20 s | 0,33 s |
+| Versione HLS dello stesso brano, avvio a freddo, mediana di 3 prove | 2,03 s | 1,56 s |
+
+Le misure partono dalla richiesta di riproduzione per ID ed escludono la ricerca.
+Nel confronto AAC il probe seleziona lo stesso formato pubblico senza account.
+Per misurare il lettore precedente apre la sorgente verificata senza la playlist in memoria.
+Una prova separata sullo stesso AAC ha verificato la ripresa a 22:08.
+Su una traccia sintetica di 3.839 s con rete limitata a 2 MiB/s per connessione
+e una latenza aggiuntiva di 60 ms per risposta, il vecchio player ha richiesto
+circa 63,1 MB prima dell’avvio. Il nuovo percorso ha richiesto 294 kB in tre GET.
+Il tempo sulla rete 5G dell’iPhone resta da misurare.
+
+## Preparazione del primo blocco e della coda nella build 78
+
 Nel player iPhone e CarPlay, il primo blocco AAC viene caricato in parallelo ai
 controlli oltre 1 MiB e in coda al file. Il player riceve i byte già verificati.
 Una risposta con un intervallo errato viene scartata.

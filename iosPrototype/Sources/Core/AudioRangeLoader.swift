@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import UniformTypeIdentifiers
 
 /// AVPlayer sometimes requests the whole signed file, which YouTube rejects with 403.
 /// Serve its byte requests with the same bounded ranges accepted by the CDN probe.
@@ -9,12 +10,17 @@ public final class AudioRangeLoader: NSObject, AVAssetResourceLoaderDelegate, @u
   private let queue = DispatchQueue(label: "NoteNarrate.AudioRanges")
   private let diagnostic: (@Sendable (String) -> Void)?
   private let buffer: AudioRangeBuffer
-  private let assetURL = URL(string: "notenarrate-audio://stream/\(UUID().uuidString)/audio.m4a")!
+  private let assetURL: URL
   // Accessed exclusively on queue, including cancellation and completion.
   private var requests: [ObjectIdentifier: Task<Void, Never>] = [:]
+  public var originalSourceForRetry: YouTubeAudio.Source? {
+    source.vodPlaylist == nil ? nil : source.withoutPlaylist
+  }
   public init(source: YouTubeAudio.Source, diagnostic: (@Sendable (String) -> Void)? = nil) {
     self.source = source
     self.diagnostic = diagnostic
+    let filename = source.vodPlaylist == nil ? "audio.m4a" : "playlist.m3u8"
+    assetURL = URL(string: "notenarrate-audio://stream/\(UUID().uuidString)/\(filename)")!
     buffer = AudioRangeBuffer(source: source, diagnostic: diagnostic)
   }
   deinit {
@@ -24,7 +30,7 @@ public final class AudioRangeLoader: NSObject, AVAssetResourceLoaderDelegate, @u
 
   /// Fill a small head start before AVPlayer starts consuming the custom asset.
   public func prepare() async throws {
-    guard !source.isHLS else { return }
+    guard !source.isHLS, source.vodPlaylist == nil else { return }
     _ = try await buffer.block(at: 0)
     await buffer.prefetch(after: 0)
   }
@@ -54,12 +60,13 @@ public final class AudioRangeLoader: NSObject, AVAssetResourceLoaderDelegate, @u
   }
 
   public func asset() -> AVURLAsset {
-    if source.isHLS {
-      return AVURLAsset(url: source.url, options: [AVURLAssetHTTPUserAgentKey: source.userAgent])
+    let options = [AVURLAssetHTTPUserAgentKey: source.userAgent]
+    if source.isHLS, source.vodPlaylist == nil {
+      return AVURLAsset(url: source.url, options: options)
     }
     // The original signed address stays private to this loader.
     // A shared URL lets AVFoundation reuse another song's duration/sample index.
-    let asset = AVURLAsset(url: assetURL)
+    let asset = AVURLAsset(url: assetURL, options: source.vodPlaylist == nil ? nil : options)
     asset.resourceLoader.setDelegate(self, queue: queue)
     return asset
   }
@@ -68,6 +75,11 @@ public final class AudioRangeLoader: NSObject, AVAssetResourceLoaderDelegate, @u
     _ resourceLoader: AVAssetResourceLoader,
     shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest
   ) -> Bool {
+    guard loadingRequest.request.url == assetURL else { return false }
+    if let playlist = source.vodPlaylist {
+      serve(playlist: playlist, to: loadingRequest)
+      return true
+    }
     guard let length = source.byteCount, length > 0 else {
       loadingRequest.finishLoading(with: AudioPlaybackError.unavailable)
       return false
@@ -125,6 +137,35 @@ public final class AudioRangeLoader: NSObject, AVAssetResourceLoaderDelegate, @u
       }
     }
     return true
+  }
+
+  private func serve(playlist: Data, to request: AVAssetResourceLoadingRequest) {
+    if let info = request.contentInformationRequest {
+      let type = UTType.m3uPlaylist.identifier
+      if let allowed = info.allowedContentTypes, !allowed.isEmpty, !allowed.contains(type) {
+        request.finishLoading(with: AudioPlaybackError.unavailable)
+        return
+      }
+      info.contentType = type
+      info.contentLength = Int64(playlist.count)
+      info.isByteRangeAccessSupported = true
+      info.isEntireLengthAvailableOnDemand = true
+    }
+    if let data = request.dataRequest {
+      let offset = max(data.currentOffset, data.requestedOffset)
+      guard offset >= 0, offset <= Int64(playlist.count),
+        data.requestedOffset >= 0, data.requestedLength >= 0 else {
+        request.finishLoading(with: AudioPlaybackError.unavailable)
+        return
+      }
+      let size = Int64(playlist.count)
+      let end = data.requestsAllDataToEndOfResource
+        ? size : data.requestedOffset + min(Int64(data.requestedLength), size - data.requestedOffset)
+      if end > offset {
+        data.respond(with: playlist.subdata(in: Int(offset)..<Int(end)))
+      }
+    }
+    request.finishLoading()
   }
   public func resourceLoader(
     _ resourceLoader: AVAssetResourceLoader,
@@ -282,7 +323,7 @@ actor AudioRangeBuffer {
         else { throw AudioPlaybackError.unavailable }
         return data
       } catch let error as URLError {
-        diagnostic?("CDN network error \(error.code.rawValue)")
+        diagnostic?("CDN network error \(error.code.rawValue), offset \(offset), tentativo \(attempt + 1)/3")
         try Task.checkCancellation()
         guard attempt < 2,
           [.timedOut, .networkConnectionLost, .notConnectedToInternet].contains(error.code)
@@ -291,5 +332,82 @@ actor AudioRangeBuffer {
       }
     }
     throw AudioPlaybackError.unavailable
+  }
+}
+
+/// Presents the existing flat ISO BMFF segment index as an HLS VOD timeline.
+enum IndexedAACPlaylist {
+  static func make(prefix: Data, url: URL, length: Int64, duration: Double) -> Data? {
+    guard YouTubeMediaURL.allows(url), length > 0, duration.isFinite, duration > 0 else { return nil }
+    let bytes = [UInt8](prefix)
+    // Every integer read below is inside a complete box in the verified prefix.
+    func word(at i: Int) -> UInt32 {
+      bytes[i..<i + 4].reduce(0) { $0 << 8 | UInt32($1) }
+    }
+    var cursor = 0
+    var hasFileType = false
+    var initEnd = 0
+    while cursor + 8 <= bytes.count {
+      let size = Int(word(at: cursor))
+      guard size >= 8, size <= bytes.count - cursor else { return nil }
+      let end = cursor + size
+      switch String(decoding: bytes[cursor + 4..<cursor + 8], as: UTF8.self) {
+      case "ftyp" where cursor == 0:
+        hasFileType = true
+      case "moov" where hasFileType && initEnd == 0:
+        var child = cursor + 8
+        var fragmented = false
+        while child + 8 <= end {
+          let childSize = Int(word(at: child))
+          guard childSize >= 8, childSize <= end - child else { return nil }
+          if word(at: child + 4) == 0x6D76_6578 { fragmented = true } // mvex
+          child += childSize
+        }
+        guard fragmented, child == end else { return nil }
+        initEnd = end
+      case "free", "skip": break
+      case "sidx" where initEnd > 0:
+        // FullBox v0/v1 have 32/64-bit timestamp and first-offset fields.
+        guard size >= 32, bytes[cursor + 8] <= 1 else { return nil }
+        let wide = bytes[cursor + 8] == 1
+        let header = wide ? 40 : 32
+        guard size >= header else { return nil }
+        let timescale = Double(word(at: cursor + 16))
+        let firstOffsetLow = cursor + (wide ? 32 : 24)
+        guard timescale > 0, !wide || word(at: firstOffsetLow - 4) == 0 else { return nil }
+        let firstOffset = Int64(word(at: firstOffsetLow))
+        var offset = Int64(end) + firstOffset
+        let count = Int(bytes[cursor + header - 2]) << 8 | Int(bytes[cursor + header - 1])
+        let address = url.absoluteString
+        guard count > 0, size == header + count * 12, offset < length,
+          !address.contains("\""), !address.contains(where: { $0.isNewline }),
+          address.utf8.count + 100 <= 4 * 1024 * 1024 / (count + 1)
+        else { return nil }
+        var total = 0.0
+        var longest = 0.0
+        var segments = ""
+        for index in 0..<count {
+          let entry = cursor + header + index * 12
+          let reference = word(at: entry)
+          let seconds = Double(word(at: entry + 4)) / timescale
+          // Only direct media references; nested sidx needs a separate timeline.
+          guard reference > 0, reference < 0x8000_0000, Int64(reference) <= length - offset,
+            seconds > 0 else { return nil }
+          segments += "#EXTINF:\(seconds),\n#EXT-X-BYTERANGE:\(reference)@\(offset)\n\(address)\n"
+          total += seconds
+          longest = max(longest, seconds)
+          offset += Int64(reference)
+        }
+        // A partial index must never turn a long track into a shorter playlist.
+        guard offset == length, abs(total - duration) <= 2 else { return nil }
+        let headerText = "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-PLAYLIST-TYPE:VOD\n"
+          + "#EXT-X-TARGETDURATION:\(Int(ceil(longest)))\n"
+          + "#EXT-X-MAP:URI=\"\(address)\",BYTERANGE=\"\(initEnd)@0\"\n"
+        return Data((headerText + segments + "#EXT-X-ENDLIST\n").utf8)
+      default: return nil
+      }
+      cursor = end
+    }
+    return nil
   }
 }

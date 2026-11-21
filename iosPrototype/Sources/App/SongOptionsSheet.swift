@@ -75,7 +75,7 @@ struct SongOptionsSheet: View {
             option("Condividi", icon: "square.and.arrow.up")
           }.accessibilityIdentifier("song-option-share")
           Divider().padding(.vertical, 10)
-          DownloadAction(song: song).padding(.vertical, 14)
+          DownloadAction(song: song, inlineProgress: true).padding(.vertical, 14)
           if let playerOption {
             Button {
               playerOption(.lyrics)
@@ -93,7 +93,7 @@ struct SongOptionsSheet: View {
             #endif
           }
         }.padding(.horizontal, 24).padding(.bottom, 20)
-      }.buttonStyle(.plain).tint(.primary)
+      }.accessibilityIdentifier("song-options-list").buttonStyle(.plain).tint(.primary)
         .navigationTitle("Opzioni brano").inlineNavigationTitle()
         .toolbar {
           ToolbarItem(placement: .cancellationAction) {

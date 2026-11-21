@@ -279,6 +279,34 @@ final class AudioPlaybackTests: XCTestCase {
     for offset: Int64 in [0, 1_048_576, 3_998_976] { XCTAssertEqual(calls.count(offset), 1) }
   }
 
+  func testOnlySelfContainedLongVODPlaylistsAreServedFromMemory() async throws {
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    for (segment, extraTag, snapshot) in [
+      ("https://test.googlevideo.com/head.ts", "", true),
+      ("head.ts", "", false),
+      ("https://test.googlevideo.com/head.ts", "#EXT-X-MAP:URI=\"init.mp4\"\n", false),
+    ] {
+      let manifest = Data(("#EXTM3U\n" + extraTag + "#EXTINF:3839,\n" + segment + "\n#EXT-X-ENDLIST\n").utf8)
+      RangeStub.handler = { request in
+        if request.url!.pathExtension == "m3u8" { return (200, [:], manifest) }
+        return (206, [:], Data(repeating: 1, count: 1024))
+      }
+      let source = try await YouTubeAudio(transport: transport).source(
+        video: validationVideo(hls: true, seconds: 3839), userAgent: "Test", authenticated: true,
+        quality: .normal, preferHLSForLongTracks: true, preloadFirstBlock: true)
+      let loader = AudioRangeLoader(source: source)
+      XCTAssertEqual(source.vodPlaylist, snapshot ? manifest : nil)
+      XCTAssertEqual(loader.asset().url.scheme, snapshot ? "notenarrate-audio" : "https")
+      XCTAssertEqual(loader.originalSourceForRetry?.url, snapshot ? source.url : nil)
+      if let fallback = loader.originalSourceForRetry {
+        XCTAssertNil(fallback.vodPlaylist)
+        XCTAssertTrue(fallback.authenticated)
+        XCTAssertEqual(AudioRangeLoader(source: fallback).asset().url, source.url)
+      }
+    }
+  }
+
   func testOfflineResolutionAndShortPlaybackKeepAACFirst() async throws {
     for (seconds, streaming) in [(3840, false), (180, true)] {
       RangeStub.handler = { request in

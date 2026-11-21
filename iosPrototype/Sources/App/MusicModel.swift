@@ -125,7 +125,13 @@ final class MusicModel: NSObject, ObservableObject {
     saveSession()
   }
   let player = PlaybackPlayer()
-  let downloads = MusicDownloads()
+  #if DEBUG
+    let downloads = ProcessInfo.processInfo.arguments.contains("--test-download-progress")
+      ? MusicDownloads(library: OfflineLibrary(directory: LocalFiles.directory("QADownloadProgress")))
+      : MusicDownloads()
+  #else
+    let downloads = MusicDownloads()
+  #endif
   let listening = ListeningHistory(
     url: LocalFiles.directory(
       ProcessInfo.processInfo.arguments.contains("--test-local-playback")
@@ -203,6 +209,13 @@ final class MusicModel: NSObject, ObservableObject {
     guard let first, !isPassenger, !player.playing, !player.isLoading, !reading, !busyMeaning else { return }
     player.prepareTransition(videoID: first.id, accountOnly: first.isUploaded == true)
   }
+
+  #if os(iOS)
+    func prepareVisibleRestoredTrack() {
+      guard !isPassenger, !reading, !busyMeaning else { return }
+      player.prepareRestoredTrack()
+    }
+  #endif
 
   func setSleepTimer(_ timer: SleepTimer?) {
     sleepTask?.cancel()
@@ -517,6 +530,11 @@ final class MusicModel: NSObject, ObservableObject {
         queueIDs = queue.map { _ in UUID() }
         sequence.reset(count: queue.count, selected: 0, shuffle: false)
         current = queue.first
+        if ProcessInfo.processInfo.arguments.contains("--test-download-progress"), let song = current {
+          downloads.library.begin(song)
+          downloads.library.update(song.id, state: .downloading, expected: 1_000_000)
+          downloads.library.recordTransfer(song.id, received: 370_000, responseLength: -1)
+        }
         showPlayer = true
         autoplayEnabled = ProcessInfo.processInfo.arguments.contains("--test-radio")
       }
@@ -597,7 +615,8 @@ final class MusicModel: NSObject, ObservableObject {
   func download(_ song: Song) { downloads.start(song, account: radioAccount) }
   func removeDownload(_ id: String) {
     if current?.id == id, downloads.library.url(for: id) != nil {
-      player.restore(videoID: id, position: player.elapsed, duration: player.durationSeconds)
+      player.restore(videoID: id, position: player.elapsed, duration: player.durationSeconds,
+        accountOnly: current?.isUploaded == true)
     }
     downloads.remove(id)
   }

@@ -81,11 +81,15 @@
       let context: AudioWarmupContext
       let accountOnly: Bool
       let preparedAt: Date
+      let usedOriginalReader: Bool
+      // nil while the muted player is seeking to the requested resume position.
+      var startAt: Double?
     }
     private var prepared: PreparedDeck?
     private var preparingID: String?
     private var preparingContext: AudioWarmupContext?
     private var preparingAccountOnly = false
+    private var preparingPosition = 0.0
     private var requiresAccount = false
     private var unavailableMessage: String {
       requiresAccount
@@ -109,6 +113,7 @@
         transitionRequest = nil
         preparingID = nil
         preparingContext = nil
+        prepared?.player.currentItem?.cancelPendingSeeks()
         prepared?.player.cancelPendingPrerolls()
         prepared?.player.pause()
         prepared = nil
@@ -124,13 +129,15 @@
       outgoingTap = nil
       nativePlayer.volume = Float(volume / 100)
     }
-    func prepareTransition(videoID: String, accountOnly: Bool = false) {
+    func prepareTransition(videoID: String, accountOnly: Bool = false, startAt: Double = 0) {
       guard !cast.connected, !changingDeck, fadeTask == nil else { return }
       let context = warmupContext()
       if let prepared, prepared.id == videoID, prepared.accountOnly == accountOnly,
+        prepared.startAt == startAt,
         AudioWarmupValidity.usable(preparedAt: prepared.preparedAt, sourceURL: prepared.sourceURL,
           context: prepared.context, current: context) { return }
       if preparingID == videoID, preparingContext == context, preparingAccountOnly == accountOnly,
+        preparingPosition == startAt,
         transitionRequest != nil
       {
         return
@@ -141,101 +148,162 @@
       preparingID = videoID
       preparingContext = context
       preparingAccountOnly = accountOnly
+      preparingPosition = startAt
       warmStatus = "preparing " + videoID
       transitionRequest = Task {
+        var retriedURL: URL?
         do {
-          #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--test-warm-delay") {
-              try await Task.sleep(for: .seconds(8))
-            }
-          #endif
-          let asset: AVURLAsset
-          var loader: AudioRangeLoader?
-          var duration = 0.0
-          var sourceURL: URL?
-          var resolvedSource: YouTubeAudio.Source?
-          var rangeToken: UUID?
-          if let url = localFileProvider(videoID) {
-            asset = AVURLAsset(url: url)
-          } else {
-            let source = try await YouTubeAudio().resolve(
+          let local = localFileProvider(videoID)
+          var source: YouTubeAudio.Source?
+          if local == nil {
+            source = try await YouTubeAudio().resolve(
               videoID: videoID, session: context.session,
               quality: context.quality, preferHLSForLongTracks: true, accountOnly: accountOnly,
               preloadFirstBlock: true)
-            resolvedSource = source
-            sourceURL = source.url
+          }
+          #if DEBUG
+            if let local, ProcessInfo.processInfo.arguments.contains("--test-warm-playlist-fallback") {
+              source = .invalidPlaylistFixture(originalFile: local)
+            }
+          #endif
+          let verifiedAt = Date()
+          while true {
+            try Task.checkCancellation()
+            guard preparationRevision == revision, warmupContext() == context else { throw CancellationError() }
             let token = UUID()
-            rangeToken = token
-            let nextLoader = AudioRangeLoader(source: source, diagnostic: rangeDiagnostic(token: token))
-            try await nextLoader.prepare()
-            loader = nextLoader
-            asset = nextLoader.asset()
-            duration = source.duration
+            let loader = source.map { makeRangeLoader(source: $0, token: token) }
+            let asset: AVURLAsset
+            if let loader {
+              try await loader.prepare()
+              asset = loader.asset()
+            } else if let local {
+              asset = AVURLAsset(url: local)
+            } else {
+              throw AudioPlaybackError.unavailable
+            }
+            let timing = try await AudioPlaybackTiming.prepare(asset, source: source?.duration ?? 0,
+              isLive: source?.isLive == true)
+            let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
+            if timing.duration > 0 {
+              item.forwardPlaybackEndTime = CMTime(seconds: timing.duration, preferredTimescale: 600)
+            }
+            item.preferredForwardBufferDuration = 5
+            let tap = AudioEffectsTap()
+            tap.configure(AudioPreferences.shared.effects)
+            try Task.checkCancellation()
+            guard preparationRevision == revision, warmupContext() == context else { throw CancellationError() }
+            let player = makeTransitionPlayer(item: item)
+            player.volume = 0
+            let deck = PreparedDeck(
+              id: videoID, player: player, loader: loader, tap: tap, duration: timing.duration,
+              timingDiagnostic: timing.diagnostic, sourceURL: source?.url, source: source, rangeToken: loader == nil ? nil : token,
+              context: context, accountOnly: accountOnly, preparedAt: verifiedAt, usedOriginalReader: retriedURL != nil,
+              startAt: startAt == 0 ? 0 : nil)
+            prepared = deck
+            warmStatus = "item " + videoID
+            do {
+              try await finishWarmup(deck, item: item, startAt: startAt, revision: revision)
+              return
+            } catch {
+              try Task.checkCancellation()
+              guard preparationRevision == revision, let original = loader?.originalSourceForRetry,
+                AudioWarmupValidity.usable(preparedAt: verifiedAt, sourceURL: original.url,
+                  context: context, current: warmupContext())
+              else { throw error }
+              // Keep the same validated source and waiting Play request. Its original
+              // reader carries no replacement playlist, so this fallback runs once.
+              player.replaceCurrentItem(with: nil)
+              prepared = nil
+              source = original
+              retriedURL = original.url
+            }
           }
-          try Task.checkCancellation()
-          let timing = try await AudioPlaybackTiming.prepare(asset, source: duration, isLive: resolvedSource?.isLive == true)
-          duration = timing.duration
-          let item = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [])
-          if duration > 0 {
-            item.forwardPlaybackEndTime = CMTime(seconds: duration, preferredTimescale: 600)
-          }
-          item.preferredForwardBufferDuration = 5
-          let tap = AudioEffectsTap()
-          tap.configure(AudioPreferences.shared.effects)
-          try Task.checkCancellation()
-          guard preparationRevision == revision, warmupContext() == context else { return }
-          let deck = AVPlayer(playerItem: item)
-          deck.volume = 0
-          prepared = PreparedDeck(
-            id: videoID, player: deck, loader: loader, tap: tap, duration: duration,
-            timingDiagnostic: timing.diagnostic, sourceURL: sourceURL, source: resolvedSource, rangeToken: rangeToken,
-            context: context, accountOnly: accountOnly, preparedAt: Date())
-          warmStatus = "item " + videoID
-          let deadline = Date().addingTimeInterval(8)
-          while (item.status == .unknown || deck.status == .unknown) && Date() < deadline {
-            if item.status == .failed || deck.status == .failed { break }
-            try await Task.sleep(for: .milliseconds(40))
-          }
-          guard item.status == .readyToPlay, deck.status == .readyToPlay else {
-            throw AudioPlaybackError.unavailable
-          }
-          // A foreground load is already awaiting this task. It can use the
-          // same playable item now instead of waiting for speculative preroll.
-          if selectedPreparation == revision { return }
-          // Preroll fills/decodes the first samples without starting playback or
-          // taking the audio route. The selected deck is promoted, never rebuilt.
-          warmStatus = "preroll " + videoID
-          let timeout = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(5))
-            guard !Task.isCancelled, preparationRevision == revision else { return }
-            deck.cancelPendingPrerolls()
-          }
-          let ready = await withCheckedContinuation { continuation in
-            deck.preroll(atRate: 1) { continuation.resume(returning: $0) }
-          }
-          timeout.cancel()
-          try Task.checkCancellation()
-          guard ready, preparationRevision == revision, warmupContext() == context else {
-            throw AudioPlaybackError.unavailable
-          }
-          preparingID = nil
-          preparingContext = nil
-          transitionRequest = nil
-          warmReadyID = videoID
-          warmStatus = "ready " + videoID
         } catch {
           guard preparationRevision == revision else { return }
+          if let retriedURL, selectedPreparation == revision, warmupContext() == context {
+            rejectedSources.insert(retriedURL)
+          }
           warmStatus = "failed " + videoID + " code " + String((error as NSError).code)
           cancelTransition()
         }
       }
     }
+
+    private func finishWarmup(_ warmDeck: PreparedDeck, item: AVPlayerItem, startAt: Double,
+      revision: UUID) async throws {
+      let deck = warmDeck.player
+      let waitingSince = ContinuousClock.now
+      while item.status == .unknown || deck.status == .unknown {
+        if item.status == .failed || deck.status == .failed { break }
+        // A long item can take more than eight seconds to open after its
+        // source is ready. A selected deck would otherwise do that work twice.
+        let limit: Duration
+        if warmDeck.loader?.originalSourceForRetry != nil { limit = .seconds(12) }
+        else if warmDeck.duration >= 600 || selectedPreparation == revision { limit = .seconds(30) }
+        else { limit = .seconds(8) }
+        if ContinuousClock.now >= waitingSince.advanced(by: limit) { break }
+        try await Task.sleep(for: .milliseconds(40))
+      }
+      guard item.status == .readyToPlay, deck.status == .readyToPlay else {
+        throw AudioPlaybackError.unavailable
+      }
+      let seekNeeded = startAt > 0 && warmDeck.source?.isLive != true
+      let timeout = Task { @MainActor in
+        try? await Task.sleep(for: .seconds(seekNeeded ? 10 : 5))
+        guard !Task.isCancelled, preparationRevision == revision else { return }
+        item.cancelPendingSeeks()
+        deck.cancelPendingPrerolls()
+      }
+      defer { timeout.cancel() }
+      if seekNeeded {
+        let finished: Bool = await deck.seek(to: CMTime(seconds: startAt, preferredTimescale: 600),
+          toleranceBefore: .zero, toleranceAfter: .zero)
+        try Task.checkCancellation()
+        guard finished, preparationRevision == revision, warmupContext() == warmDeck.context
+        else { throw AudioPlaybackError.unavailable }
+      }
+      try Task.checkCancellation()
+      guard preparationRevision == revision, warmupContext() == warmDeck.context else { throw CancellationError() }
+      prepared?.startAt = startAt
+      // A foreground load is already awaiting this task. It can use the
+      // same playable item now instead of waiting for speculative preroll.
+      if selectedPreparation == revision { return }
+      // Preroll fills/decodes the first samples without starting playback or
+      // taking the audio route. The selected deck is promoted, never rebuilt.
+      warmStatus = "preroll " + warmDeck.id
+      let ready = await withCheckedContinuation { continuation in
+        deck.preroll(atRate: 1) { continuation.resume(returning: $0) }
+      }
+      try Task.checkCancellation()
+      guard ready, preparationRevision == revision, warmupContext() == warmDeck.context else {
+        throw AudioPlaybackError.unavailable
+      }
+      preparingID = nil
+      preparingContext = nil
+      transitionRequest = nil
+      warmReadyID = warmDeck.id
+      warmStatus = "ready " + warmDeck.id
+    }
+
+    private func makeTransitionPlayer(item: AVPlayerItem) -> AVPlayer {
+      #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--test-warm-delay") {
+          let deck = AVPlayer()
+          Task { @MainActor [weak deck] in
+            try? await Task.sleep(for: .seconds(12))
+            deck?.replaceCurrentItem(with: item)
+          }
+          return deck
+        }
+      #endif
+      return AVPlayer(playerItem: item)
+    }
     @discardableResult func transition(
       to videoID: String, seconds: Double, dj: Bool, preserveIntent: Bool = false,
-      accountOnly: Bool = false
+      accountOnly: Bool = false, startAt: Double = 0
     ) -> Bool {
       guard !cast.connected, (seconds == 0 || playing), let deck = prepared, deck.id == videoID,
-        deck.accountOnly == accountOnly,
+        deck.accountOnly == accountOnly, deck.startAt == startAt,
         (seconds == 0 || warmReadyID == videoID), deck.player.status == .readyToPlay,
         deck.player.currentItem?.status == .readyToPlay,
         AudioWarmupValidity.usable(preparedAt: deck.preparedAt, sourceURL: deck.sourceURL,
@@ -274,6 +342,8 @@
       outgoingTap = currentTap ?? effectsTap
       nativePlayer = deck.player
       rangeLoader = deck.loader
+      playlistContext = deck.loader?.originalSourceForRetry == nil ? nil : (deck.context, deck.preparedAt)
+      playlistAttachedAt = nil
       activeSourceURL = deck.sourceURL
       activeRangeToken = deck.rangeToken
       assetRevision = UUID()
@@ -292,7 +362,7 @@
       requiresAccount = deck.accountOnly
       let expected = preserveIntent ? intent.revision : intent.load()
       loadID = expected
-      elapsed = 0
+      elapsed = deck.source?.isLive == true ? 0 : startAt
       durationSeconds = deck.duration
       timingDiagnostic = deck.timingDiagnostic
       isLoading = false
@@ -300,6 +370,7 @@
       sourceDiagnostic = deck.source?.accountDiagnostic ?? "File locale verificato"
       networkDiagnostic = "Audio preparato in anticipo; controlli della sorgente mantenuti"
       audioResolutionReport = (deck.source?.resolutionReport ?? "File locale")
+        + (deck.usedOriginalReader ? "\nPreparazione: riuso della sorgente verificata con il lettore originale" : "")
         + (completedPreroll ? "\nPreparazione: riuso del player e del buffer già pronti"
                             : "\nPreparazione: riuso del player appena riproducibile, senza attendere il preroll")
       audioReportFinalized = true
@@ -376,6 +447,10 @@
     }
     var beforePlay: (() -> Bool)?
     private var restoredPosition: Double?
+    func prepareRestoredTrack() {
+      guard let position = restoredPosition, !videoId.isEmpty, !isLoading, !playing else { return }
+      prepareTransition(videoID: videoId, accountOnly: requiresAccount, startAt: position)
+    }
     private var initialSeek: Double?
     func restore(videoID: String, position: Double, duration: Double, accountOnly: Bool = false) {
       clear()
@@ -388,6 +463,8 @@
     private var intent = PlaybackIntent()
     private var request: Task<Void, Never>?
     private var rangeLoader: AudioRangeLoader?
+    private var playlistAttachedAt: TimeInterval?
+    private var playlistContext: (value: AudioWarmupContext, date: Date)?
     private var statusObservation: NSKeyValueObservation?
     private var rateObservation: NSKeyValueObservation?
     private var progress: Any?
@@ -407,11 +484,15 @@
     var timeControlStatus: AVPlayer.TimeControlStatus { nativePlayer.timeControlStatus }
 
     init() {
-      effectsSubscription = AudioPreferences.shared.$effects.sink { [weak self] value in
-        self?.effectsTap.configure(value)
-        self?.currentTap?.configure(value)
-        self?.prepared?.tap.configure(value)
-      }
+      effectsSubscription = AudioPreferences.shared.$effects.combineLatest(AudioPreferences.shared.$djMode)
+        .sink { [weak self] value, dj in
+          self?.effectsTap.configure(value)
+          self?.currentTap?.configure(value)
+          self?.prepared?.tap.configure(value)
+          if #unavailable(iOS 27), value.enabled || dj {
+            Task { @MainActor [weak self] in self?.restoreFilePlaybackForEffects() }
+          }
+        }
       // Preparation supplies initial bytes; playImmediately starts without a throughput estimate.
       // Keep automatic recovery enabled when a cellular connection runs out of buffered audio.
       nativePlayer.automaticallyWaitsToMinimizeStalling = true
@@ -444,7 +525,8 @@
           guard let self, self.nativePlayer === observedPlayer, seconds.isFinite, seconds >= 0
           else { return }
           // Item replacement briefly reports zero before the restoring seek ends.
-          guard !self.cast.connected, !self.isLoading, self.initialSeek == nil else { return }
+          guard !self.cast.connected, !self.isLoading, self.initialSeek == nil,
+            self.restoredPosition == nil else { return }
           self.elapsed = seconds
           #if DEBUG
             if self.nativePlayer.currentItem?.status == .readyToPlay {
@@ -473,23 +555,25 @@
 
     /// A repaired source is still the same queue occurrence. Keep loadID and the
     /// user's intent so narration, pause, seeks and track changes remain authoritative.
-    private func startLoad(videoId: String, startAt: Double?, recovering: Bool) {
+    private func startLoad(videoId: String, startAt: Double?, recovering: Bool,
+      originalSource: YouTubeAudio.Source? = nil) {
       let wasChangingDeck = changingDeck
       changingDeck = true
       defer { changingDeck = wasChangingDeck }
-      if !recovering, startAt == nil,
-        transition(to: videoId, seconds: 0, dj: false, accountOnly: requiresAccount)
+      let position = startAt ?? 0
+      if !recovering,
+        transition(to: videoId, seconds: 0, dj: false, accountOnly: requiresAccount, startAt: position)
       {
         return
       }
       // Share a matching in-flight preparation instead of restarting its requests.
-      let pendingWarmup = !recovering && startAt == nil && preparingID == videoId
+      let pendingWarmup = !recovering && preparingPosition == position && preparingID == videoId
           && preparingContext == warmupContext() && preparingAccountOnly == requiresAccount
         ? transitionRequest : nil
       if pendingWarmup != nil { selectedPreparation = preparationRevision }
       preparationBegan = ProcessInfo.processInfo.systemUptime
       restoredPosition = nil
-      initialSeek = startAt
+      initialSeek = position > 0 ? position : nil
       cancelTransition(discardPrepared: pendingWarmup == nil)
       currentTap = nil
       request?.cancel()
@@ -497,6 +581,8 @@
       nativePlayer.pause()
       nativePlayer.replaceCurrentItem(with: nil)
       rangeLoader = nil
+      playlistAttachedAt = nil
+      playlistContext = nil
       activeRangeToken = nil
       statusObservation = nil
       if let ended { NotificationCenter.default.removeObserver(ended) }
@@ -535,6 +621,7 @@
             return
           }
           self.request?.cancel()
+          if self.selectedPreparation != nil { self.cancelTransition() }
           self.isLoading = false
           self.pause()
           self.playbackError = "Caricamento audio interrotto. Riprova."
@@ -549,7 +636,8 @@
             try Task.checkCancellation()
             guard intent.revision == expected, assetRevision == generation else { return }
             if transition(
-              to: videoId, seconds: 0, dj: false, preserveIntent: true, accountOnly: requiresAccount
+              to: videoId, seconds: 0, dj: false, preserveIntent: true, accountOnly: requiresAccount,
+              startAt: position
             ) {
               return
             }
@@ -569,19 +657,25 @@
             audioResolutionReport = "File locale; nessuna richiesta CDN"
             audioReportFinalized = true
           } else {
-            let source = try await YouTubeAudio().resolve(
-              videoID: videoId, session: accountProvider(),
-              quality: AudioPreferences.shared.currentQuality, excluding: rejectedSources,
-              preferHLS: recovering, preferHLSForLongTracks: true, accountOnly: requiresAccount,
-              preloadFirstBlock: true,
-              diagnostic: { [weak self] report in
-                Task { @MainActor [weak self] in
-                  guard let self, self.intent.revision == expected, self.assetRevision == generation,
-                    !self.audioReportFinalized
-                  else { return }
-                  self.audioResolutionReport = networkContext + report
-                }
-              })
+            let context = warmupContext()
+            let source: YouTubeAudio.Source
+            if let originalSource {
+              source = originalSource
+            } else {
+              source = try await YouTubeAudio().resolve(
+                videoID: videoId, session: context.session,
+                quality: context.quality, excluding: rejectedSources,
+                preferHLS: recovering, preferHLSForLongTracks: true, accountOnly: requiresAccount,
+                preloadFirstBlock: true,
+                diagnostic: { [weak self] report in
+                  Task { @MainActor [weak self] in
+                    guard let self, self.intent.revision == expected, self.assetRevision == generation,
+                      !self.audioReportFinalized
+                    else { return }
+                    self.audioResolutionReport = networkContext + report
+                  }
+                })
+            }
             #if DEBUG
               diagnostic = "source bytes \(source.byteCount ?? 0)"
             #endif
@@ -590,7 +684,8 @@
             activeSourceURL = source.url
             sourceDiagnostic = source.accountDiagnostic
             audioReportFinalized = true
-            audioResolutionReport = networkContext + source.resolutionReport
+            audioResolutionReport = originalSource == nil ? networkContext + source.resolutionReport
+              : networkContext + "Riuso della sorgente verificata con il lettore originale"
             recordPreparation("sorgente verificata")
             if source.isHLS {
               networkDiagnostic = (source.authenticated ? "Flusso account HLS" : "Flusso pubblico HLS")
@@ -602,8 +697,9 @@
                 : "Flusso pubblico; controlli oltre 1 MiB e finali superati"
             }
             if recovering {
-              networkDiagnostic =
-                "Nuova sorgente, recupero \(recovery.attempts)/2; " + networkDiagnostic
+              let mode = originalSource == nil ? "Nuova sorgente" : "Lettore originale"
+              let action = recovery.attempts == 0 ? "Effetti audio" : "\(mode), recupero \(recovery.attempts)/2"
+              networkDiagnostic = action + "; " + networkDiagnostic
             }
             durationSeconds = source.duration
             sourceDuration = source.duration
@@ -611,8 +707,9 @@
             if source.isLive { initialSeek = nil }
             let token = UUID()
             activeRangeToken = token
-            let loader = AudioRangeLoader(source: source, diagnostic: rangeDiagnostic(token: token))
+            let loader = makeRangeLoader(source: source, token: token)
             rangeLoader = loader
+            if loader.originalSourceForRetry != nil { playlistContext = (context, Date()) }
             try await loader.prepare()
             try Task.checkCancellation()
             guard intent.revision == expected, assetRevision == generation else { return }
@@ -641,6 +738,7 @@
               else { return }
               switch status {
               case .readyToPlay:
+                self.playlistAttachedAt = nil
                 self.effectsTap.attach(to: item)
                 self.recordPreparation("player pronto")
                 #if DEBUG
@@ -688,6 +786,9 @@
               self.pause()
               self.onEnded?()
             }
+          }
+          if rangeLoader?.originalSourceForRetry != nil {
+            playlistAttachedAt = ProcessInfo.processInfo.systemUptime
           }
           nativePlayer.replaceCurrentItem(with: item)
         } catch {
@@ -755,6 +856,28 @@
       }
     }
 
+    private var needsFileForEffects: Bool {
+      if #available(iOS 27, *) { return false }
+      return AudioPreferences.shared.effects.enabled || AudioPreferences.shared.djMode
+    }
+
+    private func makeRangeLoader(source: YouTubeAudio.Source, token: UUID) -> AudioRangeLoader {
+      var media = source
+      if !source.isHLS, needsFileForEffects {
+        // Earlier iOS versions can apply an audio processing tap to the AAC file only.
+        media = source.withoutPlaylist
+      }
+      return AudioRangeLoader(source: media, diagnostic: rangeDiagnostic(token: token))
+    }
+
+    private func restoreFilePlaybackForEffects() {
+      guard needsFileForEffects else { return }
+      if prepared?.loader?.originalSourceForRetry?.isHLS == false { cancelTransition() }
+      guard !cast.connected, rangeLoader?.originalSourceForRetry?.isHLS == false else { return }
+      if intent.wantsPlayback { isLoading = false }
+      _ = recoverAudio(reason: "Attivazione effetti audio")
+    }
+
     private func rangeDiagnostic(token: UUID) -> @Sendable (String) -> Void {
       { [weak self] message in
         guard message.contains("HTTP ") && !message.contains("HTTP 206")
@@ -783,6 +906,13 @@
           do { try await Task.sleep(for: .seconds(1)) } catch { return }
           guard let self else { return }
           let position = self.nativePlayer.currentTime().seconds
+          if let attached = self.playlistAttachedAt, self.isLoading, self.intent.wantsPlayback,
+            self.nativePlayer.currentItem?.status == .unknown,
+            ProcessInfo.processInfo.systemUptime - attached >= 12 {
+            self.playlistAttachedAt = nil
+            self.isLoading = false
+            if self.recoverAudio(reason: "Timeout in apertura della playlist") { return }
+          }
           #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--test-audio-recovery"),
               self.recovery.attempts == 0, position >= 6, self.intent.wantsPlayback
@@ -824,12 +954,18 @@
         deferredRecovery = true
         return true
       }
-      guard recovery.begin() else { return false }
-      if let activeSourceURL { rejectedSources.insert(activeSourceURL) }
+      // Changing the processing route on older systems does not fail the media source.
+      let enablingEffects = needsFileForEffects && rangeLoader?.originalSourceForRetry?.isHLS == false
+      guard enablingEffects || recovery.begin() else { return false }
+      let originalSource = playlistContext.flatMap { context in
+        AudioWarmupValidity.usable(preparedAt: context.date, sourceURL: activeSourceURL,
+          context: context.value, current: warmupContext()) ? rangeLoader?.originalSourceForRetry : nil
+      }
+      if originalSource == nil, !enablingEffects, let activeSourceURL { rejectedSources.insert(activeSourceURL) }
       let actual = nativePlayer.currentTime().seconds
       let position = initialSeek ?? (actual.isFinite && actual >= 0 ? actual : elapsed)
       networkDiagnostic = "\(reason); recupero \(recovery.attempts)/2 a \(Int(position)) s"
-      startLoad(videoId: videoId, startAt: position, recovering: true)
+      startLoad(videoId: videoId, startAt: position, recovering: true, originalSource: originalSource)
       return true
     }
 
@@ -850,6 +986,8 @@
     }
     func clear() {
       cast.clear()
+      playlistContext = nil
+      playlistAttachedAt = nil
       preparationBegan = nil
       recoveryWatch?.cancel()
       recoveryWatch = nil
@@ -931,8 +1069,9 @@
     }
     func seek(to time: CMTime) {
       if cast.connected { if time.seconds.isFinite { cast.seek(max(0, time.seconds)) }; return }
-      cancelTransition()
       guard time.seconds.isFinite else { return }
+      let preparingRestore = restoredPosition != nil && (preparingID == videoId || prepared?.id == videoId)
+      cancelTransition()
       let value = max(0, min(durationSeconds > 0 ? durationSeconds : time.seconds, time.seconds))
       recovery.resetStall()
       if isLoading || initialSeek != nil {
@@ -943,6 +1082,7 @@
       if restoredPosition != nil {
         restoredPosition = value
         elapsed = value
+        if preparingRestore { prepareRestoredTrack() }
         return
       }
       nativePlayer.seek(to: CMTime(seconds: value, preferredTimescale: 600))

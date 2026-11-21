@@ -893,6 +893,10 @@
       controller?.pushTemplate(queueTemplate, animated: true, completion: { _, _ in })
     }
 
+    func templateDidAppear(_ aTemplate: CPTemplate, animated: Bool) {
+      if aTemplate === CPNowPlayingTemplate.shared { app.music.prepareVisibleRestoredTrack() }
+    }
+
     func templateDidDisappear(_ aTemplate: CPTemplate, animated: Bool) {
       if aTemplate === CPNowPlayingTemplate.shared, passengerQRInPlayer { closePassengerQR() }
     }

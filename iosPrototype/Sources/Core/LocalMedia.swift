@@ -47,7 +47,7 @@ public struct OfflineRecord: Identifiable, Codable, Sendable {
 }
 
 public enum OfflineError: LocalizedError {
-  case incomplete, unsupportedStream, missingFile, storage
+  case incomplete, unsupportedStream, missingFile, storage, save, http(Int)
   public var errorDescription: String? {
     switch self {
     case .incomplete:
@@ -56,6 +56,9 @@ public enum OfflineError: LocalizedError {
       "Questo flusso è disponibile solo in streaming. Prova un’altra versione del brano."
     case .missingFile: "Il file scaricato non è più disponibile. Scarica nuovamente il brano."
     case .storage: "Spazio disponibile insufficiente per completare il download."
+    case .save: "Il download è terminato, ma non è stato possibile salvare il brano nella libreria."
+    case .http(401), .http(403): "La sorgente non ha autorizzato il download di questo brano."
+    case .http(let status): "Download non riuscito. Il server ha risposto con HTTP \(status)."
     }
   }
 }
@@ -64,7 +67,8 @@ public enum OfflineValidation {
   public static func byteCount(
     actual: Int64, expected: Int64?, status: Int, contentRange: String? = nil
   ) throws {
-    guard actual > 1024, status == 200 || status == 206 else { throw OfflineError.incomplete }
+    guard status == 200 || status == 206 else { throw OfflineError.http(status) }
+    guard actual > 1024 else { throw OfflineError.incomplete }
     if let expected, expected > 0, actual != expected { throw OfflineError.incomplete }
     if status == 206 {
       guard let contentRange, contentRange == "bytes 0-\(actual - 1)/\(actual)" else {
@@ -146,7 +150,7 @@ public final class OfflineLibrary: ObservableObject {
   }
   public func begin(_ track: PlaybackTrack) {
     if let index = records.firstIndex(where: { $0.id == track.id }) {
-      if records[index].state == .ready { return }
+      if url(for: track.id) != nil { return }
       records[index] = OfflineRecord(track: track)
     } else {
       records.append(OfflineRecord(track: track))
@@ -161,26 +165,46 @@ public final class OfflineLibrary: ObservableObject {
     records[index].state = state
     records[index].error = error
     if let progress, progress.isFinite { records[index].progress = min(1, max(0, progress)) }
-    if let expected { records[index].expectedBytes = expected }
+    if let expected, expected > 0 { records[index].expectedBytes = expected }
     if let expectedDuration, expectedDuration.isFinite, expectedDuration > 0 {
       records[index].expectedDuration = expectedDuration
     }
     if state != .downloading || progress == nil { persist() }
   }
+  /// Prefer the validated size of the whole file. A response can omit Content-Length.
+  public func recordTransfer(_ id: String, received: Int64, responseLength: Int64) {
+    guard let index = records.firstIndex(where: { $0.id == id }),
+      records[index].state == .downloading, received >= records[index].bytes else { return }
+    var record = records[index]
+    let total = record.expectedBytes.flatMap { $0 > 0 ? $0 : nil } ?? (responseLength > 0 ? responseLength : nil)
+    let fraction = total.flatMap { $0 > 0 ? min(1, Double(received) / Double($0)) : nil }
+    // Refresh at most once per displayed percentage, or every 64 KiB for an
+    // unknown total. Keep the first update even for small/slow transfers.
+    if record.bytes > 0, record.expectedBytes == total {
+      if let fraction, Int(fraction * 100) == Int(record.progress * 100) { return }
+      if fraction == nil, received - record.bytes < 65_536 { return }
+    }
+    record.expectedBytes = total
+    record.bytes = received
+    record.progress = fraction ?? 0
+    records[index] = record
+  }
   public func finish(
     _ id: String, temporary: URL, status: Int, contentRange: String?, maxBytes: Int64? = nil
   ) async throws {
-    guard let record = records.first(where: { $0.id == id }) else { throw CancellationError() }
+    guard let record = records.first(where: { $0.id == id }),
+      record.state == .downloading || record.state == .preparing else { throw CancellationError() }
     update(id, state: .verifying)
     let actual = Int64(try temporary.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
     try OfflineValidation.byteCount(
       actual: actual, expected: record.expectedBytes, status: status, contentRange: contentRange)
+    if let maxBytes, maxBytes < actual || totalBytes > maxBytes - actual { throw OfflineError.storage }
     _ = try await OfflineValidation.playableFile(
       temporary, expectedDuration: record.expectedDuration ?? record.track.durationSeconds)
     try Task.checkCancellation()
     guard let index = records.firstIndex(where: { $0.id == id }), records[index].state == .verifying
     else { throw CancellationError() }
-    if let maxBytes, totalBytes + actual > maxBytes { throw OfflineError.storage }
+    if let maxBytes, maxBytes < actual || totalBytes > maxBytes - actual { throw OfflineError.storage }
     let name = LocalFiles.key(id) + ".m4a"
     let destination = directory.appendingPathComponent(name)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -192,15 +216,28 @@ public final class OfflineLibrary: ObservableObject {
     excluded.isExcludedFromBackup = true
     var saved = destination
     try? saved.setResourceValues(excluded)
-    records[index].fileName = name
-    records[index].bytes = actual
-    records[index].state = .ready
-    records[index].progress = 1
-    records[index].error = nil
-    persist()
+    var committed = records
+    committed[index].fileName = name
+    committed[index].bytes = actual
+    committed[index].state = .ready
+    committed[index].progress = 1
+    committed[index].error = nil
+    do {
+      try LocalFiles.write(committed, to: manifest)
+    } catch {
+      try? FileManager.default.removeItem(at: destination)
+      persistenceError = "Impossibile salvare lo stato dei download."
+      throw OfflineError.save
+    }
+    records = committed
+    persistenceError = nil
   }
   public func remove(_ id: String) throws {
-    if let url = url(for: id) { try FileManager.default.removeItem(at: url) }
+    if let name = records.first(where: { $0.id == id })?.fileName,
+      name == LocalFiles.key(id) + ".m4a" {
+      let file = directory.appendingPathComponent(name)
+      if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+    }
     records.removeAll { $0.id == id }
     persist()
   }

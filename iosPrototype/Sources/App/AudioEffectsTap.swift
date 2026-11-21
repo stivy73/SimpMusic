@@ -32,7 +32,26 @@
   }
   @MainActor final class AudioEffectsTap {
     let state = EffectsTapState()
-    func attach(to item: AVPlayerItem, track: AVAssetTrack) {
+    func attach(to item: AVPlayerItem?) {
+      guard let item else { return }
+      let parameters: AVMutableAudioMixInputParameters
+      let preferredFormat: CMAudioFormatDescription?
+      if #available(iOS 27, *), let asset = item.asset as? AVURLAsset,
+        asset.url.pathExtension.lowercased() == "m3u8"
+      {
+        // HLS exposes the decoded mix even when no individual audio track is visible.
+        guard let format = AVAudioFormat(
+          commonFormat: .pcmFormatFloat32, sampleRate: 48_000, channels: 2, interleaved: false)
+        else { return }
+        preferredFormat = format.formatDescription
+        parameters = AVMutableAudioMixInputParameters()
+      } else {
+        // At readyToPlay this avoids a separate AVAsset track or timeline scan.
+        guard let track = item.tracks.compactMap(\.assetTrack).first(where: { $0.mediaType == .audio })
+        else { return }
+        preferredFormat = nil
+        parameters = AVMutableAudioMixInputParameters(track: track)
+      }
       var callbacks = MTAudioProcessingTapCallbacks(
         version: kMTAudioProcessingTapCallbacksVersion_0,
         clientInfo: Unmanaged.passRetained(state).toOpaque(),
@@ -86,25 +105,23 @@
           }
         })
       var unmanaged: MTAudioProcessingTap?
-      let result = MTAudioProcessingTapCreate(
-        kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PreEffects, &unmanaged)
+      let result: OSStatus
+      if #available(iOS 27, *), let preferredFormat {
+        result = MTAudioProcessingTapCreateWithPreferredFormat(
+          kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PreEffects,
+          preferredFormat, &unmanaged)
+      } else {
+        result = MTAudioProcessingTapCreate(
+          kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PreEffects, &unmanaged)
+      }
       guard result == noErr, let unmanaged else {
         Unmanaged.passUnretained(state).release()
         return
       }
-      let parameters = AVMutableAudioMixInputParameters(track: track)
       parameters.audioTapProcessor = unmanaged
       let mix = AVMutableAudioMix()
       mix.inputParameters = [parameters]
       item.audioMix = mix
-    }
-    /// At readyToPlay the item's tracks are available without forcing a separate
-    /// AVAsset track/timeline scan before playback.
-    func attach(to item: AVPlayerItem?) {
-      guard let item,
-        let track = item.tracks.compactMap(\.assetTrack).first(where: { $0.mediaType == .audio })
-      else { return }
-      attach(to: item, track: track)
     }
     func configure(_ settings: AudioEffects) { state.configure(settings) }
   }

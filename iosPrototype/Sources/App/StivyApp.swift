@@ -106,6 +106,12 @@ struct RootView: View {
         #endif
       }
       .task { model.receiveSharedMusic() }
+      #if os(iOS)
+        .task(id: scenePhase == .active && model.showPlayer ? library.accountRevision : nil) {
+          guard scenePhase == .active, model.showPlayer else { return }
+          model.prepareVisibleRestoredTrack()
+        }
+      #endif
       .onChange(of: model.showPlayer) { _, showing in
         if showing, let request = model.sharedRequest {
           try? SharedMusicInbox.shared()?.remove(request.id)
@@ -744,6 +750,7 @@ struct PlayerScreen: View {
         wide ? AnyLayout(HStackLayout(spacing: 32)) : AnyLayout(VStackLayout(spacing: 18))
       ZStack {
         if let song = model.current {
+          let download = model.downloads.library.records.first { $0.id == song.id }
           Artwork(url: song.artwork)
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped().blur(radius: 65).opacity(0.42).ignoresSafeArea()
@@ -780,7 +787,22 @@ struct PlayerScreen: View {
               )
               .clipShape(RoundedRectangle(cornerRadius: 20))
               VStack(spacing: 22) {
-                songHeading(song, expanded: expanded, verticalBar: verticalBar)
+                songHeading(song, expanded: expanded, verticalBar: verticalBar, isOffline: download?.state == .ready)
+                if let download {
+                  DownloadProgressIndicator(record: download)
+                  #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("--test-download-progress"),
+                      download.state == .downloading {
+                      Button("Avanza il download di prova") {
+                        if download.progress < 0.72 {
+                          model.downloads.library.recordTransfer(song.id, received: 720_000, responseLength: -1)
+                        } else {
+                          model.downloads.library.update(song.id, state: .verifying)
+                        }
+                      }.accessibilityIdentifier("test-download-callback")
+                    }
+                  #endif
+                }
                 PlayerControls(player: player, reading: model.reading || model.busyMeaning)
                 if !verticalBar {
                   HStack {
@@ -839,7 +861,7 @@ struct PlayerScreen: View {
     }
   }
 
-  private func songHeading(_ song: Song, expanded: Bool, verticalBar: Bool) -> some View {
+  private func songHeading(_ song: Song, expanded: Bool, verticalBar: Bool, isOffline: Bool) -> some View {
     let identity = HStack(spacing: 12) {
 
       if showLyrics && !expanded {
@@ -848,8 +870,13 @@ struct PlayerScreen: View {
       }
       VStack(alignment: .leading, spacing: 5) {
         Text(song.title).font(.title2.bold()).lineLimit(2)
-        Text(song.artist).font(.subheadline).foregroundStyle(.white.opacity(0.65))
-          .lineLimit(1)
+        HStack(spacing: 6) {
+          Text(song.artist).lineLimit(1)
+          if isOffline {
+            Image(systemName: "checkmark.circle.fill")
+              .accessibilityLabel("Disponibile offline")
+          }
+        }.font(.subheadline).foregroundStyle(.white.opacity(0.65))
       }.frame(maxWidth: .infinity, alignment: .leading)
     }
     let actions = HStack(spacing: 12) {

@@ -737,7 +737,7 @@ final class PrototypeUITests: XCTestCase {
     waitForPlayback(toggle)
     let status = app.staticTexts["test-warm-status"]
     let preparing = XCTNSPredicateExpectation(
-      predicate: NSPredicate(format: "label == %@", "preparing local-2-30"), object: status)
+      predicate: NSPredicate(format: "label == %@", "item local-2-30"), object: status)
     XCTAssertEqual(XCTWaiter.wait(for: [preparing], timeout: 10), .completed, app.debugDescription)
     app.buttons["next-song"].tap()
 
@@ -754,6 +754,26 @@ final class PrototypeUITests: XCTestCase {
     waitForPlayback(toggle)
     toggle.tap()
     XCTAssertEqual(toggle.value as? String, "In pausa")
+  }
+
+  @MainActor
+  func testSelectedWarmPlaylistFallsBackToItsOriginalAudio() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-local-playback", "--test-warm-delay", "--test-warm-playlist-fallback"]
+    app.launch()
+    let toggle = app.buttons["playback-toggle"]
+    waitForPlayback(toggle)
+    let staging = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "item local-2-30"),
+      object: app.staticTexts["test-warm-status"])
+    XCTAssertEqual(XCTWaiter.wait(for: [staging], timeout: 12), .completed)
+    app.buttons["next-song"].tap()
+    let starts = app.staticTexts["test-warm-starts"]
+    let promoted = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "1"), object: starts)
+    XCTAssertEqual(XCTWaiter.wait(for: [promoted], timeout: 32), .completed)
+    XCTAssertTrue((starts.value as? String ?? "").contains("lettore originale"))
+    XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-2-30")
+    XCTAssertEqual(app.staticTexts["test-warm-waits"].label, "1")
+    waitForPlayback(toggle)
   }
 
   @MainActor
@@ -893,6 +913,40 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertEqual(app.buttons["playback-toggle"].value as? String, "In pausa")
     XCTAssertLessThanOrEqual(
       abs((Int(app.staticTexts["playback-elapsed"].value as? String ?? "0") ?? 0) - before), 1)
+    let ready = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "local-1-30"),
+      object: app.staticTexts["test-warm-ready"])
+    XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed)
+    let toggle = app.buttons["playback-toggle"]
+    XCTAssertEqual(toggle.value as? String, "In pausa")
+    XCTAssertLessThanOrEqual(abs((Int(elapsed.value as? String ?? "") ?? -10) - before), 1)
+    toggle.tap()
+    waitForPlayback(toggle)
+    XCTAssertEqual(app.staticTexts["test-warm-starts"].label, "1")
+    let resumed = XCTNSPredicateExpectation(
+      predicate: NSPredicate { _, _ in (Int(elapsed.value as? String ?? "") ?? 0) > before },
+      object: elapsed)
+    XCTAssertEqual(XCTWaiter.wait(for: [resumed], timeout: 5), .completed)
+    toggle.tap()
+    app.sliders["playback-seek"].adjust(toNormalizedSliderPosition: 0.75)
+    let moved = XCTNSPredicateExpectation(
+      predicate: NSPredicate { _, _ in (Int(elapsed.value as? String ?? "") ?? 0) >= 18 },
+      object: elapsed)
+    XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 5), .completed)
+    XCUIDevice.shared.press(.home)
+    app.terminate()
+    app.launch()
+    XCTAssertTrue(toggle.waitForExistence(timeout: 15))
+    let restoredAgain = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == %@", "local-1-30"),
+      object: app.staticTexts["test-warm-ready"])
+    XCTAssertEqual(XCTWaiter.wait(for: [restoredAgain], timeout: 15), .completed)
+    app.sliders["playback-seek"].adjust(toNormalizedSliderPosition: 0)
+    XCTAssertEqual(elapsed.value as? String, "0")
+    toggle.tap()
+    waitForPlayback(toggle)
+    XCTAssertEqual(app.staticTexts["test-warm-starts"].label, "1")
+    XCTAssertLessThan(Int(elapsed.value as? String ?? "") ?? Int.max, 18)
     app.buttons["show-queue"].tap()
     XCTAssertEqual(app.staticTexts["queue-count"].label, "3 brani")
   }
@@ -923,6 +977,51 @@ final class PrototypeUITests: XCTestCase {
     XCTAssertTrue(create.exists, app.debugDescription)
     create.tap()
     XCTAssertTrue(app.buttons["Condividi immagine"].waitForExistence(timeout: 5))
+  }
+
+  @MainActor
+  func testSongDownloadProgressIsVisibleInPlayerOptionsAndOfflineCollection() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-download-progress", "--test-offline-library"]
+    app.launch()
+
+    let progress = app.descendants(matching: .any).matching(identifier: "download-progress-order-1").firstMatch
+    func assertPercentage(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
+      XCTAssertTrue(progress.waitForExistence(timeout: 8), file: file, line: line)
+      XCTAssertEqual(progress.label, "Download", file: file, line: line)
+      XCTAssertEqual((progress.value as? String)?.filter { !$0.isWhitespace }, expected, file: file, line: line)
+    }
+    assertPercentage("37%")
+    app.buttons["test-download-callback"].tap()
+    assertPercentage("72%")
+    app.buttons["player-more-options"].tap()
+    let sheet = app.scrollViews["song-options-list"]
+    let option = sheet.descendants(matching: .any).matching(identifier: "download-progress-order-1").firstMatch
+    for _ in 0..<3 where !option.isHittable { sheet.swipeUp() }
+    XCTAssertTrue(option.isHittable)
+    XCTAssertEqual((option.value as? String)?.filter { !$0.isWhitespace }, "72%")
+    app.buttons["song-options-close"].tap()
+    app.buttons["return-to-library"].tap()
+    app.buttons["library-section-menu"].tap()
+    app.buttons["library-menu-offline"].tap()
+    assertPercentage("72%")
+    app.buttons["Metti in pausa"].tap()
+    XCTAssertTrue(app.buttons["Riavvia download"].waitForExistence(timeout: 5))
+    XCTAssertFalse(progress.exists)
+  }
+
+  @MainActor
+  func testFinishingDownloadShowsVerificationInPlayer() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--test-playback-order", "--test-download-progress", "--test-offline-library"]
+    app.launch()
+    let callback = app.buttons["test-download-callback"]
+    XCTAssertTrue(callback.waitForExistence(timeout: 8))
+    callback.tap()
+    callback.tap()
+    let progress = app.descendants(matching: .any).matching(identifier: "download-progress-order-1").firstMatch
+    XCTAssertEqual(progress.label, "Verifica del file…")
+    XCTAssertEqual(progress.value as? String ?? "", "")
   }
 
   @MainActor

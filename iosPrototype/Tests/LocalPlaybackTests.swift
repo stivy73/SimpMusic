@@ -4,6 +4,34 @@ import XCTest
 @testable import PrototypeCore
 
 final class LocalPlaybackTests: XCTestCase {
+  @MainActor func testProgressUsesWholeFileSizeAndCannotReopenVerification() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let library = OfflineLibrary(directory: root)
+    let track = PlaybackTrack(id: "progress", title: "Local", artist: "Fixture", artwork: nil)
+    library.begin(track)
+    library.update(track.id, state: .downloading, expected: 200_000)
+    library.recordTransfer(track.id, received: 74_000, responseLength: -1)
+    XCTAssertEqual(library.records.first?.progress, 0.37)
+    XCTAssertEqual(library.records.first?.bytes, 74_000)
+    library.recordTransfer(track.id, received: 50_000, responseLength: 100_000)
+    XCTAssertEqual(library.records.first?.progress, 0.37)
+    library.recordTransfer(track.id, received: 100_000, responseLength: 100_000)
+    XCTAssertEqual(library.records.first?.progress, 0.5)
+    library.update(track.id, state: .verifying)
+    library.recordTransfer(track.id, received: 200_000, responseLength: 200_000)
+    XCTAssertEqual(library.records.first?.state, .verifying)
+    XCTAssertNil(library.url(for: track.id))
+    library.update(track.id, state: .paused)
+    library.begin(track)
+    library.update(track.id, state: .downloading)
+    library.recordTransfer(track.id, received: 10_000, responseLength: -1)
+    XCTAssertNil(library.records.first?.expectedBytes)
+    XCTAssertEqual(library.records.first?.bytes, 10_000)
+    library.recordTransfer(track.id, received: 50_000, responseLength: 100_000)
+    XCTAssertEqual(library.records.first?.expectedBytes, 100_000)
+    XCTAssertEqual(library.records.first?.progress, 0.5)
+  }
   func testIncompleteHTTPTransferNeverCertifiesOffline() throws {
     XCTAssertThrowsError(
       try OfflineValidation.byteCount(actual: 1_048_576, expected: 4_000_000, status: 200))
@@ -51,6 +79,36 @@ final class LocalPlaybackTests: XCTestCase {
       _ = try await OfflineValidation.playableFile(url, expectedDuration: nil)
       XCTFail("Invalid audio accepted")
     } catch {}
+  }
+  @MainActor func testOfflineFileIsCommittedWithIndexAndRemovedWithItsRecord() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let library = OfflineLibrary(directory: root)
+    let track = PlaybackTrack(id: "removal", title: "Fixture", artist: "Local", artwork: nil)
+    let temporary = root.appendingPathComponent("fixture.m4a")
+    library.begin(track)
+    try Self.audioFixture(temporary)
+    try await library.finish(track.id, temporary: temporary, status: 200, contentRange: nil)
+    let installed = try XCTUnwrap(library.url(for: track.id))
+    // Older versions could mark an already validated record paused before removing it.
+    library.update(track.id, state: .paused)
+    try library.remove(track.id)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: installed.path))
+    XCTAssertTrue(OfflineLibrary(directory: root).records.isEmpty)
+
+    library.begin(track)
+    try Self.audioFixture(temporary)
+    let manifest = root.appendingPathComponent("index.json")
+    try FileManager.default.removeItem(at: manifest)
+    try FileManager.default.createDirectory(at: manifest, withIntermediateDirectories: false)
+    do {
+      try await library.finish(track.id, temporary: temporary, status: 200, contentRange: nil)
+      XCTFail("An unsaved manifest must not publish a ready track")
+    } catch {
+      XCTAssertTrue(library.ready.isEmpty)
+      XCTAssertFalse(FileManager.default.fileExists(atPath: installed.path))
+      XCTAssertNotNil(library.persistenceError)
+    }
   }
   @MainActor func testQuotaIsCheckedAtCommitAndPartialFileDoesNotBecomeReady() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
