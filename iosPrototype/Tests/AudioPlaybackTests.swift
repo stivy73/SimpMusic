@@ -350,6 +350,65 @@ final class AudioPlaybackTests: XCTestCase {
       "Tail and post-minute safety checks must overlap, rather than add round trips")
   }
 
+  func testNativeStartupFetchesFirstPlaybackBlockDuringRangeValidationAndReusesIt() async throws {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [ValidationConcurrencyStub.self]
+    let transport = URLSession(configuration: config)
+    defer { transport.invalidateAndCancel() }
+    ValidationConcurrencyStub.reset()
+    let resolver = YouTubeAudio(transport: transport)
+    let video = try validationVideo()
+    let sequentialStart = ContinuousClock.now
+    let unprimed = try await resolver.source(
+      video: video, userAgent: "Test", authenticated: true, quality: .high)
+    XCTAssertNil(unprimed.initialBlock)
+    let sequentialBuffer = AudioRangeBuffer(source: unprimed, fetchRange: {
+      try await transport.data(for: $0)
+    })
+    _ = try await sequentialBuffer.block(at: 0)
+    let sequentialTime = sequentialStart.duration(to: .now)
+    await sequentialBuffer.close()
+    ValidationConcurrencyStub.reset()
+    let overlapStart = ContinuousClock.now
+    let source = try await resolver.source(
+      video: video, userAgent: "Test", authenticated: true, quality: .high,
+      preloadFirstBlock: true)
+    XCTAssertEqual(ValidationConcurrencyStub.maximum, 3)
+    let buffer = AudioRangeBuffer(source: source, fetchRange: { _ in
+      XCTFail("Playback requested the validated first block again")
+      throw AudioPlaybackError.unavailable
+    })
+    let bytes = try await buffer.block(at: 0)
+    let overlapTime = overlapStart.duration(to: .now)
+    XCTAssertEqual(bytes, Data(repeating: 1, count: Int(AudioRangeBuffer.blockSize)))
+    print("AAC fixture, validated source and readable first block: sequential \(sequentialTime), concurrent \(overlapTime)")
+    await buffer.close()
+  }
+
+  func testMalformedPreloadCannotSeedThePlaybackBuffer() async throws {
+    RangeStub.handler = { request in
+      if request.value(forHTTPHeaderField: "Range") == "bytes=0-131071" {
+        return (206, ["Content-Range": "bytes 1-131072/4000000"], Data(repeating: 9, count: 131072))
+      }
+      return try self.validProbe(request)
+    }
+    let transport = validationTransport()
+    defer { transport.invalidateAndCancel() }
+    let source = try await YouTubeAudio(transport: transport).source(
+      video: validationVideo(), userAgent: "Test", authenticated: true, quality: .high,
+      preloadFirstBlock: true)
+    XCTAssertNil(source.initialBlock)
+    let buffer = AudioRangeBuffer(source: source, fetchRange: { request in
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Range"), "bytes=0-131071")
+      let response = HTTPURLResponse(url: request.url!, statusCode: 206, httpVersion: nil,
+        headerFields: ["Content-Range": "bytes 0-131071/4000000"])!
+      return (Data(repeating: 3, count: 131072), response)
+    })
+    let bytes = try await buffer.block(at: 0)
+    XCTAssertEqual(bytes, Data(repeating: 3, count: 131072))
+    await buffer.close()
+  }
+
   func testPublicPrefixOnlyStreamFallsBackBeforePlayback() async throws {
     let calls = RangeCalls()
     RangeStub.handler = { request in
@@ -787,7 +846,7 @@ private final class ValidationConcurrencyStub: URLProtocol, @unchecked Sendable 
     let range = request.value(forHTTPHeaderField: "Range")!.dropFirst(6)
     let parts = range.split(separator: "-")
     let first = Int(parts[0])!, last = Int(parts[1])!
-    let delayed = first != 0
+    let delayed = first != 0 || last > 1023
     if delayed { Self.lock.withLock { Self.active += 1; Self.peak = max(Self.peak, Self.active) } }
     DispatchQueue.global().asyncAfter(deadline: .now() + (delayed ? 0.15 : 0)) { [self] in
       let response = HTTPURLResponse(url: request.url!, statusCode: 206, httpVersion: nil,

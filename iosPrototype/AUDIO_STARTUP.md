@@ -1,4 +1,24 @@
-# Preparazione anticipata — 0.16.9 (62)
+# Avvio audio — 21 novembre 2026
+
+Nel player iPhone e CarPlay, il primo blocco AAC viene caricato in parallelo ai
+controlli oltre 1 MiB e in coda al file. Il player riceve i byte già verificati.
+Una risposta con un intervallo errato viene scartata.
+
+Quando si seleziona un brano in preparazione, la riproduzione può iniziare appena
+l’item è riproducibile. La dissolvenza continua ad attendere il preroll completo.
+L’apertura di una playlist o di un album a player fermo anticipa la prima traccia.
+Con la riproduzione automatica attiva, la fine della coda anticipa anche il primo
+suggerimento radio disponibile.
+
+Misure locali con Xcode 27.2. Nel test
+`testNativeStartupFetchesFirstPlaybackBlockDuringRangeValidationAndReusesIt`,
+con 150 ms di ritardo simulato sulle richieste, la verifica e il primo blocco
+leggibile hanno richiesto **315 ms in sequenza e 159 ms in parallelo**.
+Sul simulatore iPhone 18 Pro, per un file locale già preparato, la diagnostica
+ha registrato **81 ms dal cambio brano allo stato di riproduzione di AVPlayer**.
+La latenza udibile su rete mobile e nell’auto richiede una prova su dispositivo.
+
+## Preparazione anticipata — 0.16.9 (62)
 
 La preparazione viene spostata prima della selezione, invece di nascondere lo
 stato di caricamento. Mentre il brano corrente suona viene preparato il successivo

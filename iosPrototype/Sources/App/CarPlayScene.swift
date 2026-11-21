@@ -816,6 +816,9 @@
                 session: account)
               try Task.checkCancellation()
               guard detailRevision == expected, controller != nil else { return }
+              if controller?.topTemplate === loading, app.library.session == account {
+                app.music.prepareCollectionStart(detail.songs.first)
+              }
               setTiles(
                 detail.songs.isEmpty ? [status("Nessun contenuto")] : songTiles(detail.songs),
                 in: loading, layout: .tracks)
@@ -849,6 +852,11 @@
                 throw LibraryError.repeatedContinuation
               }
             } while token != nil
+            if controller?.topTemplate === loading, app.library.session == account,
+              let first = items.first, first.kind == .song
+            {
+              app.music.prepareCollectionStart(Song(first))
+            }
             let content = tiles(
               items, albumArtwork: albumArtwork, albumArtist: albumArtist,
               albumID: albumArtwork != nil ? target.browseId : nil)

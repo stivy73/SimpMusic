@@ -166,6 +166,10 @@ actor AudioRangeBuffer {
   ) {
     self.source = source
     self.diagnostic = diagnostic
+    if let initialBlock = source.initialBlock {
+      cached[0] = initialBlock
+      order = [0]
+    }
     if let session {
       self.session = session
     } else {

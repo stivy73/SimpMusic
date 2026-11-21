@@ -135,6 +135,8 @@ struct RemotePlaylistView: View {
       .task(id: library.session) {
         account = library.session
         await model.configure(session: library.session)
+        guard !Task.isCancelled, library.session == account, model.error == nil else { return }
+        music.prepareCollectionStart(model.detail?.entries.first.map { Song($0.item) })
       }
       .onChange(of: library.session) { _, value in if value != account { dismiss() } }
   }

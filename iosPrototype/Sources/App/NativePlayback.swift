@@ -93,6 +93,7 @@
         : AudioPlaybackError.unavailable.localizedDescription
     }
     private var preparationRevision = UUID()
+    private var selectedPreparation: UUID?
     private var changingDeck = false
     private var transitionRequest: Task<Void, Never>?
     private var fadeTask: Task<Void, Never>?
@@ -103,6 +104,7 @@
     func cancelTransition(discardPrepared: Bool = true) {
       if discardPrepared {
         preparationRevision = UUID()
+        selectedPreparation = nil
         transitionRequest?.cancel()
         transitionRequest = nil
         preparingID = nil
@@ -158,7 +160,8 @@
           } else {
             let source = try await YouTubeAudio().resolve(
               videoID: videoID, session: context.session,
-              quality: context.quality, preferHLSForLongTracks: true, accountOnly: accountOnly)
+              quality: context.quality, preferHLSForLongTracks: true, accountOnly: accountOnly,
+              preloadFirstBlock: true)
             resolvedSource = source
             sourceURL = source.url
             let token = UUID()
@@ -196,6 +199,9 @@
           guard item.status == .readyToPlay, deck.status == .readyToPlay else {
             throw AudioPlaybackError.unavailable
           }
+          // A foreground load is already awaiting this task. It can use the
+          // same playable item now instead of waiting for speculative preroll.
+          if selectedPreparation == revision { return }
           // Preroll fills/decodes the first samples without starting playback or
           // taking the audio route. The selected deck is promoted, never rebuilt.
           warmStatus = "preroll " + videoID
@@ -218,8 +224,9 @@
           warmReadyID = videoID
           warmStatus = "ready " + videoID
         } catch {
+          guard preparationRevision == revision else { return }
           warmStatus = "failed " + videoID + " code " + String((error as NSError).code)
-          if preparationRevision == revision { cancelTransition() }
+          cancelTransition()
         }
       }
     }
@@ -229,15 +236,29 @@
     ) -> Bool {
       guard !cast.connected, (seconds == 0 || playing), let deck = prepared, deck.id == videoID,
         deck.accountOnly == accountOnly,
-        warmReadyID == videoID, deck.player.currentItem?.status == .readyToPlay,
+        (seconds == 0 || warmReadyID == videoID), deck.player.status == .readyToPlay,
+        deck.player.currentItem?.status == .readyToPlay,
         AudioWarmupValidity.usable(preparedAt: deck.preparedAt, sourceURL: deck.sourceURL,
           context: deck.context, current: warmupContext())
       else { return false }
       let wasChangingDeck = changingDeck
       changingDeck = true
       defer { changingDeck = wasChangingDeck }
+      let completedPreroll = warmReadyID == videoID
+      // A tap can arrive while preroll is pending. Retire its callbacks before
+      // promoting the deck so neither its timeout nor its cleanup touches playback.
+      preparationRevision = UUID()
+      selectedPreparation = nil
+      transitionRequest?.cancel()
+      if !completedPreroll { deck.player.cancelPendingPrerolls() }
       if seconds > 0 { crossfadeStarts += 1 } else { warmStarts += 1 }
-      if !preserveIntent { request?.cancel() }
+      // An in-flight selection has already started this clock in startLoad.
+      if !preserveIntent {
+        preparationBegan = ProcessInfo.processInfo.systemUptime
+        request?.cancel()
+      } else if !intent.wantsPlayback {
+        preparationBegan = nil
+      }
       finishLoadingTask()
       restoredPosition = nil
       initialSeek = nil
@@ -279,8 +300,10 @@
       sourceDiagnostic = deck.source?.accountDiagnostic ?? "File locale verificato"
       networkDiagnostic = "Audio preparato in anticipo; controlli della sorgente mantenuti"
       audioResolutionReport = (deck.source?.resolutionReport ?? "File locale")
-        + "\nPreparazione: riuso del player e del buffer già pronti"
+        + (completedPreroll ? "\nPreparazione: riuso del player e del buffer già pronti"
+                            : "\nPreparazione: riuso del player appena riproducibile, senza attendere il preroll")
       audioReportFinalized = true
+      recordPreparation("player anticipato selezionato")
       bindPlayer()
       let generation = assetRevision
       statusObservation = deck.player.currentItem?.observe(\.status, options: [.new]) {
@@ -463,6 +486,7 @@
       let pendingWarmup = !recovering && startAt == nil && preparingID == videoId
           && preparingContext == warmupContext() && preparingAccountOnly == requiresAccount
         ? transitionRequest : nil
+      if pendingWarmup != nil { selectedPreparation = preparationRevision }
       preparationBegan = ProcessInfo.processInfo.systemUptime
       restoredPosition = nil
       initialSeek = startAt
@@ -549,6 +573,7 @@
               videoID: videoId, session: accountProvider(),
               quality: AudioPreferences.shared.currentQuality, excluding: rejectedSources,
               preferHLS: recovering, preferHLSForLongTracks: true, accountOnly: requiresAccount,
+              preloadFirstBlock: true,
               diagnostic: { [weak self] report in
                 Task { @MainActor [weak self] in
                   guard let self, self.intent.revision == expected, self.assetRevision == generation,

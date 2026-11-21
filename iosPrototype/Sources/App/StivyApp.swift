@@ -1491,6 +1491,7 @@ extension View {
     var body: some View {
       VStack {
         Text(String(player.warmStarts)).accessibilityIdentifier("test-warm-starts")
+          .accessibilityValue(player.audioResolutionReport)
         Text(String(player.warmWaits)).accessibilityIdentifier("test-warm-waits")
         Text(player.warmReadyID).accessibilityIdentifier("test-warm-ready")
         Text(player.warmStatus).accessibilityIdentifier("test-warm-status")

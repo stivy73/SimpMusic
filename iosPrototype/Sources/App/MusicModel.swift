@@ -170,10 +170,19 @@ final class MusicModel: NSObject, ObservableObject {
   }
   private func updateCrossfade() {
     let seconds = AudioPreferences.shared.crossfade
-    guard !isPassenger, player.playing, !player.isLoading, !reading, !busyMeaning, sleepTimer != .endOfTrack,
-      let index = sequence.next(repeatMode: repeatMode, automatic: true), index != sequence.current,
-      queue.indices.contains(index)
+    guard !isPassenger, player.playing, !player.isLoading, !reading, !busyMeaning, sleepTimer != .endOfTrack
     else { return }
+    guard let index = sequence.next(repeatMode: repeatMode, automatic: true) else {
+      // At the end of the manual queue, advanceRadio will append the buffered
+      // songs in order, skipping anything added manually since the radio search.
+      if autoplayEnabled, let next = radioBuffer.first(where: { item in
+        !queue.contains { $0.id == item.mediaId }
+      }) {
+        player.prepareTransition(videoID: next.mediaId, accountOnly: next.isUploaded == true)
+      }
+      return
+    }
+    guard index != sequence.current, queue.indices.contains(index) else { return }
     // The normal Next/end path needs the same source, buffer and player as a
     // crossfade. Prepare as soon as current playback is running, even with fade=0.
     player.prepareTransition(videoID: queue[index].id, accountOnly: queue[index].isUploaded == true)
@@ -189,9 +198,9 @@ final class MusicModel: NSObject, ObservableObject {
     }
   }
 
-  func prepareAlbumAudio(_ songs: [Song]) {
+  func prepareCollectionStart(_ first: Song?) {
     // One speculative deck only. Active listening prioritizes the queue successor.
-    guard !isPassenger, !player.playing, !player.isLoading, let first = songs.first else { return }
+    guard let first, !isPassenger, !player.playing, !player.isLoading, !reading, !busyMeaning else { return }
     player.prepareTransition(videoID: first.id, accountOnly: first.isUploaded == true)
   }
 

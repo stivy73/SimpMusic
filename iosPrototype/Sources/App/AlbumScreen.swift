@@ -238,7 +238,7 @@ struct AlbumView: View {
       guard library.session == account else { return }
       detail = result
       loading = false
-      model.prepareAlbumAudio(result.songs)
+      model.prepareCollectionStart(result.songs.first)
     } catch is CancellationError {} catch {
       self.error = "Impossibile caricare tutte le tracce. Riprova."
       loading = false

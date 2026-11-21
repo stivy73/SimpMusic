@@ -672,6 +672,8 @@ final class PrototypeUITests: XCTestCase {
       predicate: NSPredicate(format: "label == %@", "1"),
       object: app.staticTexts["test-warm-starts"])
     XCTAssertEqual(XCTWaiter.wait(for: [promoted], timeout: 5), .completed)
+    XCTAssertTrue((app.staticTexts["test-warm-starts"].value as? String ?? "")
+      .contains("riuso del player e del buffer già pronti"))
     XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-2-30")
     XCTAssertEqual(app.staticTexts["test-crossfade-starts"].label, "0")
     XCTAssertFalse(app.staticTexts["playback-error"].exists)
@@ -744,6 +746,8 @@ final class PrototypeUITests: XCTestCase {
       object: app.staticTexts["test-warm-starts"])
     XCTAssertEqual(XCTWaiter.wait(for: [promoted], timeout: 20), .completed, app.debugDescription)
     XCTAssertEqual(app.staticTexts["test-warm-waits"].label, "1")
+    XCTAssertTrue((app.staticTexts["test-warm-starts"].value as? String ?? "")
+      .contains("senza attendere il preroll"))
     XCTAssertEqual(app.staticTexts["test-current-id"].label, "local-2-30")
     XCTAssertEqual(app.staticTexts["test-crossfade-starts"].label, "0")
     XCTAssertFalse(app.staticTexts["playback-error"].exists)

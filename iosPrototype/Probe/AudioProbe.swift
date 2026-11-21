@@ -203,7 +203,8 @@ func probeAudioIfRequested(_ args: [String]) async throws -> Bool {
     }
     let began = Date()
     let source = try await YouTubeAudio().resolve(
-      videoID: videoID, preferHLSForLongTracks: args.first != "--audio-timing")
+      videoID: videoID, preferHLSForLongTracks: args.first != "--audio-timing",
+      preloadFirstBlock: args.first != "--audio-timing")
     print(source.resolutionReport)
     print("Source safety checks complete: \(String(format: "%.2f", Date().timeIntervalSince(began)))s")
     print("Source duration: \(source.duration)s; HLS: \(source.isHLS)")

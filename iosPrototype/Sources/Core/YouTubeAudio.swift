@@ -143,8 +143,9 @@ public struct YouTubeAudio: Sendable {
     public let isHLS: Bool
     public let isLive: Bool
     public let authenticated: Bool
-    public let accountDiagnostic: String
-    public let resolutionReport: String
+    public fileprivate(set) var accountDiagnostic: String
+    public fileprivate(set) var resolutionReport: String
+    fileprivate(set) var initialBlock: Data?
     public init(
       url: URL, duration: Double, userAgent: String, byteCount: Int64?, isHLS: Bool,
       isLive: Bool = false, authenticated: Bool = false, accountDiagnostic: String = "", resolutionReport: String = ""
@@ -181,18 +182,19 @@ public struct YouTubeAudio: Sendable {
   public func resolve(
     videoID: String, session account: YouTubeSession? = nil, quality: AudioQuality = .high,
     excluding: Set<URL> = [], preferHLS: Bool = false, preferHLSForLongTracks: Bool = false,
-    accountOnly: Bool = false,
+    accountOnly: Bool = false, preloadFirstBlock: Bool = false,
     diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws
     -> Source
   {
     let trace = AudioResolutionTrace(receive: diagnostic)
     trace.record("Audio report v1; account=\(account != nil); recovery=\(preferHLS)")
-    func completed(_ source: Source, path: String) -> Source {
+    func completed(_ source: Source, path: String, accountReport: String? = nil) -> Source {
       trace.record("Selected \(path); validation complete")
-      return Source(url: source.url, duration: source.duration, userAgent: source.userAgent,
-        byteCount: source.byteCount, isHLS: source.isHLS, isLive: source.isLive, authenticated: source.authenticated,
-        accountDiagnostic: source.accountDiagnostic, resolutionReport: trace.report)
+      var result = source
+      result.resolutionReport = trace.report
+      if let accountReport { result.accountDiagnostic = accountReport }
+      return result
     }
     var accountDiagnostic = "Nessuna sessione YouTube Music disponibile"
     var publicDiagnostic = "IOS pubblico: non verificato"
@@ -206,7 +208,7 @@ public struct YouTubeAudio: Sendable {
         let selected = try await source(
           video: video, userAgent: ClientConfig.webRemix.userAgent, authenticated: true,
           quality: quality, excluding: excluding, preferHLS: preferHLS,
-          preferHLSForLongTracks: preferHLSForLongTracks,
+          preferHLSForLongTracks: preferHLSForLongTracks, preloadFirstBlock: preloadFirstBlock,
           diagnostic: { trace.record("ACCOUNT_WEB " + $0) })
         return completed(selected, path: "ACCOUNT_WEB")
       } catch is CancellationError { throw CancellationError() } catch {
@@ -238,12 +240,10 @@ public struct YouTubeAudio: Sendable {
         diagnostic: { trace.record("PUBLIC_APPLE " + $0) })
       let fallback = try await source(video: video, userAgent: YouTubeApplePlayer.userAgent,
         authenticated: false, quality: quality, excluding: excluding, preferHLS: preferHLS,
-        preferHLSForLongTracks: preferHLSForLongTracks,
+        preferHLSForLongTracks: preferHLSForLongTracks, preloadFirstBlock: preloadFirstBlock,
         diagnostic: { trace.record("PUBLIC_APPLE " + $0) })
-      return completed(Source(url: fallback.url, duration: fallback.duration,
-        userAgent: fallback.userAgent, byteCount: fallback.byteCount, isHLS: fallback.isHLS, isLive: fallback.isLive,
-        authenticated: false,
-        accountDiagnostic: accountDiagnostic + "; sorgente Apple pubblica validata"), path: "PUBLIC_APPLE")
+      return completed(fallback, path: "PUBLIC_APPLE",
+        accountReport: accountDiagnostic + "; sorgente Apple pubblica validata")
     } catch is CancellationError { throw CancellationError() } catch {
       try Task.checkCancellation()
       appleDiagnostic = "Apple pubblico: " + AudioResolutionFailure.detail(error)
@@ -255,12 +255,10 @@ public struct YouTubeAudio: Sendable {
       let fallback = try await source(
         video: video, userAgent: ClientConfig.ios.userAgent, authenticated: false, quality: quality,
         excluding: excluding, preferHLS: preferHLS,
-        preferHLSForLongTracks: preferHLSForLongTracks,
+        preferHLSForLongTracks: preferHLSForLongTracks, preloadFirstBlock: preloadFirstBlock,
         diagnostic: { trace.record("PUBLIC_IOS " + $0) })
-      return completed(Source(
-        url: fallback.url, duration: fallback.duration, userAgent: fallback.userAgent,
-        byteCount: fallback.byteCount, isHLS: fallback.isHLS, isLive: fallback.isLive, authenticated: false,
-        accountDiagnostic: accountDiagnostic + "; sorgente IOS pubblica validata"), path: "PUBLIC_IOS")
+      return completed(fallback, path: "PUBLIC_IOS",
+        accountReport: accountDiagnostic + "; sorgente IOS pubblica validata")
     } catch is CancellationError { throw CancellationError() } catch {
       try Task.checkCancellation()
       publicDiagnostic = "IOS pubblico: " + AudioResolutionFailure.detail(error)
@@ -274,12 +272,10 @@ public struct YouTubeAudio: Sendable {
       let fallback = try await source(
         video: video, userAgent: ClientConfig.webRemix.userAgent, authenticated: false,
         quality: quality, excluding: excluding, preferHLS: preferHLS,
-        preferHLSForLongTracks: preferHLSForLongTracks,
+        preferHLSForLongTracks: preferHLSForLongTracks, preloadFirstBlock: preloadFirstBlock,
         diagnostic: { trace.record("PUBLIC_WEB " + $0) })
-      return completed(Source(
-        url: fallback.url, duration: fallback.duration, userAgent: fallback.userAgent,
-        byteCount: fallback.byteCount, isHLS: fallback.isHLS, isLive: fallback.isLive, authenticated: false,
-        accountDiagnostic: accountDiagnostic + "; sorgente WEB pubblica decodificata e validata"), path: "PUBLIC_WEB")
+      return completed(fallback, path: "PUBLIC_WEB",
+        accountReport: accountDiagnostic + "; sorgente WEB pubblica decodificata e validata")
     } catch is CancellationError { throw CancellationError() } catch {
       try Task.checkCancellation()
       trace.record("PUBLIC_WEB failed: " + AudioResolutionFailure.detail(error))
@@ -318,6 +314,7 @@ public struct YouTubeAudio: Sendable {
   func source(
     video: YouTubeVideo, userAgent: String, authenticated: Bool, quality: AudioQuality,
     excluding: Set<URL> = [], preferHLS: Bool = false, preferHLSForLongTracks: Bool = false,
+    preloadFirstBlock: Bool = false,
     diagnostic: (@Sendable (String) -> Void)? = nil
   ) async throws
     -> Source
@@ -358,7 +355,7 @@ public struct YouTubeAudio: Sendable {
         }
         let length = try await validateRange(
           url: url, userAgent: userAgent, transport: transport, first: 0, last: 1023,
-          diagnostic: record)
+          diagnostic: record).length
         // Live AAC endpoints may report a 1 KiB initialization object as the
         // entire resource. It is not a complete playable file, even with HTTP 206.
         guard length > 1024 else {
@@ -367,29 +364,48 @@ public struct YouTubeAudio: Sendable {
         }
         // A readable prefix is not a playable song. Validate the exact failure boundary
         // and the tail for BOTH account and public streams before giving one to AVPlayer.
-        try await withThrowingTaskGroup(of: Void.self) { group in
+        let initialBlock = try await withThrowingTaskGroup(of: Data?.self) { group in
+          if preloadFirstBlock {
+            group.addTask {
+              // Reuse the probe connection while the required probes are running.
+              // On a transient failure, prepare() retains its normal fetch and retry policy.
+              try? await validateRange(url: url, userAgent: userAgent, transport: transport,
+                first: 0, last: min(length, AudioRangeBuffer.blockSize) - 1,
+                expectedLength: length, diagnostic: record).data
+            }
+          }
           if length > 1_048_576 {
             group.addTask {
               _ = try await validateRange(url: url, userAgent: userAgent, transport: transport,
                 first: 1_048_576, last: min(length - 1, 1_049_599), expectedLength: length,
                 diagnostic: record)
+              return nil
             }
           }
-          if length > 1024 {
+          // One request covers both probes when the last KiB starts at the boundary.
+          let tailOffset = length - 1024
+          if tailOffset != 1_048_576 {
             group.addTask {
               _ = try await validateRange(url: url, userAgent: userAgent, transport: transport,
-                first: length - 1024, last: length - 1, expectedLength: length,
+                first: tailOffset, last: length - 1, expectedLength: length,
                 diagnostic: record)
+              return nil
             }
           }
-          for try await _ in group {}
+          var block: Data?
+          for try await result in group {
+            if let result { block = result }
+          }
+          return block
         }
         try Task.checkCancellation()
-        return Source(
+        var selected = Source(
           url: url, duration: Double(video.lengthInSeconds) ?? 0,
           userAgent: userAgent, byteCount: length, isHLS: false,
           authenticated: authenticated,
           accountDiagnostic: authenticated ? "Account: inizio, oltre 1 MiB e fine verificati" : "")
+        selected.initialBlock = initialBlock
+        return selected
       } catch is CancellationError { throw CancellationError() } catch {
         try Task.checkCancellation()
         lastError = error
@@ -402,7 +418,7 @@ public struct YouTubeAudio: Sendable {
   private func validateRange(
     url: URL, userAgent: String, transport: URLSession, first: Int64, last: Int64,
     expectedLength: Int64? = nil, diagnostic: (@Sendable (String) -> Void)? = nil
-  ) async throws -> Int64 {
+  ) async throws -> (length: Int64, data: Data) {
     let source = Source(
       url: url, duration: 0, userAgent: userAgent, byteCount: expectedLength, isHLS: false)
     let request = try AudioRangeLoader.rangeRequest(source: source, offset: first, last: last)
@@ -431,7 +447,7 @@ public struct YouTubeAudio: Sendable {
       throw AudioPlaybackError.rejectedRange(
         offset: first, status: (response as? HTTPURLResponse)?.statusCode)
     }
-    return length
+    return (length, data)
   }
 
   /// A manifest returning 200 says nothing about segment access. Probe an early,
