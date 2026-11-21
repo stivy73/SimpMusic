@@ -127,6 +127,33 @@ final class PlaybackSequenceTests: XCTestCase {
     }
   }
 
+  func testSiriPrefersExactSongAndArtistOverLiveVersionAndOtherSongs() {
+    let results = [
+      DiscoveryItem(kind: .song, mediaId: "live", title: "Notte prima degli esami (Live)", subtitle: "Antonello Venditti", artwork: nil),
+      DiscoveryItem(kind: .song, mediaId: "cover", title: "Notte prima degli esami", subtitle: "Altro artista", artwork: nil),
+      DiscoveryItem(kind: .song, mediaId: "other", title: "21 modi per dirti ti amo", subtitle: "Antonello Venditti", artwork: nil),
+      DiscoveryItem(kind: .song, mediaId: "original", title: "Notte prima degli esami", subtitle: "Antonello Venditti", artwork: nil)
+    ]
+    XCTAssertEqual(VoicePlaybackSelection.best(in: results, filter: .songs,
+      title: "Notte prima degli esami", artist: "Venditti")?.mediaId, "original")
+    XCTAssertEqual(VoicePlaybackSelection.best(in: results, filter: .songs,
+      title: "Notte prima degli esami (Live)", artist: "Venditti")?.mediaId, "live")
+    XCTAssertEqual(VoicePlaybackSelection.best(in: results, filter: .songs,
+      title: "Notte prima degli esami di Venditti", artist: nil)?.mediaId, "original")
+  }
+
+  func testSiriArtistPhraseChoosesArtistInsteadOfTributeOrSong() {
+    let artist = VoicePlaybackSelection.artistRequest(in: "Canzoni degli AC/DC")
+    XCTAssertEqual(artist, "AC/DC")
+    let results = [
+      DiscoveryItem(kind: .artist, mediaId: "tribute", title: "AC/DC Tribute", subtitle: "", artwork: nil),
+      DiscoveryItem(kind: .song, mediaId: "song", title: "AC/DC", subtitle: "", artwork: nil),
+      DiscoveryItem(kind: .artist, mediaId: "band", title: "AC/DC", subtitle: "", artwork: nil)
+    ]
+    XCTAssertEqual(VoicePlaybackSelection.best(in: results, filter: .artists,
+      title: artist, artist: nil)?.mediaId, "band")
+  }
+
   func testVoiceIdentifiersRoundTripAndRejectMissingIDs() {
     for kind in [DiscoveryItem.Kind.song, .album, .artist] {
       let id = VoiceMediaIdentifier(kind: kind, mediaID: "media-123")

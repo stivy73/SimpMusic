@@ -1429,17 +1429,45 @@
     private let app = AppleAppSession.shared
 
     private func request(_ search: INMediaSearch?, fallback: String? = nil) -> CarPlayVoiceQuery? {
-      let filter: MusicSearchFilter =
-        search?.mediaType == .album
-        ? .albums
-        : search?.mediaType == .artist ? .artists : .songs
+      let name = search?.mediaName ?? fallback
+      let artist = search?.artistName?.trimmingCharacters(in: .whitespacesAndNewlines)
+      if search?.mediaType == .artist {
+        guard let query = [artist, name].compactMap({ $0 }).first(where: { !$0.isEmpty }) else { return nil }
+        return CarPlayVoiceQuery(query: query, filter: .artists)
+      }
+      if search?.mediaType != .album, let name,
+        let query = VoicePlaybackSelection.artistRequest(in: name)
+      {
+        return CarPlayVoiceQuery(query: artist.flatMap { $0.isEmpty ? nil : $0 } ?? query, filter: .artists)
+      }
+      let filter: MusicSearchFilter = search?.mediaType == .album ? .albums : .songs
+      let title = filter == .albums ? (search?.albumName ?? name) : name
+      if filter == .songs, title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
+        let artist, !artist.isEmpty
+      {
+        return CarPlayVoiceQuery(query: artist, filter: .artists)
+      }
       var parts: [String] = []
-      for value in [search?.mediaName, search?.albumName, search?.artistName, fallback] {
+      for value in [title, artist] {
         if let value, !value.isEmpty, !parts.contains(value) { parts.append(value) }
       }
       let query = parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
       guard !query.isEmpty else { return nil }
       return CarPlayVoiceQuery(query: query, filter: filter)
+    }
+
+    private func bestResult(
+      for voice: CarPlayVoiceQuery, search: INMediaSearch?, fallback: String?,
+      discovery: HomeDiscovery
+    ) async throws -> DiscoveryItem? {
+      let results = try await discovery.search(query: voice.query, filter: voice.filter)
+      let title = switch voice.filter {
+      case .artists: voice.query
+      case .albums: search?.albumName ?? search?.mediaName ?? fallback
+      default: search?.mediaName ?? fallback
+      }
+      return VoicePlaybackSelection.best(
+        in: results, filter: voice.filter, title: title, artist: search?.artistName)
     }
 
     private func mediaItem(_ item: DiscoveryItem) -> INMediaItem {
@@ -1464,11 +1492,11 @@
       }
       app.music.carPlayVoiceQuery = voice
       do {
-        let results = try await HomeDiscovery(session: app.library.session).search(
-          query: voice.query, filter: voice.filter)
-        let items = results.prefix(5).map(mediaItem)
-        if items.count == 1 { return [.success(with: items[0])] }
-        return items.isEmpty ? [.unsupported()] : [.disambiguation(with: items)]
+        guard let item = try await bestResult(
+          for: voice, search: intent.mediaSearch, fallback: intent.mediaItems?.first?.title,
+          discovery: HomeDiscovery(session: app.library.session))
+        else { return [.unsupported()] }
+        return [.success(with: mediaItem(item))]
       } catch { return [.unsupported(forReason: .serviceUnavailable)] }
     }
 
@@ -1512,7 +1540,8 @@
               kind: identifier.kind, mediaId: identifier.mediaID,
               title: selected?.title ?? "", subtitle: selected?.artist ?? "", artwork: nil)
           } else if let voice {
-            item = try await discovery.search(query: voice.query, filter: voice.filter).first
+            item = try await bestResult(
+              for: voice, search: intent.mediaSearch, fallback: selected?.title, discovery: discovery)
           } else {
             item = nil
           }
@@ -1521,6 +1550,10 @@
           } else if let target = item?.target {
             let page = try await discovery.page(target: target)
             songs = page.shelves.flatMap(\.items).filter { $0.kind == .song }.map(Song.init)
+            if item?.kind == .artist {
+              var seen = Set<String>()
+              songs = songs.filter { seen.insert($0.id).inserted }
+            }
           }
         }
         guard let first = songs.first else {

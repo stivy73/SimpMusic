@@ -60,6 +60,52 @@ public struct CarPlayVoiceQuery: Equatable, Sendable {
   }
 }
 
+public enum VoicePlaybackSelection {
+  public static func artistRequest(in phrase: String) -> String? {
+    let value = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
+    let prefixes = ["canzoni di ", "canzoni degli ", "canzoni dei ", "canzoni del ",
+      "canzoni delle ", "canzoni della ", "brani di ", "brani degli ", "brani dei ",
+      "brani del ", "brani delle ", "brani della ", "musica di ", "musica degli ",
+      "musica dei ", "musica del ", "musica delle ", "musica della "]
+    guard let prefix = prefixes.first(where: { value.lowercased().hasPrefix($0) }) else { return nil }
+    let artist = value.dropFirst(prefix.count).trimmingCharacters(in: .whitespacesAndNewlines)
+    return artist.isEmpty ? nil : artist
+  }
+
+  public static func best(
+    in results: [DiscoveryItem], filter: MusicSearchFilter, title: String?, artist: String?
+  ) -> DiscoveryItem? {
+    let candidates = results.filter { $0.kind == filter.kind && !$0.mediaId.isEmpty }
+    let wanted = normalized(title ?? "")
+    let performer = normalized(artist ?? "")
+    func score(_ item: DiscoveryItem) -> Int {
+      let name = normalized(item.title)
+      let credited = normalized(item.subtitle)
+      let matchesArtist = !performer.isEmpty && (" " + credited + " ").contains(" " + performer + " ")
+      if !wanted.isEmpty && name == wanted { return 4 + (matchesArtist ? 2 : 0) }
+      // Siri may put the entire title-and-artist phrase in mediaName.
+      if !name.isEmpty && wanted.hasPrefix(name + " ") {
+        let suffix = String(wanted.dropFirst(name.count + 1))
+        let spokenArtist = suffix.hasPrefix("di ") ? String(suffix.dropFirst(3)) : suffix
+        if !spokenArtist.isEmpty && (" " + credited + " ").contains(" " + spokenArtist + " ") {
+          return 5
+        }
+      }
+      if !wanted.isEmpty && name.hasPrefix(wanted + " ") { return 2 + (matchesArtist ? 1 : 0) }
+      return matchesArtist ? 1 : 0
+    }
+    return candidates.enumerated().min {
+      let lhs = score($0.element), rhs = score($1.element)
+      return lhs == rhs ? $0.offset < $1.offset : lhs > rhs
+    }?.element
+  }
+
+  private static func normalized(_ value: String) -> String {
+    value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "it"))
+      .split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
+  }
+}
+
 public struct VoiceMediaIdentifier: Equatable, Sendable {
   public let kind: DiscoveryItem.Kind
   public let mediaID: String
